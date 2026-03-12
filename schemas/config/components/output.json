@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/config/components/output.json",
+  "type": "object",
+  "description": "Configuration for simulation output files and output filtering options.",
+  "properties": {
+    "comorbidities": {
+      "type": "integer",
+      "description": "Output setting controlling comorbidity reporting."
+    },
+    "folder": {
+      "type": "string",
+      "description": "Output folder path."
+    },
+    "file_name": {
+      "type": "string",
+      "description": "Base name of the output file."
+    },
+    "individual_id_tracking": {
+      "type": "object",
+      "description": "Configuration for per-person output used to track the same individual across baseline and intervention scenarios.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether individual ID tracking output is enabled."
+        },
+        "age_min": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "Minimum age filter for tracked individuals, or null for no lower bound."
+        },
+        "age_max": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "Maximum age filter for tracked individuals, or null for no upper bound."
+        },
+        "gender": {
+          "type": "string",
+          "enum": [
+            "male",
+            "female",
+            "all"
+          ],
+          "default": "all",
+          "description": "Gender filter for tracked individuals."
+        },
+        "regions": {
+          "type": "array",
+          "description": "Region filters for tracked individuals.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ethnicities": {
+          "type": "array",
+          "description": "Ethnicity filters for tracked individuals.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "risk_factors": {
+          "type": "array",
+          "description": "Risk factors to include in tracked individual output.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "years": {
+          "type": "array",
+          "description": "Years to include in tracked individual output.",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "scenarios": {
+          "type": "string",
+          "enum": [
+            "baseline",
+            "intervention",
+            "both"
+          ],
+          "default": "both",
+          "description": "Scenario selection for tracked individual output."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "folder",
+    "file_name"
+  ],
+  "additionalProperties": false
+}

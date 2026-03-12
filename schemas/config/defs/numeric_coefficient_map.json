@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/config/defs/numeric_coefficient_map.json",
+  "type": "object",
+  "description": "Mapping from coefficient names to numeric values.",
+  "additionalProperties": {
+    "type": "number"
+  }
+}

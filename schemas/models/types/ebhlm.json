@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/models/types/ebhlm.json",
+  "type": "object",
+  "description": "Configuration for the EBHLM dynamic model.",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional JSON Schema identifier."
+    },
+    "ModelName": {
+      "const": "EBHLM",
+      "description": "Model type identifier."
+    },
+    "Country": {
+      "type": "object",
+      "description": "Country metadata used by the model.",
+      "properties": {
+        "Code": {
+          "type": "integer",
+          "description": "Numeric country code."
+        },
+        "Name": {
+          "type": "string",
+          "description": "Country name."
+        },
+        "Alpha2": {
+          "type": "string",
+          "description": "Two-letter country code."
+        },
+        "Alpha3": {
+          "type": "string",
+          "description": "Three-letter country code."
+        }
+      },
+      "required": [
+        "Code",
+        "Name",
+        "Alpha2",
+        "Alpha3"
+      ],
+      "additionalProperties": false
+    },
+    "BoundaryPercentage": {
+      "type": "number",
+      "exclusiveMinimum": 0.0,
+      "exclusiveMaximum": 1.0,
+      "description": "Boundary percentage used by the model."
+    },
+    "Variables": {
+      "type": "array",
+      "description": "Variables used in the model equations.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "Name": {
+            "type": "string",
+            "description": "Variable name."
+          },
+          "Factor": {
+            "type": "string",
+            "description": "Factor associated with the variable."
+          }
+        },
+        "required": [
+          "Name",
+          "Factor"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "Equations": {
+      "type": "object",
+      "description": "Model equations indexed by age range and sex.",
+      "propertyNames": {
+        "pattern": "^[0-9]+\\-[0-9]+$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "Male": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "Name": {
+                  "type": "string"
+                },
+                "Coefficients": {
+                  "type": "object",
+                  "properties": {
+                    "Intercept": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "Intercept"
+                  ],
+                  "additionalProperties": {
+                    "type": "number"
+                  }
+                },
+                "ResidualsStandardDeviation": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "Name",
+                "Coefficients",
+                "ResidualsStandardDeviation"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "Female": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "Name": {
+                  "type": "string"
+                },
+                "Coefficients": {
+                  "type": "object",
+                  "properties": {
+                    "Intercept": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "Intercept"
+                  ],
+                  "additionalProperties": {
+                    "type": "number"
+                  }
+                },
+                "ResidualsStandardDeviation": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "Name",
+                "Coefficients",
+                "ResidualsStandardDeviation"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "ModelName",
+    "Country",
+    "BoundaryPercentage",
+    "Variables",
+    "Equations"
+  ],
+  "additionalProperties": false
+}

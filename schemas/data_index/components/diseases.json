@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/data_index/components/diseases.json",
+  "allOf": [
+    {
+      "$ref": "../../defs/dataset_metadata.json"
+    },
+    {
+      "type": "object",
+      "description": "Dataset index describing disease definitions and metadata.",
+      "properties": {
+        "format": {
+          "const": "csv"
+        },
+        "delimiter": {
+          "const": ","
+        },
+        "encoding": {
+          "const": "UTF8"
+        },
+        "age_limits": {
+          "$ref": "../../defs/age_range.json"
+        },
+        "time_year": {
+          "type": "integer",
+          "minimum": 1900,
+          "description": "Reference year for disease dataset."
+        },
+        "disease": {
+          "$ref": "./disease.json"
+        },
+        "population_impact_fraction": {
+          "$ref": "../../defs/disease_population_impact_fraction_file.json"
+        },
+        "registry": {
+          "type": "array",
+          "description": "Registry of diseases included in the dataset.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "group": {
+                "enum": [
+                  "other",
+                  "cancer"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "format",
+        "delimiter",
+        "encoding",
+        "path",
+        "age_limits",
+        "time_year",
+        "disease"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

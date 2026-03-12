@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/models/types/hlm.json",
+  "type": "object",
+  "description": "Configuration for the HLM static model.",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional JSON Schema identifier."
+    },
+    "ModelName": {
+      "const": "HLM",
+      "description": "Model type identifier."
+    },
+    "models": {
+      "type": "object",
+      "description": "Collection of fitted model definitions.",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "formula": {
+            "type": "string",
+            "description": "Model formula."
+          },
+          "coefficients": {
+            "type": "object",
+            "description": "Named coefficient estimates and statistics.",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number",
+                  "description": "Coefficient value."
+                },
+                "stdError": {
+                  "type": "number",
+                  "description": "Standard error of the coefficient."
+                },
+                "tValue": {
+                  "type": "number",
+                  "description": "t-statistic for the coefficient."
+                },
+                "pValue": {
+                  "type": "number",
+                  "description": "p-value for the coefficient."
+                }
+              },
+              "required": [
+                "value",
+                "stdError",
+                "tValue",
+                "pValue"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "residuals": {
+            "type": "array",
+            "description": "Residual values from the fitted model.",
+            "items": {
+              "type": "number"
+            }
+          },
+          "fittedValues": {
+            "type": "array",
+            "description": "Fitted values from the model.",
+            "items": {
+              "type": "number"
+            }
+          },
+          "residualsStandardDeviation": {
+            "type": "number",
+            "description": "Residual standard deviation."
+          },
+          "rSquared": {
+            "type": "number",
+            "description": "Coefficient of determination."
+          }
+        },
+        "required": [
+          "formula",
+          "coefficients",
+          "residuals",
+          "fittedValues",
+          "residualsStandardDeviation",
+          "rSquared"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "levels": {
+      "type": "object",
+      "description": "Hierarchical level definitions for the model.",
+      "propertyNames": {
+        "pattern": "^[0-9]+$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "variables": {
+            "type": "array",
+            "description": "Variables included at this level.",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          },
+          "m": {
+            "$ref": "#/$defs/variable_matrix"
+          },
+          "w": {
+            "$ref": "#/$defs/variable_matrix"
+          },
+          "s": {
+            "$ref": "#/$defs/variable_matrix"
+          },
+          "correlation": {
+            "$ref": "#/$defs/variable_matrix"
+          },
+          "variances": {
+            "type": "array",
+            "description": "Variance values for this level.",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "required": [
+          "variables",
+          "m",
+          "w",
+          "s",
+          "correlation",
+          "variances"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "ModelName",
+    "models",
+    "levels"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "variable_matrix": {
+      "type": "object",
+      "description": "Matrix-like object with row and column counts and flattened numeric data.",
+      "properties": {
+        "rows": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of rows."
+        },
+        "cols": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of columns."
+        },
+        "data": {
+          "type": "array",
+          "description": "Flattened numeric matrix data.",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "rows",
+        "cols",
+        "data"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

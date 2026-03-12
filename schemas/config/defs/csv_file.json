@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/config/defs/csv_file.json",
+  "type": "object",
+  "description": "Definition of a CSV file and its column types.",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "CSV file name."
+    },
+    "format": {
+      "const": "csv",
+      "description": "File format."
+    },
+    "delimiter": {
+      "const": ",",
+      "description": "CSV field delimiter."
+    },
+    "encoding": {
+      "const": "ASCII",
+      "description": "CSV file encoding."
+    },
+    "columns": {
+      "type": "object",
+      "description": "Mapping from column names to column value types.",
+      "additionalProperties": {
+        "type": "string",
+        "enum": ["integer", "double"]
+      }
+    }
+  },
+  "required": [
+    "name",
+    "format",
+    "delimiter",
+    "encoding",
+    "columns"
+  ],
+  "additionalProperties": false
+}

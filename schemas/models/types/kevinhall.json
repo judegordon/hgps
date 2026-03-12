@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/models/types/kevinhall.json",
+  "type": "object",
+  "description": "Configuration for the KevinHall dynamic model.",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional JSON Schema identifier."
+    },
+    "ModelName": {
+      "const": "KevinHall",
+      "description": "Model type identifier."
+    },
+    "Nutrients": {
+      "type": "array",
+      "description": "Nutrient definitions used by the model.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "Name": {
+            "type": "string",
+            "description": "Nutrient name."
+          },
+          "Unit": {
+            "type": "string",
+            "description": "Measurement unit for the nutrient."
+          },
+          "Range": {
+            "type": "array",
+            "description": "Allowed nutrient range.",
+            "items": {
+              "type": "number",
+              "minimum": 0.0
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "Energy": {
+            "type": "number",
+            "minimum": 0.0,
+            "description": "Energy contribution of the nutrient."
+          }
+        },
+        "required": [
+          "Name",
+          "Unit",
+          "Range",
+          "Energy"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "Foods": {
+      "type": "array",
+      "description": "Food definitions and their nutrient compositions.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "Name": {
+            "type": "string",
+            "description": "Food name."
+          },
+          "Nutrients": {
+            "$ref": "../../../defs/numeric_coefficient_map.json"
+          },
+          "Price": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Food price, or null if unavailable."
+          },
+          "ExpectedTrend": {
+            "type": "number",
+            "description": "Expected trend applied to the food."
+          },
+          "TrendSteps": {
+            "type": "integer",
+            "description": "Number of steps used for the food trend."
+          },
+          "ExpectedIncomeTrend": {
+            "type": "number",
+            "description": "Expected income-linked trend applied to the food."
+          },
+          "IncomeTrendSteps": {
+            "type": "integer",
+            "description": "Number of steps used for the food income trend."
+          },
+          "IncomeDecayFactor": {
+            "type": "number",
+            "description": "Exponential decay factor used for the food income trend."
+          }
+        },
+        "required": [
+          "Name",
+          "Nutrients",
+          "Price"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "WeightQuantiles": {
+      "type": "object",
+      "description": "CSV files containing weight quantiles by sex.",
+      "properties": {
+        "Male": {
+          "$ref": "../../../defs/csv_file.json"
+        },
+        "Female": {
+          "$ref": "../../../defs/csv_file.json"
+        }
+      },
+      "required": [
+        "Male",
+        "Female"
+      ],
+      "additionalProperties": false
+    },
+    "EnergyPhysicalActivityQuantiles": {
+      "$ref": "../../../defs/csv_file.json"
+    },
+    "HeightStdDev": {
+      "type": "object",
+      "description": "Height standard deviation by sex.",
+      "properties": {
+        "Male": {
+          "type": "number"
+        },
+        "Female": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "Male",
+        "Female"
+      ],
+      "additionalProperties": false
+    },
+    "HeightSlope": {
+      "type": "object",
+      "description": "Height slope by sex.",
+      "properties": {
+        "Male": {
+          "type": "number"
+        },
+        "Female": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "Male",
+        "Female"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "ModelName",
+    "Nutrients",
+    "Foods",
+    "WeightQuantiles",
+    "EnergyPhysicalActivityQuantiles",
+    "HeightStdDev",
+    "HeightSlope"
+  ],
+  "additionalProperties": false
+}

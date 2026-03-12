@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/config/components/population_impact_fraction.json",
+  "type": "object",
+  "description": "Configuration for Population Impact Fraction analysis.",
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "description": "Whether Population Impact Fraction analysis is enabled."
+    },
+    "data_root_path": {
+      "type": "string",
+      "description": "Root path to Population Impact Fraction data files."
+    },
+    "risk_factor": {
+      "type": "string",
+      "description": "Risk factor name used for Population Impact Fraction data."
+    },
+    "scenario": {
+      "type": "string",
+      "enum": [
+        "Scenario1",
+        "Scenario2",
+        "Scenario3"
+      ],
+      "description": "Population Impact Fraction scenario used for the simulation."
+    }
+  },
+  "required": [
+    "enabled",
+    "data_root_path",
+    "risk_factor",
+    "scenario"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,36 @@
+# Site output (I'm unclear on the necessity of this)
+_site
+
+# Archives
+*.zip
+
+# CMake / build output
+build/
+out/
+cmake-build-*/
+CMakeUserPresets.json
+compile_commands.json
+
+# Common Visual Studio build output
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+
+# Package manager output
+vcpkg_installed/
+
+# IDE / editor files
+.vs/
+.idea/
+*.code-workspace
+*.swp
+
+# Python cache / virtual environments
+__pycache__/
+*.pyc
+.venv/
+
+# Results / profiling output
+results/
+vtune_results/

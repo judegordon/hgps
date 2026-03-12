@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/data_index/components/analysis.json",
+  "allOf": [
+    {
+      "$ref": "../../defs/dataset_metadata.json"
+    },
+    {
+      "type": "object",
+      "description": "Metadata and file references for analysis input data.",
+      "properties": {
+        "format": {
+          "const": "csv",
+          "description": "Analysis data file format."
+        },
+        "delimiter": {
+          "const": ",",
+          "description": "Delimiter used in analysis data files."
+        },
+        "encoding": {
+          "const": "UTF8",
+          "description": "Character encoding used in analysis data files."
+        },
+        "age_limits": {
+          "$ref": "../../defs/age_range.json"
+        },
+        "time_year": {
+          "type": "integer",
+          "minimum": 1900,
+          "description": "Reference year for the analysis data."
+        },
+        "disability_file_name": {
+          "type": "string",
+          "description": "File name for disability data."
+        },
+        "lms_file_name": {
+          "type": "string",
+          "description": "File name for LMS data."
+        },
+        "cost_of_disease": {
+          "type": "object",
+          "description": "Location of cost-of-disease input data.",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Directory path for cost-of-disease data."
+            },
+            "file_name": {
+              "type": "string",
+              "description": "File name for cost-of-disease data."
+            }
+          },
+          "required": [
+            "path",
+            "file_name"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "format",
+        "delimiter",
+        "encoding",
+        "path",
+        "age_limits",
+        "time_year",
+        "disability_file_name",
+        "lms_file_name",
+        "cost_of_disease"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

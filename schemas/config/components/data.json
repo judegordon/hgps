@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/config/components/data.json",
+  "type": "object",
+  "description": "Configuration for the simulation input data source.",
+  "properties": {
+    "source": {
+      "type": "string",
+      "description": "Location of the input dataset used by the simulation."
+    },
+    "checksum": {
+      "type": "string",
+      "description": "Optional checksum used to verify data integrity."
+    }
+  },
+  "required": [
+    "source"
+  ],
+  "additionalProperties": false
+}

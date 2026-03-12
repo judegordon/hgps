@@ -1,0 +1,96 @@
+#pragma once
+
+#include "HealthGPS.Core/api.h"
+#include "pif_data.h"
+
+#include <filesystem>
+#include <nlohmann/json.hpp>
+
+namespace hgps::input {
+
+using namespace hgps::core;
+
+class DataManager : public Datastore {
+  public:
+    DataManager() = delete;
+
+    explicit DataManager(std::filesystem::path data_path,
+                         VerboseMode verbosity = VerboseMode::none);
+
+    std::vector<Country> get_countries() const override;
+
+    Country get_country(const std::string &alpha) const override;
+
+    std::vector<PopulationItem> get_population(const Country &country) const;
+
+    std::vector<PopulationItem>
+    get_population(const Country &country,
+                   std::function<bool(unsigned int)> time_filter) const override;
+
+    std::vector<MortalityItem> get_mortality(const Country &country) const;
+
+    std::vector<MortalityItem>
+    get_mortality(const Country &country,
+                  std::function<bool(unsigned int)> time_filter) const override;
+
+    std::vector<DiseaseInfo> get_diseases() const override;
+
+    DiseaseInfo get_disease_info(const core::Identifier &code) const override;
+
+    DiseaseEntity get_disease(const DiseaseInfo &info, const Country &country) const override;
+
+    std::optional<RelativeRiskEntity>
+    get_relative_risk_to_disease(const DiseaseInfo &source,
+                                 const DiseaseInfo &target) const override;
+
+    std::optional<RelativeRiskEntity>
+    get_relative_risk_to_risk_factor(const DiseaseInfo &source, Gender gender,
+                                     const core::Identifier &risk_factor_key) const override;
+
+    CancerParameterEntity get_disease_parameter(const DiseaseInfo &info,
+                                                const Country &country) const override;
+
+    DiseaseAnalysisEntity get_disease_analysis(const Country &country) const override;
+
+    std::vector<BirthItem> get_birth_indicators(const Country &country) const;
+
+    std::vector<BirthItem>
+    get_birth_indicators(const Country &country,
+                         std::function<bool(unsigned int)> time_filter) const override;
+
+    std::vector<LmsDataRow> get_lms_parameters() const override;
+
+    std::optional<PIFData> get_pif_data(const DiseaseInfo &disease_info, const Country &country,
+                                        const nlohmann::json &pif_config) const;
+
+    const std::filesystem::path &get_root_path() const noexcept { return root_; }
+
+  private:
+    std::filesystem::path root_;
+    VerboseMode verbosity_;
+    nlohmann::json index_;
+
+    std::map<int, std::map<Gender, double>>
+    load_cost_of_diseases(const Country &country, const nlohmann::json &node,
+                          const std::filesystem::path &parent_path) const;
+
+    std::vector<LifeExpectancyItem> load_life_expectancy(const Country &country) const;
+
+    static std::string replace_string_tokens(const std::string &source,
+                                             const std::vector<std::string> &tokens);
+
+    static std::map<std::string, std::size_t>
+    create_fields_index_mapping(const std::vector<std::string> &column_names,
+                                const std::vector<std::string> &fields);
+
+    void notify_warning(std::string_view message) const;
+
+    PIFTable load_pif_from_csv(const std::filesystem::path &filepath) const;
+
+    std::filesystem::path construct_pif_path(const std::string &disease_code,
+                                             const nlohmann::json &pif_config) const;
+
+    std::string expand_environment_variables(const std::string &path) const;
+};
+
+} // namespace hgps::input

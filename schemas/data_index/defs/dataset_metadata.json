@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/data_index/defs/dataset_metadata.json",
+  "type": "object",
+  "description": "Common metadata describing a dataset used by the HealthGPS data index.",
+  "properties": {
+    "format": {
+      "type": "string",
+      "description": "Data file format."
+    },
+    "delimiter": {
+      "type": "string",
+      "description": "Delimiter used in the dataset file."
+    },
+    "encoding": {
+      "type": "string",
+      "description": "Character encoding of the dataset."
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of the dataset."
+    },
+    "source": {
+      "type": "string",
+      "description": "Data source or originating organisation."
+    },
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "description": "URL where the dataset originates or can be downloaded."
+    },
+    "license": {
+      "type": "string",
+      "description": "License governing the dataset."
+    },
+    "path": {
+      "type": "string",
+      "description": "Directory path where the dataset is stored."
+    }
+  },
+  "additionalProperties": false
+}

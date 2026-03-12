@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/config/components/interventions.json",
+  "type": "object",
+  "description": "Configuration for intervention types, their active periods, impacts, and adjustment settings.",
+  "properties": {
+    "active_type_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Identifier of the currently active intervention type, or null if no intervention type is active."
+    },
+    "types": {
+      "type": "object",
+      "description": "Mapping from intervention type identifiers to intervention definitions.",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "active_period": {
+            "type": "object",
+            "description": "Period during which the intervention is active.",
+            "properties": {
+              "start_time": {
+                "type": "integer",
+                "description": "Time when the intervention starts."
+              },
+              "finish_time": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Time when the intervention ends, or null if it has no fixed end time."
+              }
+            },
+            "required": [
+              "start_time",
+              "finish_time"
+            ],
+            "additionalProperties": false
+          },
+          "impacts": {
+            "type": "array",
+            "description": "List of intervention impacts."
+          },
+          "impact_type": {
+            "type": "string",
+            "description": "Type of impact model used by the intervention."
+          },
+          "dynamics": {
+            "type": "array",
+            "description": "Dynamic parameters for the intervention.",
+            "items": {
+              "type": "number"
+            }
+          },
+          "coefficients": {
+            "type": "array",
+            "description": "Numeric coefficients used by the intervention.",
+            "items": {
+              "type": "number"
+            }
+          },
+          "coverage_rates": {
+            "type": "array",
+            "description": "Coverage rates applied over time.",
+            "items": {
+              "type": "number"
+            }
+          },
+          "coverage_cutoff_time": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Time after which coverage rates no longer apply."
+          },
+          "child_cutoff_age": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Maximum child age to which the intervention applies."
+          },
+          "adjustments": {
+            "type": "array",
+            "description": "Risk factor adjustments applied by the intervention.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "risk_factor": {
+                  "type": "string",
+                  "description": "Risk factor affected by the adjustment."
+                },
+                "value": {
+                  "type": "number",
+                  "description": "Adjustment value applied to the risk factor."
+                }
+              },
+              "required": [
+                "risk_factor",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "active_period",
+          "impacts"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "active_type_id",
+    "types"
+  ],
+  "additionalProperties": false
+}

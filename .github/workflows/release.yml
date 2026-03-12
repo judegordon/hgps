@@ -1,0 +1,22 @@
+name: Release
+run-name: Publishing release ${{ github.ref_name }}
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  sha256:
+    name: sha256
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release tarball
+        run: curl -sL -O "${{ github.server_url }}/${{ github.repository }}/archive/refs/tags/${{ github.ref_name }}.tar.gz"
+
+      - name: Create tarball sha256
+        run: sha256sum "${{ github.ref_name }}.tar.gz" > sha256sum.txt
+
+      - name: Upload sha256sum file
+        uses: softprops/action-gh-release@v2
+        with:
+          files: sha256sum.txt

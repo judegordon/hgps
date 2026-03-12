@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/data_index/components/country.json",
+  "allOf": [
+    {
+      "$ref": "../../defs/dataset_metadata.json"
+    },
+    {
+      "type": "object",
+      "description": "Metadata and file reference for country-level dataset.",
+      "properties": {
+        "format": {
+          "const": "csv",
+          "description": "Country dataset file format."
+        },
+        "delimiter": {
+          "const": ",",
+          "description": "Delimiter used in the country dataset."
+        },
+        "encoding": {
+          "const": "UTF8",
+          "description": "Character encoding used in the country dataset."
+        },
+        "file_name": {
+          "type": "string",
+          "description": "Name of the country dataset file."
+        }
+      },
+      "required": [
+        "format",
+        "delimiter",
+        "encoding",
+        "path",
+        "file_name"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

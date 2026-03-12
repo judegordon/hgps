@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/config/components/inputs.json",
+  "type": "object",
+  "description": "Configuration for simulation input data and input selection settings.",
+  "properties": {
+    "dataset": {
+      "$ref": "../defs/csv_file.json"
+    },
+    "settings": {
+      "type": "object",
+      "description": "Settings controlling how the input dataset is interpreted or filtered.",
+      "properties": {
+        "country_code": {
+          "type": "string",
+          "description": "Country code used for the input dataset."
+        },
+        "size_fraction": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Fraction of the dataset to use."
+        },
+        "age_range": {
+          "$ref": "../defs/age_range.json"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "dataset"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,24 @@
+{
+    "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+    "name": "healthgps",
+    "version": "2.0.0",
+    "dependencies": [
+        {
+            "name": "fmt",
+            "version>=": "10.2.1"
+        },
+        "cxxopts",
+        "eigen3",
+        "nlohmann-json",
+        "jsoncons",
+        "rapidcsv",
+        "crossguid",
+        "gtest",
+        "tbb",
+        "libzippp",
+        "openssl",
+        "platform-folders",
+        "curlpp"
+    ],
+    "builtin-baseline": "bd2b54836beed96e1efbe9aaf8ee800f5448856d"
+}

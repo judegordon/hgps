@@ -1,0 +1,23 @@
+#pragma once
+
+#include <fmt/format.h>
+#include <string>
+
+namespace hgps {
+struct ExperimentInfo {
+    std::string model;
+
+    std::string version;
+
+    std::string intervention;
+
+    int job_id{};
+
+    unsigned int seed{};
+
+    std::string to_string() const noexcept {
+        return fmt::format("{} v{} - {} job_id: {} seed: {}", model, version, intervention, job_id,
+                           seed);
+    }
+};
+} // namespace hgps

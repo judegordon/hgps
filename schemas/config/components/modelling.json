@@ -1,0 +1,272 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/config/components/modelling.json",
+  "type": "object",
+  "description": "Configuration for simulation modelling, including demographic models, risk factors, baseline adjustments, and policy timing.",
+  "properties": {
+    "ses_model": {
+      "type": "object",
+      "description": "Socio-economic status model configuration.",
+      "properties": {
+        "function_name": {
+          "type": "string",
+          "description": "Name of the SES model function."
+        },
+        "function_parameters": {
+          "type": "array",
+          "description": "Numeric parameters passed to the SES model function.",
+          "items": {
+            "type": "number"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "policy_start_year": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Optional. Calendar year when intervention policies start. If omitted, the default policy start logic is used."
+    },
+    "demographic_models": {
+      "type": "object",
+      "description": "Configuration for demographic submodels.",
+      "properties": {
+        "region": {
+          "type": "object",
+          "description": "Region model configuration.",
+          "properties": {
+            "probabilities": {
+              "type": "object",
+              "properties": {
+                "coefficients": {
+                  "type": "object",
+                  "properties": {
+                    "age": {
+                      "type": "number"
+                    },
+                    "gender": {
+                      "$ref": "../../defs/sex_coefficients.json"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
+            "coefficients": {
+              "$ref": "../../defs/numeric_coefficient_map.json"
+            }
+          },
+          "additionalProperties": false
+        },
+        "ethnicity": {
+          "type": "object",
+          "description": "Ethnicity model configuration.",
+          "properties": {
+            "probabilities": {
+              "type": "object",
+              "properties": {
+                "coefficients": {
+                  "type": "object",
+                  "properties": {
+                    "age": {
+                      "type": "number"
+                    },
+                    "gender": {
+                      "$ref": "../../defs/sex_coefficients.json"
+                    },
+                    "region": {
+                      "$ref": "../../defs/numeric_coefficient_map.json"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
+            "coefficients": {
+              "$ref": "../../defs/numeric_coefficient_map.json"
+            }
+          },
+          "additionalProperties": false
+        },
+        "income": {
+          "type": "object",
+          "description": "Income model configuration.",
+          "properties": {
+            "continuous": {
+              "type": "object",
+              "properties": {
+                "coefficients": {
+                  "$ref": "../../defs/numeric_coefficient_map.json"
+                },
+                "standard_deviation": {
+                  "type": "number"
+                },
+                "update_frequency": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "additionalProperties": false
+            },
+            "categories": {
+              "type": "object",
+              "properties": {
+                "method": {
+                  "type": "string",
+                  "description": "Method used to derive categorical income groups."
+                },
+                "update_frequency": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "physical_activity": {
+          "type": "object",
+          "description": "Physical activity model configuration.",
+          "properties": {
+            "coefficients": {
+              "type": "object",
+              "properties": {
+                "age": {
+                  "type": "number"
+                },
+                "gender": {
+                  "$ref": "../../defs/sex_coefficients.json"
+                }
+              },
+              "additionalProperties": false
+            },
+            "standard_deviation": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "risk_factors": {
+      "type": "array",
+      "description": "Risk factor definitions used in the model.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Risk factor name."
+          },
+          "level": {
+            "type": "integer",
+            "description": "Risk factor level."
+          },
+          "range": {
+            "type": "array",
+            "description": "Numeric range for the risk factor.",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          }
+        },
+        "required": [
+          "name",
+          "level",
+          "range"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "risk_factor_models": {
+      "type": "object",
+      "description": "Names of model types used for static and dynamic risk factor modelling.",
+      "properties": {
+        "static": {
+          "type": "string"
+        },
+        "dynamic": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "static",
+        "dynamic"
+      ],
+      "additionalProperties": false
+    },
+    "baseline_adjustments": {
+      "type": "object",
+      "description": "Baseline adjustment data configuration.",
+      "properties": {
+        "format": {
+          "const": "csv",
+          "description": "Baseline adjustment file format."
+        },
+        "delimiter": {
+          "type": "string",
+          "description": "Field delimiter used in baseline adjustment files."
+        },
+        "encoding": {
+          "type": "string",
+          "description": "Encoding used in baseline adjustment files."
+        },
+        "file_names": {
+          "type": "object",
+          "properties": {
+            "factorsmean_male": {
+              "type": "string"
+            },
+            "factorsmean_female": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "factorsmean_male",
+            "factorsmean_female"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "format",
+        "file_names"
+      ],
+      "additionalProperties": false
+    },
+    "pif_settings": {
+      "type": "object",
+      "description": "Population Impact Fraction modelling settings.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether Population Impact Fraction calculations are enabled."
+        },
+        "intervention_start_year": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Calendar year when the intervention starts for PIF calculations."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the intervention scenario."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "ses_model",
+    "risk_factors",
+    "risk_factor_models",
+    "baseline_adjustments"
+  ],
+  "additionalProperties": false
+}

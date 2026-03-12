@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/data_index/data_index.json",
+  "title": "Index file for input data",
+  "description": "Metadata and paths for HealthGPS input files.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional JSON Schema identifier."
+    },
+    "country": {
+      "$ref": "../components/data_index/country.json"
+    },
+    "demographic": {
+      "$ref": "../components/data_index/demographic.json"
+    },
+    "diseases": {
+      "$ref": "../components/data_index/diseases.json"
+    },
+    "analysis": {
+      "$ref": "../components/data_index/analysis.json"
+    }
+  },
+  "required": [
+    "country",
+    "demographic",
+    "diseases",
+    "analysis"
+  ],
+  "additionalProperties": false
+}

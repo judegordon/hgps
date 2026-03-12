@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/config/components/running.json",
+  "type": "object",
+  "description": "Configuration for simulation execution, including timing, trials, diseases, interventions, and random seed settings.",
+  "properties": {
+    "seed": {
+      "type": "integer",
+      "description": "Optional random seed used to initialise the simulation."
+    },
+    "start_time": {
+      "type": "integer",
+      "description": "Simulation start time."
+    },
+    "stop_time": {
+      "type": "integer",
+      "description": "Simulation stop time."
+    },
+    "trial_runs": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of trial runs to execute."
+    },
+    "sync_timeout_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Timeout in milliseconds used for synchronisation."
+    },
+    "diseases": {
+      "type": "array",
+      "description": "Diseases included in the simulation run.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "interventions": {
+      "$ref": "interventions.json"
+    }
+  },
+  "required": [
+    "start_time",
+    "stop_time",
+    "trial_runs",
+    "diseases",
+    "interventions"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/data_index/defs/demographic_file_info.json",
+  "type": "object",
+  "description": "Reference to a demographic dataset file including its description and location.",
+  "properties": {
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of the dataset."
+    },
+    "path": {
+      "type": "string",
+      "description": "Directory path where the dataset file is stored."
+    },
+    "file_name": {
+      "type": "string",
+      "description": "Name of the dataset file."
+    }
+  },
+  "required": [
+    "description",
+    "path",
+    "file_name"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/config/defs/age_range.json",
+  "type": "array",
+  "description": "Inclusive age range expressed as [minimum_age, maximum_age].",
+  "prefixItems": [
+    {
+      "type": "integer",
+      "minimum": 0
+    },
+    {
+      "type": "integer",
+      "minimum": 0
+    }
+  ],
+  "minItems": 2,
+  "maxItems": 2,
+  "items": false
+}

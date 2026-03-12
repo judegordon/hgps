@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/config/components/project_requirements.json",
+  "type": "object",
+  "description": "Project requirements for demographics, income, physical activity, risk factors, trend, and two-stage modelling.",
+  "properties": {
+    "demographics": {
+      "type": "object",
+      "description": "Demographic dimensions used by the project.",
+      "properties": {
+        "age": {
+          "type": "boolean",
+          "description": "Whether age is used."
+        },
+        "gender": {
+          "type": "boolean",
+          "description": "Whether gender is used."
+        },
+        "region": {
+          "type": "boolean",
+          "description": "Whether region is used."
+        },
+        "ethnicity": {
+          "type": "boolean",
+          "description": "Whether ethnicity is used."
+        },
+        "max_age_for_linear_models": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Optional. If provided, cap age to this value when computing linear model terms such as age, age2, and age3. If omitted, age is not capped."
+        }
+      },
+      "required": [
+        "age",
+        "gender",
+        "region",
+        "ethnicity"
+      ],
+      "additionalProperties": false
+    },
+    "income": {
+      "type": "object",
+      "description": "Income assignment and adjustment settings.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether income is used in the model."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "continuous",
+            "categorical"
+          ],
+          "description": "Income modelling approach."
+        },
+        "categories": {
+          "type": "integer",
+          "enum": [
+            3,
+            4
+          ],
+          "description": "Number of income categories to use. 3 = low, middle, high. 4 = low, lowermiddle, uppermiddle, high."
+        },
+        "adjust_to_factors_mean": {
+          "type": "boolean",
+          "description": "Whether income is included in baseline factors-mean adjustment."
+        },
+        "trended": {
+          "type": "boolean",
+          "description": "Whether income is included in trended adjustment."
+        },
+        "income_based_csv_output": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to write income-based CSV outputs."
+        }
+      },
+      "required": [
+        "enabled",
+        "type",
+        "categories",
+        "adjust_to_factors_mean",
+        "trended"
+      ],
+      "additionalProperties": false
+    },
+    "physical_activity": {
+      "type": "object",
+      "description": "Physical activity assignment and adjustment settings.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether physical activity is used."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "simple",
+            "continuous"
+          ],
+          "description": "Physical activity modelling approach."
+        },
+        "adjust_to_factors_mean": {
+          "type": "boolean",
+          "description": "Whether physical activity is included in baseline factors-mean adjustment."
+        },
+        "trended": {
+          "type": "boolean",
+          "description": "Whether physical activity is included in trended adjustment."
+        }
+      },
+      "required": [
+        "enabled",
+        "type",
+        "adjust_to_factors_mean",
+        "trended"
+      ],
+      "additionalProperties": false
+    },
+    "risk_factors": {
+      "type": "object",
+      "description": "Risk factor adjustment settings.",
+      "properties": {
+        "adjust_to_factors_mean": {
+          "type": "boolean",
+          "description": "Whether risk factors are included in baseline factors-mean adjustment."
+        },
+        "trended": {
+          "type": "boolean",
+          "description": "Whether risk factors are included in trended adjustment."
+        }
+      },
+      "required": [
+        "adjust_to_factors_mean",
+        "trended"
+      ],
+      "additionalProperties": false
+    },
+    "trend": {
+      "type": "object",
+      "description": "Time trend settings for expected values.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether any trend is used."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "none",
+            "upf",
+            "income"
+          ],
+          "description": "Trend type."
+        }
+      },
+      "required": [
+        "enabled",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "two_stage": {
+      "type": "object",
+      "description": "Two-stage modelling settings.",
+      "properties": {
+        "use_logistic": {
+          "type": "boolean",
+          "description": "Whether logistic regression is used for stage 1."
+        },
+        "logistic_file": {
+          "type": "string",
+          "description": "Optional logistic regression CSV file name."
+        }
+      },
+      "required": [
+        "use_logistic"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "demographics",
+    "income",
+    "physical_activity",
+    "risk_factors",
+    "trend",
+    "two_stage"
+  ],
+  "additionalProperties": false
+}

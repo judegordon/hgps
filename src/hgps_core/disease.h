@@ -1,0 +1,70 @@
+#pragma once
+
+#include <map>
+#include <string>
+#include <vector>
+
+#include "country.h"
+#include "forward_type.h"
+#include "identifier.h"
+
+namespace hgps::core {
+
+struct DiseaseInfo {
+    DiseaseGroup group{};
+
+    Identifier code{};
+
+    std::string name{};
+};
+
+inline bool operator<(const DiseaseInfo &lhs, const DiseaseInfo &rhs) {
+    return lhs.name < rhs.name;
+}
+
+inline bool operator>(const DiseaseInfo &lhs, const DiseaseInfo &rhs) {
+    return lhs.name > rhs.name;
+}
+
+struct DiseaseItem {
+    int with_age;
+
+    Gender gender;
+
+    std::map<int, double> measures;
+};
+
+struct DiseaseEntity {
+    Country country;
+
+    DiseaseInfo info;
+
+    std::map<std::string, int> measures;
+
+    std::vector<DiseaseItem> items;
+
+    bool empty() const noexcept { return measures.empty() || items.empty(); }
+};
+
+struct RelativeRiskEntity {
+    std::vector<std::string> columns;
+
+    std::vector<std::vector<float>> rows;
+
+    bool empty() const noexcept { return rows.empty(); }
+};
+
+struct CancerParameterEntity {
+    int at_time{};
+
+    std::vector<LookupGenderValue> death_weight{};
+
+    std::vector<LookupGenderValue> prevalence_distribution{};
+
+    std::vector<LookupGenderValue> survival_rate{};
+
+    bool empty() const noexcept {
+        return death_weight.empty() || prevalence_distribution.empty() || survival_rate.empty();
+    }
+};
+} // namespace hgps::core

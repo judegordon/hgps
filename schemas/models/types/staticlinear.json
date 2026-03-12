@@ -1,0 +1,269 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/models/types/staticlinear.json",
+  "type": "object",
+  "description": "Configuration for the StaticLinear model using CSV-based model inputs.",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional JSON Schema identifier."
+    },
+    "ModelName": {
+      "const": "StaticLinear",
+      "description": "Model type identifier."
+    },
+    "InformationSpeed": {
+      "type": "number",
+      "description": "Information speed parameter."
+    },
+    "PhysicalActivityStdDev": {
+      "type": "number",
+      "description": "Standard deviation for simple physical activity modelling."
+    },
+    "RuralPrevalence": {
+      "type": "array",
+      "description": "Rural prevalence values by named group.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "Name": {
+            "type": "string"
+          },
+          "Female": {
+            "type": "number"
+          },
+          "Male": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "Name",
+          "Female",
+          "Male"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "RegionFile": {
+      "$ref": "../../defs/csv_file.json",
+      "description": "CSV file containing region assignment probabilities by age and gender."
+    },
+    "EthnicityFile": {
+      "$ref": "../../defs/csv_file.json",
+      "description": "CSV file containing ethnicity assignment probabilities by age group, gender, and region."
+    },
+    "IncomeModels": {
+      "type": "object",
+      "description": "CSV-based income model definitions.",
+      "properties": {
+        "continuous": {
+          "type": "object",
+          "description": "CSV-based continuous income model.",
+          "properties": {
+            "csv_file": {
+              "type": "string",
+              "description": "CSV file containing income model coefficients."
+            },
+            "format": {
+              "const": "csv"
+            },
+            "delimiter": {
+              "const": ","
+            },
+            "encoding": {
+              "const": "ASCII"
+            },
+            "columns": {
+              "type": "object",
+              "description": "Column definitions for the income model CSV.",
+              "properties": {
+                "Factor": {
+                  "type": "string",
+                  "description": "Column name containing factor names."
+                },
+                "Coefficient": {
+                  "type": "string",
+                  "description": "Column name containing coefficient values."
+                }
+              },
+              "required": [
+                "Factor",
+                "Coefficient"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "csv_file"
+          ],
+          "additionalProperties": false
+        },
+        "simple": {
+          "type": "object",
+          "description": "Simple income category model.",
+          "properties": {
+            "csv_file": {
+              "type": "string",
+              "description": "CSV file containing simple income model coefficients."
+            },
+            "format": {
+              "const": "csv"
+            },
+            "delimiter": {
+              "const": ","
+            },
+            "encoding": {
+              "const": "ASCII"
+            },
+            "columns": {
+              "type": "object",
+              "description": "Column definitions for the simple income model CSV.",
+              "properties": {
+                "Factor": {
+                  "type": "string"
+                },
+                "Coefficient": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "Factor",
+                "Coefficient"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "csv_file"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "PhysicalActivityModels": {
+      "type": "object",
+      "description": "Physical activity model definitions.",
+      "propertyNames": {
+        "enum": [
+          "simple",
+          "continuous"
+        ]
+      },
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Simple physical activity model using standard deviation only.",
+            "properties": {
+              "PhysicalActivityStdDev": {
+                "type": "number",
+                "description": "Standard deviation for physical activity calculation."
+              }
+            },
+            "required": [
+              "PhysicalActivityStdDev"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "Continuous physical activity model using CSV coefficients.",
+            "properties": {
+              "csv_file": {
+                "type": "string",
+                "description": "CSV file containing physical activity model coefficients."
+              },
+              "format": {
+                "const": "csv"
+              },
+              "delimiter": {
+                "const": ","
+              },
+              "encoding": {
+                "const": "ASCII"
+              },
+              "columns": {
+                "type": "object",
+                "description": "Column definitions for the physical activity model CSV.",
+                "properties": {
+                  "Factor": {
+                    "type": "string",
+                    "description": "Column name containing factor names."
+                  },
+                  "Coefficient": {
+                    "type": "string",
+                    "description": "Column name containing coefficient values."
+                  }
+                },
+                "required": [
+                  "Factor",
+                  "Coefficient"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "csv_file"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "RiskFactorModels": {
+      "type": "object",
+      "description": "CSV-based risk factor coefficient files.",
+      "properties": {
+        "boxcox_coefficients": {
+          "$ref": "../../defs/csv_file.json"
+        },
+        "policy_coefficients": {
+          "$ref": "../../defs/csv_file.json"
+        },
+        "trend_coefficients": {
+          "$ref": "../../defs/csv_file.json"
+        },
+        "logistic_regression": {
+          "$ref": "../../defs/csv_file.json"
+        }
+      },
+      "required": [
+        "boxcox_coefficients"
+      ],
+      "additionalProperties": false
+    },
+    "RiskFactorCorrelationFile": {
+      "$ref": "../../defs/csv_file.json",
+      "description": "CSV file containing correlations between risk factors."
+    },
+    "PolicyCovarianceFile": {
+      "$ref": "../../defs/csv_file.json",
+      "description": "CSV file containing policy covariance values."
+    }
+  },
+  "required": [
+    "ModelName",
+    "InformationSpeed",
+    "RiskFactorModels",
+    "RiskFactorCorrelationFile",
+    "PolicyCovarianceFile"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "not": {
+          "required": [
+            "PhysicalActivityModels"
+          ]
+        }
+      },
+      "then": {
+        "required": [
+          "PhysicalActivityStdDev"
+        ]
+      }
+    }
+  ],
+  "additionalProperties": false
+}

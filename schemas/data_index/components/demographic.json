@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/data_index/components/demographic.json",
+  "allOf": [
+    {
+      "$ref": "../../defs/dataset_metadata.json"
+    },
+    {
+      "type": "object",
+      "description": "Metadata and file references for demographic input data.",
+      "properties": {
+        "format": {
+          "const": "csv",
+          "description": "Demographic dataset file format."
+        },
+        "delimiter": {
+          "const": ",",
+          "description": "Delimiter used in the demographic dataset."
+        },
+        "encoding": {
+          "const": "UTF8",
+          "description": "Character encoding used in the demographic dataset."
+        },
+        "age_limits": {
+          "$ref": "../../defs/age_range.json"
+        },
+        "time_limits": {
+          "type": "array",
+          "description": "Inclusive time range for the demographic dataset, expressed as [start_year, end_year].",
+          "prefixItems": [
+            {
+              "type": "integer",
+              "minimum": 1900
+            },
+            {
+              "type": "integer",
+              "minimum": 1900
+            }
+          ],
+          "minItems": 2,
+          "maxItems": 2,
+          "items": false
+        },
+        "projections": {
+          "type": "integer",
+          "description": "Projection setting or projection count for the demographic dataset."
+        },
+        "population": {
+          "$ref": "../../defs/demographic_file_info.json"
+        },
+        "mortality": {
+          "$ref": "../../defs/demographic_file_info.json"
+        },
+        "indicators": {
+          "$ref": "../../defs/demographic_file_info.json"
+        }
+      },
+      "required": [
+        "format",
+        "delimiter",
+        "encoding",
+        "path",
+        "age_limits",
+        "time_limits",
+        "projections",
+        "population",
+        "mortality",
+        "indicators"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}
