@@ -1,10 +1,3 @@
-/**
- * @file
- * @brief Main header file for functionality related to loading config files
- *
- * This file contains definitions for the main functions required to load JSON-formatted
- * configuration files from disk.
- */
 #pragma once
 
 #include "data_source.h"

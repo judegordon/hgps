@@ -5,11 +5,6 @@
 #include <vector>
 
 namespace hgps::input {
-/*
- * POCO data types for models's JSON file parsing
- *
- * 1. Full hierarchical linear models definition
- */
 
 struct CoefficientInfo {
     double value{};
@@ -45,9 +40,6 @@ struct HierarchicalModelInfo {
     std::unordered_map<std::string, HierarchicalLevelInfo> levels;
 };
 
-/*
- * 2. Lite hierarchical linear models (Energy Balance) definition
- */
 
 struct VariableInfo {
     std::string name;

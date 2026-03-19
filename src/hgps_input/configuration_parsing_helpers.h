@@ -11,7 +11,7 @@
 namespace hgps::input {
 nlohmann::json get(const nlohmann::json &j, const std::string &key);
 
-template <class T> bool get_to(const nlohmann::json &j, const std::string &key, T &out) noexcept {
+template <typename T> bool get_to(const nlohmann::json &j, const std::string &key, T &out) noexcept {
     try {
         out = j.at(key).get<T>();
         return true;
@@ -24,7 +24,7 @@ template <class T> bool get_to(const nlohmann::json &j, const std::string &key, 
     }
 }
 
-template <class T>
+template <typename T>
 bool get_to(const nlohmann::json &j, const std::string &key, T &out, bool &success) noexcept {
     const bool ret = get_to(j, key, out);
     if (!ret) {

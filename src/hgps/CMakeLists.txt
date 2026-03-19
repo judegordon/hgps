@@ -4,7 +4,6 @@ find_package(OpenSSL CONFIG REQUIRED)
 find_package(platform_folders CONFIG REQUIRED)
 
 add_library(HealthGPS STATIC "")
-target_compile_features(HealthGPS PUBLIC cxx_std_${CMAKE_CXX_STANDARD})
 
 configure_file("version.h.in" "version.h" ESCAPE_QUOTES)
 
@@ -143,5 +142,3 @@ target_sources(
 target_link_libraries(HealthGPS PRIVATE HealthGPS.Core fmt::fmt crossguid OpenSSL::Crypto
                                         sago::platform_folders)
 target_include_directories(HealthGPS PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-
-set(ROOT_NAMESPACE hgps)

@@ -1,5 +1,5 @@
 #pragma once
-#include "HealthGPS.Core/interval.h"
+#include "hgps_core/interval.h"
 
 #include <filesystem>
 #include <map>

@@ -4,7 +4,7 @@ find_package(TBB CONFIG REQUIRED)
 find_path(RAPIDCSV_INCLUDE_DIRS "rapidcsv.h")
 find_package(Threads REQUIRED)
 
-add_executable(HealthGPS.Console "program.cpp")
+add_executable(hgps_console "program.cpp")
 add_library(
     HealthGPS.LibConsole STATIC
     "command_options.cpp"
@@ -32,8 +32,8 @@ target_include_directories(HealthGPS.LibConsole PUBLIC ${CMAKE_CURRENT_BINARY_DI
 
 target_link_libraries(
     HealthGPS.Console
-    PRIVATE HealthGPS.Core
-            HealthGPS.Input
+    PRIVATE hgps_core
+            hgps_input
             HealthGPS.LibConsole
             HealthGPS
             fmt::fmt
@@ -76,5 +76,3 @@ if(WIN32)
 endif()
 
 install(DIRECTORY ../../schemas DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
-
-set(ROOT_NAMESPACE hgps)
