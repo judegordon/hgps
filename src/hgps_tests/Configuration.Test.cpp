@@ -1,8 +1,10 @@
 #include "pch.h"
 
-#include "hgps_input/configuration_parsing.h"
-#include "hgps_input/configuration_parsing_helpers.h"
-#include "hgps_input/jsonparser.h"
+#include "hgps_input/config_parsing.h"
+#include "hgps_input/config_path_parsing.h"
+#include "hgps_input/config_section_parsing.h"
+#include "hgps_input/json_access.h"
+#include "hgps_input/json_parser.h"
 
 #include <fstream>
 #include <random>
