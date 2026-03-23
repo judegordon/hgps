@@ -19,8 +19,8 @@ target_sources(
         config_section_parsing.cpp
         config_section_parsing.h
 
-        csvparser.cpp
-        csvparser.h
+        csv_parser.cpp
+        csv_parser.h
 
         data_manager.cpp
         data_manager.h

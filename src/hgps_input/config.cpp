@@ -1,6 +1,6 @@
 #include "config.h"
 #include "config_parsing.h"
-#include "jsonparser.h"
+#include "json_parser.h"
 #include "schema.h"
 #include "validated_data_source.h"
 #include "version.h"
