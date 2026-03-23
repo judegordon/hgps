@@ -1,6 +1,6 @@
 #pragma once
 
-#include "HealthGPS/individual_tracking_message.h"
+#include "hgps/individual_tracking_message.h"
 
 #include <filesystem>
 #include <fstream>

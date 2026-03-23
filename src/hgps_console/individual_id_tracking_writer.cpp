@@ -1,5 +1,3 @@
-// MAHIMA: Individual ID tracking CSV writer – allows users to verify same person (by id)
-// across baseline and intervention in the _IndividualIDTracking.csv file.
 #include "individual_id_tracking_writer.h"
 
 #include <algorithm>

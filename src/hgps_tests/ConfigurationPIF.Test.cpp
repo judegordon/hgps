@@ -1,4 +1,4 @@
-#include "hgps_input/configuration.h"
+#include "hgps_input/config.h"
 #include "hgps_input/poco.h"
 #include "pch.h"
 

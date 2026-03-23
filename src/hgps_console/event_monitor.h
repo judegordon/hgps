@@ -4,7 +4,7 @@
 #include <oneapi/tbb/concurrent_queue.h>
 #include <oneapi/tbb/task_group.h>
 
-#include "HealthGPS/event_aggregator.h"
+#include "hgps/event_aggregator.h"
 
 #include "individual_id_tracking_writer.h"
 #include "result_writer.h"
