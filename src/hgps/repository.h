@@ -1,6 +1,6 @@
 #pragma once
 
-#include "HealthGPS.Core/datastore.h"
+#include "hpgs_core/datastore.h"
 
 #include "disease_definition.h"
 #include "interfaces.h"

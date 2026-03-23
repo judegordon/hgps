@@ -1,19 +1,23 @@
-#include "jsonparser.h"
+#include "json_parser.h"
 
 namespace hgps::input {
+
 //--------------------------------------------------------
-// Risk Model JSON serialisation / de-serialisation
+// Core model mappings
 //--------------------------------------------------------
-// Data file information
+
 void to_json(json &j, const FileInfo &p) {
-    j = json{
-        {"name", p.name}, {"format", p.format}, {"delimiter", p.delimiter}, {"columns", p.columns}};
+    j = json{{"name", p.name},
+             {"format", p.format},
+             {"delimiter", p.delimiter},
+             {"columns", p.columns}};
 }
 
-// Linear models
 void to_json(json &j, const CoefficientInfo &p) {
-    j = json{
-        {"value", p.value}, {"stdError", p.std_error}, {"tValue", p.tvalue}, {"pValue", p.pvalue}};
+    j = json{{"value", p.value},
+             {"stdError", p.std_error},
+             {"tValue", p.tvalue},
+             {"pValue", p.pvalue}};
 }
 
 void from_json(const json &j, CoefficientInfo &p) {
@@ -37,7 +41,6 @@ void from_json(const json &j, LinearModelInfo &p) {
     j.at("rSquared").get_to(p.rsquared);
 }
 
-// Hierarchical levels
 void to_json(json &j, const Array2Info &p) {
     j = json{{"rows", p.rows}, {"cols", p.cols}, {"data", p.data}};
 }
@@ -49,9 +52,12 @@ void from_json(const json &j, Array2Info &p) {
 }
 
 void to_json(json &j, const HierarchicalLevelInfo &p) {
-    j = json{{"variables", p.variables},     {"m", p.transition},
-             {"w", p.inverse_transition},    {"s", p.residual_distribution},
-             {"correlation", p.correlation}, {"variances", p.variances}};
+    j = json{{"variables", p.variables},
+             {"m", p.transition},
+             {"w", p.inverse_transition},
+             {"s", p.residual_distribution},
+             {"correlation", p.correlation},
+             {"variances", p.variances}};
 }
 
 void from_json(const json &j, HierarchicalLevelInfo &p) {
@@ -64,10 +70,9 @@ void from_json(const json &j, HierarchicalLevelInfo &p) {
 }
 
 //--------------------------------------------------------
-// Options JSON serialisation / de-serialisation
+// Configuration POCO mappings
 //--------------------------------------------------------
 
-// Settings Information
 void to_json(json &j, const SettingsInfo &p) {
     j = json{{"country_code", p.country},
              {"size_fraction", p.size_fraction},
@@ -80,7 +85,6 @@ void from_json(const json &j, SettingsInfo &p) {
     j.at("age_range").get_to(p.age_range);
 }
 
-// Risk factor modelling
 void to_json(json &j, const RiskFactorInfo &p) {
     j = json{{"name", p.name}, {"level", p.level}, {"range", p.range}};
 }
@@ -91,7 +95,6 @@ void from_json(const json &j, RiskFactorInfo &p) {
     j.at("range").get_to(p.range);
 }
 
-// SES Model Information
 void to_json(json &j, const SESInfo &p) {
     j = json{{"function_name", p.function}, {"function_parameters", p.parameters}};
 }
@@ -101,7 +104,9 @@ void from_json(const json &j, SESInfo &p) {
     j.at("function_parameters").get_to(p.parameters);
 }
 
-void to_json(json &j, const VariableInfo &p) { j = json{{"Name", p.name}, {"Factor", p.factor}}; }
+void to_json(json &j, const VariableInfo &p) {
+    j = json{{"Name", p.name}, {"Factor", p.factor}};
+}
 
 void from_json(const json &j, VariableInfo &p) {
     j.at("Name").get_to(p.name);
@@ -120,7 +125,6 @@ void from_json(const json &j, FactorDynamicEquationInfo &p) {
     j.at("ResidualsStandardDeviation").get_to(p.residuals_standard_deviation);
 }
 
-// Baseline scenario adjustments
 void to_json(json &j, const BaselineInfo &p) {
     j = json{{"format", p.format},
              {"delimiter", p.delimiter},
@@ -128,7 +132,10 @@ void to_json(json &j, const BaselineInfo &p) {
              {"file_names", p.file_names}};
 }
 
-// Policy Scenario
+//--------------------------------------------------------
+// Policy mappings
+//--------------------------------------------------------
+
 void to_json(json &j, const PolicyPeriodInfo &p) {
     j = json{{"start_time", p.start_time}, {"finish_time", p.to_finish_time_str()}};
 }
@@ -179,30 +186,25 @@ void to_json(json &j, const PolicyScenarioInfo &p) {
 
 void from_json(const json &j, PolicyScenarioInfo &p) {
     j.at("active_period").get_to(p.active_period);
+
     if (j.contains("impact_type")) {
         j.at("impact_type").get_to(p.impact_type);
     }
-
     if (j.contains("dynamics")) {
         j.at("dynamics").get_to(p.dynamics);
     }
-
     if (j.contains("coefficients")) {
         j.at("coefficients").get_to(p.coefficients);
     }
-
     if (j.contains("coverage_rates")) {
         j.at("coverage_rates").get_to(p.coverage_rates);
     }
-
     if (j.contains("coverage_cutoff_time")) {
         p.coverage_cutoff_time = j.at("coverage_cutoff_time").get<unsigned int>();
     }
-
     if (j.contains("child_cutoff_age")) {
         p.child_cutoff_age = j.at("child_cutoff_age").get<unsigned int>();
     }
-
     if (j.contains("adjustments")) {
         j.at("adjustments").get_to(p.adjustments);
     }
@@ -210,12 +212,19 @@ void from_json(const json &j, PolicyScenarioInfo &p) {
     j.at("impacts").get_to(p.impacts);
 }
 
-// Individual ID tracking config (MAHIMA: per-person CSV for same-person tracking)
+//--------------------------------------------------------
+// Output / tracking
+//--------------------------------------------------------
+
 void to_json(json &j, const IndividualIdTrackingConfig &p) {
-    j = json{{"enabled", p.enabled},           {"gender", p.gender},
-             {"regions", p.regions},           {"ethnicities", p.ethnicities},
-             {"risk_factors", p.risk_factors}, {"years", p.years},
+    j = json{{"enabled", p.enabled},
+             {"gender", p.gender},
+             {"regions", p.regions},
+             {"ethnicities", p.ethnicities},
+             {"risk_factors", p.risk_factors},
+             {"years", p.years},
              {"scenarios", p.scenarios}};
+
     if (p.age_min.has_value()) {
         j["age_min"] = p.age_min.value();
     }
@@ -254,9 +263,11 @@ void from_json(const json &j, IndividualIdTrackingConfig &p) {
     }
 }
 
-// Result information
 void to_json(json &j, const OutputInfo &p) {
-    j = json{{"folder", p.folder}, {"file_name", p.file_name}, {"comorbidities", p.comorbidities}};
+    j = json{{"folder", p.folder},
+             {"file_name", p.file_name},
+             {"comorbidities", p.comorbidities}};
+
     if (p.individual_id_tracking.has_value()) {
         to_json(j["individual_id_tracking"], p.individual_id_tracking.value());
     }
@@ -266,11 +277,14 @@ void from_json(const json &j, OutputInfo &p) {
     if (j.contains("folder")) {
         j.at("folder").get_to(p.folder);
     }
+
     j.at("file_name").get_to(p.file_name);
     j.at("comorbidities").get_to(p.comorbidities);
+
     if (j.contains("individual_id_tracking")) {
         p.individual_id_tracking = IndividualIdTrackingConfig{};
         from_json(j.at("individual_id_tracking"), *p.individual_id_tracking);
     }
 }
+
 } // namespace hgps::input

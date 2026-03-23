@@ -11,7 +11,3 @@
 #include "poco.h"
 #include "univariate_summary.h"
 #include "visitor.h"
-
-namespace hgps {
-namespace core {}
-} // namespace hgps

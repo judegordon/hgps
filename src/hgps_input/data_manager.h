@@ -1,6 +1,6 @@
 #pragma once
 
-#include "HealthGPS.Core/api.h"
+#include "hgps_core/api.h"
 #include "pif_data.h"
 
 #include <filesystem>

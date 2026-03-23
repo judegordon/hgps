@@ -34,3 +34,6 @@ __pycache__/
 # Results / profiling output
 results/
 vtune_results/
+
+test.cpp
+test2.cpp

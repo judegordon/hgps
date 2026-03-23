@@ -1,0 +1,16 @@
+#pragma once
+
+#include "config.h"
+#include "hgps_core/diagnostics.h"
+
+#include "hgps/risk_factor_adjustable_model.h"
+
+#include <memory>
+
+namespace hgps::input {
+
+std::unique_ptr<hgps::RiskFactorSexAgeTable>
+load_risk_factor_expected(const Configuration &config,
+                          hgps::core::Diagnostics &diagnostics);
+
+} // namespace hgps::input
