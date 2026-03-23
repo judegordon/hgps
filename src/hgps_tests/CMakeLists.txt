@@ -7,11 +7,11 @@ find_package(Threads REQUIRED)
 include(CTest)
 include(GoogleTest)
 
-add_executable(HealthGPS.Tests "")
-target_compile_features(HealthGPS.Tests PUBLIC cxx_std_${CMAKE_CXX_STANDARD})
+add_executable(hgps_tests "")
+target_compile_features(hgps_tests PUBLIC cxx_std_${CMAKE_CXX_STANDARD})
 
 target_sources(
-    HealthGPS.Tests
+    hgps_tests
     PRIVATE "pch.cpp"
             "pch.h"
             "data_config.h"
@@ -60,10 +60,10 @@ FetchContent_Declare(
     URL https://github.com/imperialCHEPI/healthgps-data/releases/download/20240624/data_20240624.zip
     URL_HASH SHA256=b68abc8d40b937d377aa7357bff66a1f4f5196da5b867f7ca88d02b37d2ebb5c)
 FetchContent_MakeAvailable(test_data)
-target_compile_definitions(HealthGPS.Tests PRIVATE "-DTEST_DATA_PATH=\"${test_data_SOURCE_DIR}\"")
+target_compile_definitions(hgps_tests PRIVATE "-DTEST_DATA_PATH=\"${test_data_SOURCE_DIR}\"")
 
 target_link_libraries(
-    HealthGPS.Tests
+    hgps_tests
     PRIVATE hgps_core
             hgps_input
             hgps_console_lib
@@ -75,9 +75,9 @@ target_link_libraries(
             GTest::gtest)
 
 # We use a long discovery timeout because this can take a while on CI systems
-gtest_discover_tests(HealthGPS.Tests DISCOVERY_TIMEOUT 30)
+gtest_discover_tests(hgps_tests DISCOVERY_TIMEOUT 30)
 
-install(TARGETS HealthGPS.Tests DESTINATION "")
+install(TARGETS hgps_tests DESTINATION "")
 if(WIN32)
     install(IMPORTED_RUNTIME_ARTIFACTS fmt::fmt)
     install(IMPORTED_RUNTIME_ARTIFACTS GTest::gtest)
