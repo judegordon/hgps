@@ -4,12 +4,17 @@
 
 #include <map>
 #include <string>
+#include <utility>
 
 namespace hgps {
+
+class AnalysisDefinition {
+  public:
     AnalysisDefinition(GenderTable<int, float> &&life_expectancy,
                        DoubleAgeGenderTable &&observed_YLD,
                        std::map<core::Identifier, float> &&disability_weights)
-        : life_expectancy_{std::move(life_expectancy)}, observed_YLD_{std::move(observed_YLD)},
+        : life_expectancy_{std::move(life_expectancy)},
+          observed_YLD_{std::move(observed_YLD)},
           disability_weights_{std::move(disability_weights)} {}
 
     const GenderTable<int, float> &life_expectancy() const noexcept { return life_expectancy_; }
@@ -25,4 +30,5 @@ namespace hgps {
     DoubleAgeGenderTable observed_YLD_;
     std::map<core::Identifier, float> disability_weights_;
 };
+
 } // namespace hgps
