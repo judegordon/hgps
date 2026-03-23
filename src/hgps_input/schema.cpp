@@ -1,6 +1,6 @@
 #include "schema.h"
 
-#include "HealthGPS/program_dirs.h"
+#include "hgps/program_dirs.h"
 
 #include <fmt/color.h>
 #include <fmt/format.h>

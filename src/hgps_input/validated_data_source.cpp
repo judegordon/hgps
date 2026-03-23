@@ -1,6 +1,6 @@
 #include "validated_data_source.h"
 
-#include "HealthGPS/sha256.h"
+#include "hgps/sha256.h"
 
 #include <fmt/format.h>
 

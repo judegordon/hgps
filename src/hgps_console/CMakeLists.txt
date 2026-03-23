@@ -35,7 +35,7 @@ target_link_libraries(
     PRIVATE hgps_core
             hgps_input
             hgps_console_lib
-            HealthGPS
+            hgps
             fmt::fmt
             Threads::Threads
             cxxopts::cxxopts
@@ -45,7 +45,7 @@ target_link_libraries(
     hgps_console_lib
     PRIVATE hgps_core
             hgps_input
-            HealthGPS
+            hgps
             fmt::fmt
             Threads::Threads
             cxxopts::cxxopts

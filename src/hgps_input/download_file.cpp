@@ -1,5 +1,5 @@
 #include "download_file.h"
-#include "HealthGPS/program_dirs.h"
+#include "hgps/program_dirs.h"
 
 #include <curlpp/Easy.hpp>
 #include <curlpp/Exception.hpp>

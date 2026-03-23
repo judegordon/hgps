@@ -1,6 +1,6 @@
 #include "zip_file.h"
-#include "HealthGPS/program_dirs.h"
-#include "HealthGPS/sha256.h"
+#include "hgps/program_dirs.h"
+#include "hgps/sha256.h"
 
 #include <fmt/format.h>
 #include <libzippp.h>

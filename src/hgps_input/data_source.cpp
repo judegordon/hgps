@@ -1,5 +1,5 @@
 #include "data_source.h"
-#include "HealthGPS/sha256.h"
+#include "hgps/sha256.h"
 #include "download_file.h"
 #include "zip_file.h"
 
