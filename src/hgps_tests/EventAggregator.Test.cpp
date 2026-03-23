@@ -1,11 +1,11 @@
 #include "pch.h"
 
-#include "HealthGPS/error_message.h"
-#include "HealthGPS/event_bus.h"
-#include "HealthGPS/individual_tracking_message.h"
-#include "HealthGPS/info_message.h"
-#include "HealthGPS/result_message.h"
-#include "HealthGPS/runner_message.h"
+#include "hgps/error_message.h"
+#include "hgps/event_bus.h"
+#include "hgps/individual_tracking_message.h"
+#include "hgps/info_message.h"
+#include "hgps/result_message.h"
+#include "hgps/runner_message.h"
 
 struct TestHandler {
     void handler_event(const std::shared_ptr<hgps::EventMessage> & /*unused*/) { counter++; }

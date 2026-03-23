@@ -3,7 +3,7 @@
 
 #include "hgps_core/string_util.h"
 #include "hgps_input/api.h"
-#include "HealthGPS/repository.h"
+#include "hgps/repository.h"
 
 #include <chrono>
 

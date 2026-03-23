@@ -1,7 +1,7 @@
-#include "HealthGPS/converter.h"
-#include "HealthGPS/lms_model.h"
-#include "HealthGPS/person.h"
-#include "HealthGPS/weight_model.h"
+#include "hgps/converter.h"
+#include "hgps/lms_model.h"
+#include "hgps/person.h"
+#include "hgps/weight_model.h"
 #include "data_config.h"
 #include "pch.h"
 

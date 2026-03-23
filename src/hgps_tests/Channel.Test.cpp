@@ -1,6 +1,6 @@
 #include "pch.h"
 
-#include "HealthGPS/channel.h"
+#include "hgps/channel.h"
 #include <thread>
 
 TEST(ChannelTest, DefaultConstruction) {

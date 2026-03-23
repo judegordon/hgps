@@ -1,8 +1,8 @@
 #include "pch.h"
 
 #include "hgps_core/exception.h"
-#include "HealthGPS/nutrients.h"
-#include "HealthGPS/program_dirs.h"
+#include "hgps/nutrients.h"
+#include "hgps/program_dirs.h"
 
 #include <filesystem>
 #include <sstream>

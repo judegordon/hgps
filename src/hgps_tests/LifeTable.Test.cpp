@@ -1,6 +1,6 @@
 #include "pch.h"
 
-#include "HealthGPS/life_table.h"
+#include "hgps/life_table.h"
 
 TEST(TestHealthGPS_LifeTable, CreateEmpty) {
     using namespace hgps;

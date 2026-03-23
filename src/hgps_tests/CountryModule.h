@@ -1,6 +1,6 @@
 #pragma once
 #include "hgps_input/api.h"
-#include "HealthGPS/api.h"
+#include "hgps/api.h"
 
 #include <iostream>
 #include <memory>

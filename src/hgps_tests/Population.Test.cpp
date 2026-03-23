@@ -1,10 +1,10 @@
 #include "pch.h"
 
 #include "hgps_input/model_parser.h"
-#include "HealthGPS/api.h"
-#include "HealthGPS/person.h"
-#include "HealthGPS/static_linear_model.h"
-#include "HealthGPS/two_step_value.h"
+#include "hgps/api.h"
+#include "hgps/person.h"
+#include "hgps/static_linear_model.h"
+#include "hgps/two_step_value.h"
 #include <gtest/gtest.h>
 #include <memory> // Ensure this header is included for std::addressof
 

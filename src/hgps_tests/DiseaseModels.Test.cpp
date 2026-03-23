@@ -1,9 +1,9 @@
 #include "pch.h"
 
-#include "HealthGPS/default_disease_model.h"
-#include "HealthGPS/disease.h"
-#include "HealthGPS/disease_table.h"
-#include "HealthGPS/relative_risk.h"
+#include "hgps/default_disease_model.h"
+#include "hgps/disease.h"
+#include "hgps/disease_table.h"
+#include "hgps/relative_risk.h"
 
 TEST(TestHealthGPS_Disease, CreateDiseaseMeasure) {
     using namespace hgps;

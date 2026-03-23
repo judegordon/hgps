@@ -1,7 +1,7 @@
 #include "pch.h"
 
-#include "HealthGPS/gender_value.h"
-#include "HealthGPS/map2d.h"
+#include "hgps/gender_value.h"
+#include "hgps/map2d.h"
 
 using IntegerMap2d = hgps::OrderedMap2d<int, int, int>;
 using TimeAgeMap2d = hgps::OrderedMap2d<int, int, hgps::DoubleGenderValue>;

@@ -1,10 +1,10 @@
 #include "pch.h"
 
-#include "HealthGPS/baseline_scenario.h"
-#include "HealthGPS/fiscal_scenario.h"
-#include "HealthGPS/marketing_dynamic_scenario.h"
-#include "HealthGPS/random_algorithm.h"
-#include "HealthGPS/simple_policy_scenario.h"
+#include "hgps/baseline_scenario.h"
+#include "hgps/fiscal_scenario.h"
+#include "hgps/marketing_dynamic_scenario.h"
+#include "hgps/random_algorithm.h"
+#include "hgps/simple_policy_scenario.h"
 
 inline const hgps::core::Identifier bmi_key = hgps::core::Identifier{"bmi"};
 inline const hgps::core::Identifier energy_key = hgps::core::Identifier{"energy"};

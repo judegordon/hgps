@@ -2,7 +2,7 @@
 #include <fstream>
 
 #include "hgps_input/jsonparser.h"
-#include "HealthGPS/riskfactor.h"
+#include "hgps/riskfactor.h"
 
 template <typename TYPE>
 std::string join_string(const std::vector<TYPE> &v, std::string_view delimiter,

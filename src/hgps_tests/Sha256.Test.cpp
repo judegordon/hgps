@@ -1,8 +1,8 @@
 // NOLINTBEGIN(modernize-avoid-c-arrays)
 #include "pch.h"
 
-#include "HealthGPS/program_dirs.h"
-#include "HealthGPS/sha256.h"
+#include "hgps/program_dirs.h"
+#include "hgps/sha256.h"
 
 TEST(SHA256, SHA256Context) {
     // Empty hash

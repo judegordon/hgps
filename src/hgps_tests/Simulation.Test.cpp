@@ -2,11 +2,11 @@
 #include "pch.h"
 
 #include "hgps_input/api.h"
-#include "HealthGPS/analysis_module.h"
-#include "HealthGPS/api.h"
-#include "HealthGPS/event_bus.h"
-#include "HealthGPS/random_algorithm.h"
-#include "HealthGPS/simple_policy_scenario.h"
+#include "hgps/analysis_module.h"
+#include "hgps/api.h"
+#include "hgps/event_bus.h"
+#include "hgps/random_algorithm.h"
+#include "hgps/simple_policy_scenario.h"
 
 #include "CountryModule.h"
 #include "RiskFactorData.h"

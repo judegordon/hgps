@@ -1,6 +1,6 @@
 #include "pch.h"
 
-#include "HealthGPS/mapping.h"
+#include "hgps/mapping.h"
 
 namespace {
 std::vector<hgps::MappingEntry> mapping_entries{
