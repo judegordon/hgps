@@ -1,5 +1,5 @@
 #include "repository.h"
-#include "hgps_input/datamanager.h"
+#include "hgps_input/data_manager.h"
 #include "hgps_input/pif_data.h"
 #include "converter.h"
 
