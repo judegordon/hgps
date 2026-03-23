@@ -1,6 +1,6 @@
 #pragma once
 
-#include "HealthGPS.Input/poco.h"
+#include "hgps_input/poco.h"
 #include "analysis_definition.h"
 #include "interfaces.h"
 #include "modelinput.h"

@@ -1,7 +1,7 @@
 #include "static_hierarchical_linear_model.h"
 #include "runtime_context.h"
 
-#include "HealthGPS.Core/exception.h"
+#include "hgps_core/exception.h"
 
 namespace hgps {
 

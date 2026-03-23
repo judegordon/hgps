@@ -1,5 +1,5 @@
 #pragma once
-#include "HealthGPS.Core/identifier.h"
+#include "hgps_core/identifier.h"
 #include "person.h"
 #include "weight_category.h"
 

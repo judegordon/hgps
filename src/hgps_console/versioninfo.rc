@@ -76,9 +76,9 @@ BEGIN
             VALUE "CompanyName", "Imperial College London"
             VALUE "FileDescription", "Health GPS Microsimulation for policy options"
             VALUE "FileVersion", PROJECT_VERSION
-            VALUE "InternalName", "HealthGPS.Console"
+            VALUE "InternalName", "hgps_console"
             VALUE "LegalCopyright", "Copyright (C) 2022"
-            VALUE "OriginalFilename", "HealthGPS.Console"
+            VALUE "OriginalFilename", "hgps_console"
             VALUE "ProductName", PROJECT_NAME
             VALUE "ProductVersion", PROJECT_VERSION
         END

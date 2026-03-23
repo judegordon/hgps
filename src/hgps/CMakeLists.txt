@@ -3,7 +3,7 @@ find_package(crossguid CONFIG REQUIRED)
 find_package(OpenSSL CONFIG REQUIRED)
 find_package(platform_folders CONFIG REQUIRED)
 
-add_library(HealthGPS STATIC "")
+add_library(hgps STATIC "")
 
 configure_file("version.h.in" "version.h" ESCAPE_QUOTES)
 
@@ -27,8 +27,6 @@ target_sources(
             "disease.h"
             "disease_table.cpp"
             "disease_table.h"
-            "dummy_model.cpp"
-            "dummy_model.h"
             "dynamic_hierarchical_linear_model.cpp"
             "dynamic_hierarchical_linear_model.h"
             "kevin_hall_model.cpp"
@@ -139,6 +137,6 @@ target_sources(
             "weight_model.cpp"
             "weight_model.h")
 
-target_link_libraries(HealthGPS PRIVATE HealthGPS.Core fmt::fmt crossguid OpenSSL::Crypto
+target_link_libraries(HealthGPS PRIVATE hgps_core fmt::fmt crossguid OpenSSL::Crypto
                                         sago::platform_folders)
 target_include_directories(HealthGPS PUBLIC ${CMAKE_CURRENT_BINARY_DIR})

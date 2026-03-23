@@ -1,6 +1,6 @@
 #pragma once
 
-#include "HealthGPS.Core/exception.h"
+#include "hgps_core/exception.h"
 #include "forward_type.h"
 #include "string_util.h"
 

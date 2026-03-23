@@ -1,7 +1,7 @@
 #include "nutrients.h"
 
-#include "HealthGPS.Core/exception.h"
-#include "HealthGPS.Core/string_util.h"
+#include "hgps_core/exception.h"
+#include "hgps_core/string_util.h"
 
 #include "fmt/color.h"
 #include "fmt/format.h"

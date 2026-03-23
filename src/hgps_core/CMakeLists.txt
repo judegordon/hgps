@@ -1,10 +1,10 @@
 find_package(fmt REQUIRED)
 
-add_library(HealthGPS.Core STATIC "")
-target_compile_features(HealthGPS.Core PUBLIC cxx_std_${CMAKE_CXX_STANDARD})
+add_library(hgps_core STATIC "")
+target_compile_features(hgps_core PUBLIC cxx_std_${CMAKE_CXX_STANDARD})
 
 target_sources(
-    HealthGPS.Core
+    hgps_core
     PRIVATE "datatable.cpp"
             "datatable.h"
             "interval.cpp"
@@ -39,6 +39,6 @@ target_sources(
             "thread_util.h"
             "visitor.h")
 
-target_link_libraries(HealthGPS.Core PRIVATE fmt::fmt)
+target_link_libraries(hgps_core PRIVATE fmt::fmt)
 
 set(ROOT_NAMESPACE hgps::core)

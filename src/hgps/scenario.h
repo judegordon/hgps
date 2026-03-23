@@ -1,5 +1,5 @@
 #pragma once
-#include "HealthGPS.Core/identifier.h"
+#include "hgps_core/identifier.h"
 #include "channel.h"
 #include "person.h"
 #include "random_algorithm.h"

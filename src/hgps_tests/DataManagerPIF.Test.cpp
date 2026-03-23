@@ -1,6 +1,6 @@
-#include "HealthGPS.Core/country.h"
-#include "HealthGPS.Core/disease.h"
-#include "HealthGPS.Input/datamanager.h"
+#include "hgps_core/country.h"
+#include "hgps_core/disease.h"
+#include "hgps_input/datamanager.h"
 #include "pch.h"
 
 #include <filesystem>

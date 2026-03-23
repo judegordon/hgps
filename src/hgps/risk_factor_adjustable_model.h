@@ -1,7 +1,7 @@
 #pragma once
 
-#include "HealthGPS.Core/forward_type.h"
-#include "HealthGPS.Core/identifier.h"
+#include "hgps_core/forward_type.h"
+#include "hgps_core/identifier.h"
 
 #include "map2d.h"
 #include "risk_factor_model.h"

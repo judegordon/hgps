@@ -2,9 +2,9 @@
 #include <map>
 #include <numeric>
 
-#include "HealthGPS.Core/array2d.h"
-#include "HealthGPS.Core/forward_type.h"
-#include "HealthGPS.Core/interval.h"
+#include "hgps_core/array2d.h"
+#include "hgps_core/forward_type.h"
+#include "hgps_core/interval.h"
 #include "monotonic_vector.h"
 
 namespace hgps {

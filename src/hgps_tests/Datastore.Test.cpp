@@ -1,7 +1,7 @@
 #include "data_config.h"
 #include "pch.h"
 
-#include "HealthGPS.Input/api.h"
+#include "hgps_input/api.h"
 
 // The fixture for testing class Foo.
 class DatastoreTest : public ::testing::Test {

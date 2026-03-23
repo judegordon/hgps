@@ -1,7 +1,7 @@
 #pragma once
 
-#include <HealthGPS.Core/interval.h>
-#include <HealthGPS.Core/poco.h>
+#include <hgps_core/interval.h>
+#include <hgps_core/poco.h>
 
 namespace hgps {
 

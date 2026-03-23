@@ -1,5 +1,5 @@
-#include "HealthGPS.Core/api.h"
-#include "HealthGPS.Core/string_util.h"
+#include "hgps_core/api.h"
+#include "hgps_core/string_util.h"
 #include "pch.h"
 
 #include <numeric>

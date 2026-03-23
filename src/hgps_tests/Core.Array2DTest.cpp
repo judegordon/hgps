@@ -1,4 +1,4 @@
-#include "HealthGPS.Core/array2d.h"
+#include "hgps_core/array2d.h"
 #include "pch.h"
 
 #include <optional>

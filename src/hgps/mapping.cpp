@@ -1,5 +1,5 @@
 #include "mapping.h"
-#include "HealthGPS.Core/string_util.h"
+#include "hgps_core/string_util.h"
 
 #include <algorithm>
 #include <iterator>

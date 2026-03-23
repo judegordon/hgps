@@ -8,8 +8,8 @@
 #include "modelinput.h"
 #include "relative_risk.h"
 
-#include "HealthGPS.Core/datastore.h"
-#include "HealthGPS.Core/poco.h"
+#include "hgps_core/datastore.h"
+#include "hgps_core/poco.h"
 
 namespace hgps {
 namespace detail {

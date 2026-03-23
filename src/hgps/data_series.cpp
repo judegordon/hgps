@@ -1,5 +1,5 @@
 #include "data_series.h"
-#include "HealthGPS.Core/string_util.h"
+#include "hgps_core/string_util.h"
 
 #include "fmt/core.h"
 #include <array>    // Added for std::array

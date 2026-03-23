@@ -1,4 +1,4 @@
-#include "HealthGPS.Input/poco.h"
+#include "hgps_input/poco.h"
 #include "pch.h"
 
 using namespace hgps::input;

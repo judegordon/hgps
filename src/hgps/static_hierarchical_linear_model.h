@@ -1,6 +1,6 @@
 #pragma once
 
-#include "HealthGPS.Core/array2d.h"
+#include "hgps_core/array2d.h"
 #include "interfaces.h"
 #include "mapping.h"
 

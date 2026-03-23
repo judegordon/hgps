@@ -13,8 +13,8 @@
 #include "HealthGPS/physical_activity_scenario.h"
 #include "HealthGPS/simple_policy_scenario.h"
 
-#include "HealthGPS.Core/poco.h"
-#include "HealthGPS.Core/scoped_timer.h"
+#include "hgps_core/poco.h"
+#include "hgps_core/scoped_timer.h"
 
 #include <fmt/color.h>
 

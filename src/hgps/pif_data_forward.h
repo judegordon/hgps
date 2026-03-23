@@ -1,7 +1,7 @@
 #pragma once
 
 // Forward declarations for PIF data structures
-// The actual implementations are in HealthGPS.Input namespace
+// The actual implementations are in hgps_input namespace
 
 namespace hgps::input {
 struct PIFDataItem;

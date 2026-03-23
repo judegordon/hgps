@@ -1,6 +1,6 @@
 #include "pch.h"
 
-#include "HealthGPS.Core/identifier.h"
+#include "hgps_core/identifier.h"
 
 #include <sstream>
 #include <unordered_map>

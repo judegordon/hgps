@@ -60,7 +60,7 @@ jobs:
         run: cmake --build --preset=debug-build-${{ matrix.platform }} --target install
 
       - name: Execute HealthGPS (debug)
-        run: out/install/${{ matrix.platform }}-debug/bin/HealthGPS.Console --help
+        run: out/install/${{ matrix.platform }}-debug/bin/hgps_console --help
 
       - name: Run tests
         run: ctest --preset=core-test-${{ matrix.platform }} --output-on-failure
@@ -71,7 +71,7 @@ jobs:
           cmake --build --preset=release-build-${{ matrix.platform }} --target install
 
       - name: Execute HealthGPS (release)
-        run: out/install/${{ matrix.platform }}-release/bin/HealthGPS.Console --help
+        run: out/install/${{ matrix.platform }}-release/bin/hgps_console --help
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4

@@ -1,6 +1,6 @@
 #include "person.h"
 
-#include "HealthGPS.Core/exception.h"
+#include "hgps_core/exception.h"
 
 namespace hgps {
 

@@ -1,5 +1,5 @@
-#include "HealthGPS.Core/disease.h"
-#include "HealthGPS.Input/pif_data.h"
+#include "hgps_core/disease.h"
+#include "hgps_input/pif_data.h"
 #include "pch.h"
 
 using namespace hgps::input;

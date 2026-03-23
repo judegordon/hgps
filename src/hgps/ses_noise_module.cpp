@@ -1,6 +1,6 @@
 #include "ses_noise_module.h"
-#include "HealthGPS.Core/string_util.h"
-#include "HealthGPS.Core/thread_util.h"
+#include "hgps_core/string_util.h"
+#include "hgps_core/thread_util.h"
 #include "runtime_context.h"
 
 #include <fmt/format.h>

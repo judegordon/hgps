@@ -8,7 +8,7 @@
 #include <windows.h>
 #endif
 
-#include "HealthGPS.Core/exception.h"
+#include "hgps_core/exception.h"
 
 #include <sago/platform_folders.h>
 

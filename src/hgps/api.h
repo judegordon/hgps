@@ -9,5 +9,3 @@
 #include "runner.h"
 #include "simulation.h"
 #include "simulation_module.h"
-
-namespace hgps {}

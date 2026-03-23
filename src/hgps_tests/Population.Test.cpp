@@ -1,6 +1,6 @@
 #include "pch.h"
 
-#include "HealthGPS.Input/model_parser.h"
+#include "hgps_input/model_parser.h"
 #include "HealthGPS/api.h"
 #include "HealthGPS/person.h"
 #include "HealthGPS/static_linear_model.h"

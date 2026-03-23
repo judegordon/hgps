@@ -1,5 +1,5 @@
 #pragma once
-#include "HealthGPS.Input/api.h"
+#include "hgps_input/api.h"
 #include "HealthGPS/api.h"
 
 #include <iostream>

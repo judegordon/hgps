@@ -35,5 +35,3 @@ __pycache__/
 results/
 vtune_results/
 
-test.cpp
-test2.cpp

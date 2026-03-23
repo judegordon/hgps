@@ -64,8 +64,8 @@ target_compile_definitions(HealthGPS.Tests PRIVATE "-DTEST_DATA_PATH=\"${test_da
 
 target_link_libraries(
     HealthGPS.Tests
-    PRIVATE HealthGPS.Core
-            HealthGPS.Input
+    PRIVATE hgps_core
+            hgps_input
             HealthGPS.LibConsole
             HealthGPS
             fmt::fmt

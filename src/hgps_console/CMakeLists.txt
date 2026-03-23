@@ -25,13 +25,13 @@ if(WIN32)
     # Make sure that the resource file is seen as an RC file to be compiled with a resource
     # compiler, not a C++ compiler
     set_source_files_properties(versioninfo.rc LANGUAGE RC)
-    target_sources(HealthGPS.Console PRIVATE versioninfo.rc)
+    target_sources(hgps_console PRIVATE versioninfo.rc)
 endif(WIN32)
 
 target_include_directories(HealthGPS.LibConsole PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 
 target_link_libraries(
-    HealthGPS.Console
+    hgps_console
     PRIVATE hgps_core
             hgps_input
             HealthGPS.LibConsole
@@ -43,8 +43,8 @@ target_link_libraries(
 
 target_link_libraries(
     HealthGPS.LibConsole
-    PRIVATE HealthGPS.Core
-            HealthGPS.Input
+    PRIVATE hgps_core
+            hgps_input
             HealthGPS
             fmt::fmt
             Threads::Threads
@@ -52,7 +52,7 @@ target_link_libraries(
             TBB::tbb)
 
 install(
-    TARGETS HealthGPS.Console
+    TARGETS hgps_console
     RUNTIME
     ARCHIVE
     LIBRARY
@@ -63,8 +63,8 @@ install(
     RESOURCE)
 if(WIN32)
     install(
-        TARGETS HealthGPS.Console
-        COMPONENT HealthGPS.Console
+        TARGETS hgps_console
+        COMPONENT hgps_console
         RUNTIME_DEPENDENCIES
         PRE_EXCLUDE_REGEXES
         "api-ms-"
@@ -72,7 +72,7 @@ if(WIN32)
         POST_EXCLUDE_REGEXES
         ".*system32/.*\\.dll"
         DIRECTORIES
-        $<TARGET_FILE_DIR:HealthGPS.Console>)
+        $<TARGET_FILE_DIR:hgps_console>)
 endif()
 
 install(DIRECTORY ../../schemas DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")

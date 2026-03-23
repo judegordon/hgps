@@ -1,6 +1,6 @@
 #include "pch.h"
 
-#include "HealthGPS.Core/interval.h"
+#include "hgps_core/interval.h"
 
 TEST(TestCore_Interval, CreateEmpty) {
     using namespace hgps::core;

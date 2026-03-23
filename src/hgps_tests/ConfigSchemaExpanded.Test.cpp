@@ -4,12 +4,12 @@
  */
 #include "pch.h"
 
-#include "HealthGPS.Input/configuration_parsing.h"
-#include "HealthGPS.Input/configuration_parsing_helpers.h"
-#include "HealthGPS.Input/jsonparser.h"
-#include "HealthGPS.Input/poco.h"
+#include "hgps_input/configuration_parsing.h"
+#include "hgps_input/configuration_parsing_helpers.h"
+#include "hgps_input/jsonparser.h"
+#include "hgps_input/poco.h"
 
-#include "HealthGPS.Core/interval.h"
+#include "hgps_core/interval.h"
 
 using json = nlohmann::json;
 using namespace hgps::input;

@@ -1,6 +1,6 @@
 #include "result_file_writer.h"
 
-#include "HealthGPS.Core/forward_type.h"
+#include "hgps_core/forward_type.h"
 #include "HealthGPS/data_series.h"
 
 #include <oneapi/tbb/parallel_for_each.h>

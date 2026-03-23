@@ -1,6 +1,6 @@
 #pragma once
-#include "HealthGPS.Core/array2d.h"
-#include "HealthGPS.Core/identifier.h"
+#include "hgps_core/array2d.h"
+#include "hgps_core/identifier.h"
 #include "gender_table.h"
 #include "monotonic_vector.h"
 #include <map>

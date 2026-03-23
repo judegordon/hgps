@@ -1,8 +1,8 @@
 #include "data_config.h"
 #include "pch.h"
 
-#include "HealthGPS.Core/string_util.h"
-#include "HealthGPS.Input/api.h"
+#include "hgps_core/string_util.h"
+#include "hgps_input/api.h"
 #include "HealthGPS/repository.h"
 
 #include <chrono>

@@ -1,7 +1,7 @@
 #include "data_config.h"
 #include "pch.h"
 
-#include "HealthGPS.Input/api.h"
+#include "hgps_input/api.h"
 #include "HealthGPS/analysis_module.h"
 #include "HealthGPS/api.h"
 #include "HealthGPS/event_bus.h"

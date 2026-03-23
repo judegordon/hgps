@@ -2,8 +2,8 @@
 #include <map>
 #include <string>
 
-#include "HealthGPS.Core/forward_type.h"
-#include "HealthGPS.Core/poco.h"
+#include "hgps_core/forward_type.h"
+#include "hgps_core/poco.h"
 
 namespace hgps {
 

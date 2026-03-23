@@ -1,7 +1,7 @@
 #pragma once
 
-#include "HealthGPS.Core/poco.h"
-#include "HealthGPS.Input/pif_data.h"
+#include "hgps_core/poco.h"
+#include "hgps_input/pif_data.h"
 #include "disease_table.h"
 #include "gender_value.h"
 #include "relative_risk.h"

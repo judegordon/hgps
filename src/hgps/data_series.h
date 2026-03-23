@@ -1,5 +1,5 @@
 #pragma once
-#include "HealthGPS.Core/forward_type.h"
+#include "hgps_core/forward_type.h"
 
 #include <map>
 #include <string>

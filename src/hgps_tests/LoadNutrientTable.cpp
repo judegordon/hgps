@@ -1,6 +1,6 @@
 #include "pch.h"
 
-#include "HealthGPS.Core/exception.h"
+#include "hgps_core/exception.h"
 #include "HealthGPS/nutrients.h"
 #include "HealthGPS/program_dirs.h"
 

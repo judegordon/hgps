@@ -2,9 +2,9 @@
 
 #include <stdexcept>
 
-#include "HealthGPS.Core/column_numeric.h"
-#include "HealthGPS.Core/univariate_summary.h"
-#include "HealthGPS.Core/visitor.h"
+#include "hgps_core/column_numeric.h"
+#include "hgps_core/univariate_summary.h"
+#include "hgps_core/visitor.h"
 
 namespace hgps {
 

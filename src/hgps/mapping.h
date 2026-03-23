@@ -1,6 +1,6 @@
 #pragma once
-#include "HealthGPS.Core/identifier.h"
-#include "HealthGPS.Core/interval.h"
+#include "hgps_core/identifier.h"
+#include "hgps_core/interval.h"
 
 #include <stdexcept>
 #include <string>

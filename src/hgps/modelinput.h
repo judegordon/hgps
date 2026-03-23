@@ -1,10 +1,10 @@
 #pragma once
 
-#include <HealthGPS.Core/datatable.h>
-#include <HealthGPS.Core/string_util.h>
+#include <hgps_core/datatable.h>
+#include <hgps_core/string_util.h>
 #include <map>
 
-#include "HealthGPS.Input/poco.h"
+#include "hgps_input/poco.h"
 #include "mapping.h"
 #include "settings.h"
 

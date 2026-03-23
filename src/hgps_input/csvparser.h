@@ -1,6 +1,6 @@
 #pragma once
 
-#include "HealthGPS.Core/api.h"
+#include "hgps_core/api.h"
 #include "poco.h"
 
 namespace hgps::input {

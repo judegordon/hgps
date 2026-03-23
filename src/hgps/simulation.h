@@ -1,6 +1,6 @@
 #pragma once
 
-#include "HealthGPS.Core/univariate_summary.h"
+#include "hgps_core/univariate_summary.h"
 
 #include "event_aggregator.h"
 #include "gender_table.h"

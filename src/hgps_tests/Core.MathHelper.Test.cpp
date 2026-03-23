@@ -1,4 +1,4 @@
-#include "HealthGPS.Core/math_util.h"
+#include "hgps_core/math_util.h"
 #include "pch.h"
 
 #include <limits>

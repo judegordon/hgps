@@ -1,8 +1,8 @@
 #include "csvparser.h"
 #include <rapidcsv.h>
 
-#include "HealthGPS.Core/scoped_timer.h"
-#include "HealthGPS.Core/string_util.h"
+#include "hgps_core/scoped_timer.h"
+#include "hgps_core/string_util.h"
 #include "HealthGPS/gender_value.h"
 
 #include <fmt/color.h>

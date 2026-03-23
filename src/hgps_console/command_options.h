@@ -6,7 +6,7 @@
 
 #include <cxxopts.hpp>
 
-#include "HealthGPS.Input/data_source.h"
+#include "hgps_input/data_source.h"
 
 #include <optional>
 #include <string>

@@ -8,7 +8,7 @@
 namespace hgps {
 
 cxxopts::Options create_options() {
-    cxxopts::Options options("HealthGPS.Console", "Health-GPS microsimulation for policy options.");
+    cxxopts::Options options("hgps_console", "Health-GPS microsimulation for policy options.");
 
     // clang-format off
     options.add_options()

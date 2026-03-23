@@ -1,5 +1,5 @@
-#include "HealthGPS.Input/configuration.h"
-#include "HealthGPS.Input/poco.h"
+#include "hgps_input/configuration.h"
+#include "hgps_input/poco.h"
 #include "pch.h"
 
 #include <filesystem>

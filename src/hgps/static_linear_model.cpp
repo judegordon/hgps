@@ -1,6 +1,6 @@
 #include "static_linear_model.h"
-#include "HealthGPS.Core/exception.h"
-#include "HealthGPS.Input/poco.h"
+#include "hgps_core/exception.h"
+#include "hgps_input/poco.h"
 #include "population.h"
 #include "risk_factor_adjustable_model.h"
 #include "runtime_context.h"

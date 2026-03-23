@@ -3,7 +3,7 @@
 #include "lms_definition.h"
 #include "person.h"
 
-#include "HealthGPS.Core/identifier.h"
+#include "hgps_core/identifier.h"
 #include <functional>
 #include <string>
 

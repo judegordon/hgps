@@ -1,6 +1,6 @@
 #include "simulation.h"
-#include "HealthGPS.Core/thread_util.h"
-#include "HealthGPS.Core/univariate_summary.h"
+#include "hgps_core/thread_util.h"
+#include "hgps_core/univariate_summary.h"
 #include "converter.h"
 #include "info_message.h"
 #include "mtrandom.h"

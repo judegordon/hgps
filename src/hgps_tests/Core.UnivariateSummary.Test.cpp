@@ -1,4 +1,4 @@
-#include "HealthGPS.Core/univariate_summary.h"
+#include "hgps_core/univariate_summary.h"
 #include "pch.h"
 #include <cmath>
 #include <optional>
