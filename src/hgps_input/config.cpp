@@ -1,4 +1,4 @@
-#include "configuration.h"
+#include "config.h"
 #include "configuration_parsing.h"
 #include "jsonparser.h"
 #include "schema.h"
