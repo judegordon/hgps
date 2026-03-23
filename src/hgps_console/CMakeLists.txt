@@ -6,7 +6,7 @@ find_package(Threads REQUIRED)
 
 add_executable(hgps_console "program.cpp")
 add_library(
-    HealthGPS.LibConsole STATIC
+    hgps_console_lib STATIC
     "command_options.cpp"
     "command_options.h"
     "event_monitor.cpp"
@@ -28,13 +28,13 @@ if(WIN32)
     target_sources(hgps_console PRIVATE versioninfo.rc)
 endif(WIN32)
 
-target_include_directories(HealthGPS.LibConsole PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(hgps_console_lib PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 
 target_link_libraries(
     hgps_console
     PRIVATE hgps_core
             hgps_input
-            HealthGPS.LibConsole
+            hgps_console_lib
             HealthGPS
             fmt::fmt
             Threads::Threads
@@ -42,7 +42,7 @@ target_link_libraries(
             TBB::tbb)
 
 target_link_libraries(
-    HealthGPS.LibConsole
+    hgps_console_lib
     PRIVATE hgps_core
             hgps_input
             HealthGPS

@@ -8,7 +8,7 @@ add_library(hgps STATIC "")
 configure_file("version.h.in" "version.h" ESCAPE_QUOTES)
 
 target_sources(
-    HealthGPS
+    hgps
     PRIVATE "analysis_module.cpp"
             "analysis_module.h"
             "baseline_scenario.cpp"
@@ -137,6 +137,6 @@ target_sources(
             "weight_model.cpp"
             "weight_model.h")
 
-target_link_libraries(HealthGPS PRIVATE hgps_core fmt::fmt crossguid OpenSSL::Crypto
+target_link_libraries(hgps PRIVATE hgps_core fmt::fmt crossguid OpenSSL::Crypto
                                         sago::platform_folders)
-target_include_directories(HealthGPS PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(hgps PUBLIC ${CMAKE_CURRENT_BINARY_DIR})

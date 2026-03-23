@@ -66,7 +66,7 @@ target_link_libraries(
     HealthGPS.Tests
     PRIVATE hgps_core
             hgps_input
-            HealthGPS.LibConsole
+            hgps_console_lib
             HealthGPS
             fmt::fmt
             Threads::Threads
