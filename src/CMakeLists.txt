@@ -10,7 +10,7 @@ add_subdirectory(hgps_console)
 if(BUILD_TESTING)
     enable_testing()
     message(STATUS "Building Tests ...")
-    add_subdirectory(HealthGPS.Tests)
+    add_subdirectory(hgps_tests)
 endif()
 
 # PUBLIC needed to make heathers and library available to other project
