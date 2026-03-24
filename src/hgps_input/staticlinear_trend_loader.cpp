@@ -16,11 +16,12 @@ hgps::LinearModelParams load_trend_model_from_json(const nlohmann::json &trend_j
                                                    std::string_view field_path) {
     hgps::LinearModelParams model;
 
-    get_to(trend_json, "Intercept", model.intercept, diagnostics, ok, source_path, field_path);
-    get_to(trend_json, "Coefficients", model.coefficients, diagnostics, ok, source_path,
-           field_path);
-    get_to(trend_json, "LogCoefficients", model.log_coefficients, diagnostics, ok, source_path,
-           field_path);
+    hgps::input::get_to(trend_json, "Intercept", model.intercept, diagnostics, ok, source_path,
+                        field_path);
+    hgps::input::get_to(trend_json, "Coefficients", model.coefficients, diagnostics, ok,
+                        source_path, field_path);
+    hgps::input::get_to(trend_json, "LogCoefficients", model.log_coefficients, diagnostics, ok,
+                        source_path, field_path);
 
     return model;
 }
