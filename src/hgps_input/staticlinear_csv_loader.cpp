@@ -3,7 +3,7 @@
 #include "config_section_parsing.h"
 #include "json_access.h"
 
-#include "hgps_core/string.h"
+#include "hgps_core/string_util.h"
 
 #include <fmt/core.h>
 #include <rapidcsv.h>

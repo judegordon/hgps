@@ -3,7 +3,7 @@
 #include "csv_parser.h"
 
 #include "hgps_core/exception.h"
-#include "hgps_core/string.h"
+#include "hgps_core/string_util.h"
 
 #include <fmt/core.h>
 

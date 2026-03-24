@@ -3,7 +3,7 @@
 #include "json_access.h"
 #include "risk_factor_expected_loader.h"
 
-#include "hgps_core/string.h"
+#include "hgps_core/string_util.h"
 
 #include <fmt/core.h>
 
