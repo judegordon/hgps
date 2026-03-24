@@ -79,7 +79,7 @@ load_hlm_risk_model_definition(const nlohmann::json &opt,
                        });
     }
 
-    for (const auto &[level_key, level_info] : model_info.levels) {
+    for (auto &[level_key, level_info] : model_info.levels) {
         int level_index = 0;
         try {
             level_index = std::stoi(level_key);
