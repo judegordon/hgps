@@ -7,7 +7,7 @@
 
 namespace {
 constexpr const char *IndexFileName = "index.json";
-constexpr const char *DataIndexSchemaFileName = "data_index.json";
+constexpr const char *DataIndexSchemaFileName = "data_index/data_index.json";
 constexpr int DataIndexSchemaVersion = 1;
 
 nlohmann::json read_input_files_from_directory(const std::filesystem::path &data_path) {

@@ -39,7 +39,7 @@
 namespace {
 using namespace hgps::input;
 
-constexpr const char *ConfigSchemaFileName = "config.json";
+constexpr const char *ConfigSchemaFileName = "config/config.json";
 constexpr int ConfigSchemaVersion = 1;
 
 std::unique_ptr<DataSource> get_data_source_from_json(const nlohmann::json &opt,
