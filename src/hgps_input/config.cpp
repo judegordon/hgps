@@ -13,7 +13,7 @@
 #include "hgps/physical_activity_scenario.h"
 #include "hgps/simple_policy_scenario.h"
 
-#include "hgps_core/diagnostic.h"
+#include "hgps_core/diagnostics.h"
 #include "hgps_core/poco.h"
 #include "hgps_core/scoped_timer.h"
 
