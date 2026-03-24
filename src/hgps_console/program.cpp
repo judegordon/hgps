@@ -18,6 +18,7 @@
 #include <ctime>
 #include <oneapi/tbb/global_control.h>
 #include <optional>
+#include <stdexcept>
 
 namespace {
 std::string get_time_now_str() {
@@ -131,7 +132,15 @@ int main(int argc, char *argv[]) { // NOLINT(bugprone-exception-escape)
         auto data_repository = hgps::CachedRepository{data_api};
 
         // Register the input risk factors model definitions
-        register_risk_factor_model_definitions(data_repository, config);
+        hgps::core::Diagnostics model_diagnostics;
+        register_risk_factor_model_definitions(data_repository, config, model_diagnostics);
+        if (model_diagnostics.has_errors()) {
+            for (const auto &diagnostic : model_diagnostics) {
+                fmt::print(fmt::fg(fmt::color::red), "{}\n",
+                           hgps::core::format_diagnostic(diagnostic));
+            }
+            return exit_application(EXIT_FAILURE);
+        }
 
         // Compose Health-GPS with the required modules instances
         auto factory = get_default_simulation_module_factory(data_repository);
@@ -181,8 +190,7 @@ int main(int argc, char *argv[]) { // NOLINT(bugprone-exception-escape)
         std::optional<hgps::IndividualIDTrackingWriter> individual_tracking_writer;
         if (config.output.individual_id_tracking.has_value() &&
             config.output.individual_id_tracking->enabled) {
-            individual_tracking_writer.emplace(
-                create_output_file_name(config.output, config.job_id));
+            individual_tracking_writer.emplace(create_output_file_name(config.output, config.job_id));
         }
         auto event_monitor =
             EventMonitor{*event_bus, json_file_logger,

@@ -16,41 +16,46 @@ target_sources(
             "pch.h"
             "data_config.h"
             "data_config.cpp"
-            "AgeGenderTable.Test.cpp"
-            "Channel.Test.cpp"
-            "Configuration.Test.cpp"
-            "ConfigSchemaExpanded.Test.cpp"
-            "Core.Array2DTest.cpp"
-            "Core.Test.cpp"
-            "Core.UnivariateSummary.Test.cpp"
-            "Core.MathHelper.Test.cpp"
-            "Sha256.Test.cpp"
-            "Datastore.Test.cpp"
-            "Repository.Test.cpp"
-            "DiseaseModels.Test.cpp"
-            "EventAggregator.Test.cpp"
-            "Simulation.Test.cpp"
-            "HierarchicalMapping.Test.cpp"
-            "JsonParser.Test.cpp"
-            "Identifier.Test.cpp"
-            "LifeTable.Test.cpp"
-            "Map2d.Test.cpp"
-            "Population.Test.cpp"
-            "RelativeRiskLookup.Test.cpp"
-            "RuntimeMetric.Test.cpp"
-            "Scenario.Test.cpp"
-            "TestMain.cpp"
-            "WeightModel.Test.cpp"
-            "CountryModule.h"
-            "RiskFactorData.h"
-            "Interval.Test.cpp"
-            "LoadNutrientTable.cpp"
-            "PIFData.Test.cpp"
-            "DataManagerPIF.Test.cpp"
-            "DiseaseModelPIF.Test.cpp"
-            "RepositoryPIF.Test.cpp"
-            "ConfigurationPIF.Test.cpp"
-            "PIFIntegration.Test.cpp")
+            "age_gender_table_test.cpp"
+            "channel_test.cpp"
+            "config_test.cpp"
+            "config_schema_expanded_test.cpp"
+            "core_array_2d_test.cpp"
+            "core_test.cpp"
+            "core_univarite_summary_test.cpp"
+            "core_math_helper_test.cpp"
+            "sha256_test.cpp"
+            "datastore_test.cpp"
+            "repo_test.cpp"
+            "disease_model_test.cpp"
+            "event_aggregator_terst.cpp"
+            "simulation_test.cpp"
+            "hierarchical_mapping_test.cpp"
+            "json_parser_test.cpp"
+            "identifier_test.cpp"
+            "life_table_test.cpp"
+            "map_2d_test.cpp"
+            "population_test.cpp"
+            "relative_risk_lookup_test.cpp"
+            "runtime_metric_test.cpp"
+            "scenario_test.cpp"
+            "test_main.cpp"
+            "weight_model_test.cpp"
+            "country_module.h"
+            "risk_factor_data.h"
+            "interval_test.cpp"
+            "load_nutrient_table.cpp"
+            "pif_data_test.cpp"
+            "data_manager_pif_test.cpp"
+            "disease_model_pif_test.cpp"
+            "repo_pif_test.cpp"
+            "config_pif_test.cpp"
+            "pif_integration_test.cpp")
+
+# Needed for generated version.h from src/hgps
+target_include_directories(
+    hgps_tests
+    PRIVATE "${CMAKE_BINARY_DIR}/src/hgps")
 
 # Download and extract test data
 cmake_policy(SET CMP0135 NEW)
@@ -87,6 +92,6 @@ endif()
 set(TO_COPY example_file.txt nutrient_table.csv ../../schemas)
 foreach(FILE IN LISTS TO_COPY)
     file(COPY "${FILE}" DESTINATION ".")
-endforeach(FILE IN LISTS TO_COPY)
+endforeach()
 
 set(ROOT_NAMESPACE hgps::test)
