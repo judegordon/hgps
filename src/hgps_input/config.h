@@ -14,12 +14,17 @@
 
 namespace hgps {
 
+template <typename T>
+class Channel;
+
 class Scenario;
 class Simulation;
-class SyncChannel;
 class SimulationModuleFactory;
 class EventAggregator;
 class ModelInput;
+class SyncMessage;
+
+using SyncChannel = Channel<std::unique_ptr<SyncMessage>>;
 
 namespace core {
 class Datastore;
