@@ -1,4 +1,5 @@
 #include "config.h"
+
 #include "config_parsing.h"
 #include "json_parser.h"
 #include "schema.h"
@@ -8,10 +9,14 @@
 #include "hgps/baseline_scenario.h"
 #include "hgps/fiscal_scenario.h"
 #include "hgps/food_labelling_scenario.h"
+#include "hgps/intervention_scenario.h"
 #include "hgps/marketing_dynamic_scenario.h"
 #include "hgps/marketing_scenario.h"
+#include "hgps/modelinput.h"
 #include "hgps/physical_activity_scenario.h"
+#include "hgps/scenario.h"
 #include "hgps/simple_policy_scenario.h"
+#include "hgps/simulation.h"
 
 #include "hgps_core/diagnostics.h"
 #include "hgps_core/poco.h"
@@ -20,6 +25,7 @@
 #include <fmt/color.h>
 
 #include <chrono>
+#include <cmath>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
@@ -56,6 +62,7 @@ std::unique_ptr<DataSource> get_data_source_from_json(const nlohmann::json &opt,
     if (!std::filesystem::is_directory(source)) {
         throw std::runtime_error("Missing checksum property for data source");
     }
+
     return std::make_unique<DataSource>(std::move(source));
 }
 
@@ -70,7 +77,7 @@ std::filesystem::path get_config_file_path(const std::string &config_source) {
     return DataSource{config_source}.get_data_directory() / "config.json";
 }
 
-} // anonymous namespace
+} // namespace
 
 namespace hgps::input {
 using namespace hgps;
@@ -107,6 +114,7 @@ Configuration get_configuration(const std::string &config_source,
     if (opt.contains("project_requirements")) {
         const auto &pr = opt["project_requirements"];
         auto &req = config.project_requirements;
+
         const auto &d = pr["demographics"];
         req.demographics.age = d["age"].get<bool>();
         req.demographics.gender = d["gender"].get<bool>();
@@ -115,6 +123,7 @@ Configuration get_configuration(const std::string &config_source,
         if (d.contains("max_age_for_linear_models") && !d["max_age_for_linear_models"].is_null()) {
             req.demographics.max_age_for_linear_models = d["max_age_for_linear_models"].get<int>();
         }
+
         const auto &inc = pr["income"];
         req.income.enabled = inc["enabled"].get<bool>();
         req.income.type = inc["type"].get<std::string>();
@@ -124,33 +133,35 @@ Configuration get_configuration(const std::string &config_source,
         if (inc.contains("income_based_csv_output")) {
             req.income.income_based_csv_output = inc["income_based_csv_output"].get<bool>();
         }
+
         const auto &pa = pr["physical_activity"];
         req.physical_activity.enabled = pa["enabled"].get<bool>();
         req.physical_activity.type = pa["type"].get<std::string>();
         req.physical_activity.adjust_to_factors_mean = pa["adjust_to_factors_mean"].get<bool>();
         req.physical_activity.trended = pa["trended"].get<bool>();
+
         const auto &rf = pr["risk_factors"];
         req.risk_factors.adjust_to_factors_mean = rf["adjust_to_factors_mean"].get<bool>();
         req.risk_factors.trended = rf["trended"].get<bool>();
+
         const auto &tr = pr["trend"];
         req.trend.enabled = tr["enabled"].get<bool>();
         req.trend.type = tr["type"].get<std::string>();
+
         const auto &ts = pr["two_stage"];
         req.two_stage.use_logistic = ts["use_logistic"].get<bool>();
         if (ts.contains("logistic_file") && !ts["logistic_file"].is_null()) {
             req.two_stage.logistic_file = ts["logistic_file"].get<std::string>();
         }
     } else {
-        // Mahima: Legacy configs without project_requirements: use categorical income so static
-        // models that only define categorical IncomeModels (e.g. India) work without change.
+        // Legacy configs without project_requirements
         config.project_requirements.income.type = "categorical";
-        config.project_requirements.income.type = "simple";
+        config.project_requirements.physical_activity.type = "simple";
     }
 
     // Read trend_type from JSON file (defaults to "null")
     if (opt.contains("trend_type")) {
         config.trend_type = opt["trend_type"].get<std::string>();
-        // Validate trend_type value
         if (config.trend_type != "null" && config.trend_type != "trend" &&
             config.trend_type != "upf_trend" && config.trend_type != "UPFTrend" &&
             config.trend_type != "income_trend") {
@@ -162,6 +173,7 @@ Configuration get_configuration(const std::string &config_source,
 
     // Store the original config.json data for accessing additional fields
     config.config_data = opt;
+
     // Read PIF configuration from JSON file (if available)
     if (opt.contains("population_impact_fraction")) {
         const auto &pif_json = opt["population_impact_fraction"];
@@ -172,12 +184,11 @@ Configuration get_configuration(const std::string &config_source,
         config.population_impact_fraction.scenario = pif_json["scenario"].get<std::string>();
     }
 
-    // Read data source from JSON file. For now, this is optional, but in future it will be
+    // Read data source from JSON file. For now, this is optional.
     if (opt.contains("data")) {
         config.data_source = get_data_source_from_json(opt["data"], config.root_path);
     }
 
-    // input dataset file
     try {
         load_input_info(opt, config, diagnostics, config_source, "");
         fmt::print("Input dataset file: {}\n", config.file.name.string());
@@ -186,7 +197,6 @@ Configuration get_configuration(const std::string &config_source,
         fmt::print(fg(fmt::color::red), "Could not load dataset file: {}\n", e.what());
     }
 
-    // Modelling information
     try {
         load_modelling_info(opt, config, diagnostics, config_source, "");
     } catch (const std::exception &e) {
@@ -194,7 +204,6 @@ Configuration get_configuration(const std::string &config_source,
         fmt::print(fg(fmt::color::red), "Could not load modelling info: {}\n", e.what());
     }
 
-    // Run-time info
     try {
         load_running_info(opt, config, diagnostics, config_source, "");
     } catch (const std::exception &e) {
@@ -206,7 +215,7 @@ Configuration get_configuration(const std::string &config_source,
         load_output_info(opt, config, output_folder, diagnostics, config_source, "");
     } catch (const ConfigurationError &e) {
         success = false;
-        fmt::print(fg(fmt::color::red), e.what());
+        fmt::print(fg(fmt::color::red), "{}\n", e.what());
     }
 
     if (diagnostics.has_errors()) {
@@ -241,9 +250,8 @@ std::vector<core::DiseaseInfo> get_diseases_info(core::Datastore &data_api, Conf
 ModelInput create_model_input(core::DataTable &input_table, core::Country country,
                               const Configuration &config,
                               std::vector<core::DiseaseInfo> diseases) {
-    // Create simulation configuration
     auto comorbidities = config.output.comorbidities;
-    auto diseases_number = static_cast<unsigned int>(diseases.size());
+    const auto diseases_number = static_cast<unsigned int>(diseases.size());
     if (comorbidities > diseases_number) {
         comorbidities = diseases_number;
         fmt::print(fg(fmt::color::salmon), "Comorbidities value: {}, set to # of diseases: {}.\n",
@@ -295,14 +303,13 @@ std::string create_output_file_name(const OutputInfo &info, int job_id) {
     std::strftime(buf, sizeof(buf), "%F_%H-%M-%S", tm);
     std::string timestamp_tk{buf};
 
-    // filename token replacement
     auto file_name = info.file_name;
     std::size_t tk_end = 0;
     auto tk_start = file_name.find_first_of('{', tk_end);
     if (tk_start != std::string::npos) {
         tk_end = file_name.find_first_of('}', tk_start + 1);
         if (tk_end != std::string::npos) {
-            auto token_str = file_name.substr(tk_start, tk_end - tk_start + 1);
+            const auto token_str = file_name.substr(tk_start, tk_end - tk_start + 1);
             if (!core::case_insensitive::equals(token_str, "{TIMESTAMP}")) {
                 throw std::logic_error(fmt::format("Unknown output file token: {}", token_str));
             }
@@ -354,7 +361,6 @@ std::unique_ptr<hgps::Scenario> create_intervention_scenario(SyncChannel &channe
                                   item.from_age, item.to_age);
     }
 
-    // TODO: Validate intervention JSON definitions!!!
     if (info.identifier == "simple") {
         auto impact_type = PolicyImpactType::absolute;
         if (core::case_insensitive::equals(info.impact_type, "relative")) {
@@ -379,7 +385,6 @@ std::unique_ptr<hgps::Scenario> create_intervention_scenario(SyncChannel &channe
     }
 
     if (info.identifier == "food_labelling") {
-        // I'm not sure if this is safe or not, but I'm supressing the warnings anyway -- Alex
         // NOLINTBEGIN(bugprone-unchecked-optional-access)
         const auto cutoff_time = info.coverage_cutoff_time.value();
         const auto cutoff_age = info.child_cutoff_age.value();
@@ -441,7 +446,7 @@ std::string expand_environment_variables(const std::string &path) {
     std::string value;
 
     post = post.substr(post.find('}') + 1);
-    if (const char *v = std::getenv(variable.c_str())) { // C4996, but safe here.
+    if (const char *v = std::getenv(variable.c_str())) {
         value = v;
     }
 
@@ -451,7 +456,7 @@ std::string expand_environment_variables(const std::string &path) {
 std::optional<unsigned int> create_job_seed(int job_id, std::optional<unsigned int> user_seed) {
     if (job_id > 0 && user_seed.has_value()) {
         auto rnd = hgps::MTRandom32{user_seed.value()};
-        auto jump_size = static_cast<unsigned long>(1.618 * job_id * std::pow(2, 16));
+        const auto jump_size = static_cast<unsigned long>(1.618 * job_id * std::pow(2, 16));
         rnd.discard(jump_size);
         return rnd.next();
     }

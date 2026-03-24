@@ -5,14 +5,30 @@
 #include "version.h"
 
 #include "hgps_core/api.h"
-#include "hgps/intervention_scenario.h"
-#include "hgps/modelinput.h"
-#include "hgps/scenario.h"
-#include "hgps/simulation.h"
 
 #include <memory>
 #include <optional>
 #include <stdexcept>
+#include <string>
+#include <vector>
+
+namespace hgps {
+
+class Scenario;
+class Simulation;
+class SyncChannel;
+class SimulationModuleFactory;
+class EventAggregator;
+class ModelInput;
+
+namespace core {
+class Datastore;
+class DataTable;
+struct DiseaseInfo;
+struct Country;
+} // namespace core
+
+} // namespace hgps
 
 namespace hgps::input {
 
@@ -63,7 +79,7 @@ struct Configuration {
 
 class ConfigurationError : public std::runtime_error {
   public:
-    ConfigurationError(const std::string &msg);
+    explicit ConfigurationError(const std::string &msg);
 };
 
 Configuration get_configuration(const std::string &config_source,
