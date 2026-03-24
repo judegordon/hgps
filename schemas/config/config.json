@@ -8,11 +8,6 @@
       "type": "string",
       "description": "Optional JSON Schema identifier."
     },
-    "version": {
-      "type": "string",
-      "const": "baseline",
-      "description": "Configuration schema version."
-    },
     "project_requirements": {
       "$ref": "../components/config/project_requirements.json"
     },
@@ -36,7 +31,6 @@
     }
   },
   "required": [
-    "version",
     "project_requirements",
     "data",
     "inputs",
