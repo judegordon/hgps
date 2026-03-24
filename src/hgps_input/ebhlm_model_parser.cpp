@@ -2,6 +2,7 @@
 
 #include "json_access.h"
 #include "risk_factor_expected_loader.h"
+#include "riskmodel.h"
 
 #include "hgps_core/string_util.h"
 
@@ -9,6 +10,7 @@
 
 #include <map>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -69,11 +71,11 @@ load_ebhlm_risk_model_definition(const nlohmann::json &opt,
             return nullptr;
         }
 
-        variables.emplace(hgps::core::Identifier{item.name},
-                          hgps::core::Identifier{item.factor});
+        variables.emplace(hgps::core::Identifier{std::string{item.name}},
+                          hgps::core::Identifier{std::string{item.factor}});
 
-        (*expected_trend)[hgps::core::Identifier{item.factor}] = 1.0;
-        (*trend_steps)[hgps::core::Identifier{item.factor}] = 0;
+        (*expected_trend)[hgps::core::Identifier{std::string{item.factor}}] = 1.0;
+        (*trend_steps)[hgps::core::Identifier{std::string{item.factor}}] = 0;
     }
 
     std::map<hgps::core::IntegerInterval, hgps::AgeGroupGenderEquation> equations;
