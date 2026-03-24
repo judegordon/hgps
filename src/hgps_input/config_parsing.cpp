@@ -1,4 +1,5 @@
 #include "config_parsing.h"
+#include "json_parser.h"
 
 #include "config_section_parsing.h"
 #include "config_path_parsing.h"
