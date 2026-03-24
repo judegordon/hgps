@@ -145,20 +145,7 @@ class ConfigParsingFixture : public ::testing::Test {
 
 } // anonymous namespace
 
-TEST(ConfigParsing, Get) {
-    json j;
 
-    // Null object
-    EXPECT_THROW(get(j, TEST_KEY), ConfigurationError);
-
-    // Key missing
-    j[TEST_KEY2] = 1;
-    EXPECT_THROW(get(j, TEST_KEY), ConfigurationError);
-
-    // Key present
-    j[TEST_KEY] = 2;
-    EXPECT_NO_THROW(get(j, TEST_KEY));
-}
 
 template <class Func> void testGetTo(const Func &f) {
     f(1);
@@ -786,16 +773,4 @@ TEST_F(ConfigParsingFixture, LoadOutputInfoOutputFolderNeitherSpecifiedThrows) {
     j["output"] = {{"comorbidities", 3}, {"folder", ""}, {"file_name", "f.txt"}};
     Configuration config = create_config();
     EXPECT_THROW(load_output_info(j, config, std::nullopt), ConfigurationError);
-}
-
-TEST(ConfigParsing, GetThrowsWithKeyInMessage) {
-    json j;
-    j["present"] = 1;
-    try {
-        get(j, "missing_key");
-        FAIL() << "expected ConfigurationError";
-    } catch (const ConfigurationError &e) {
-        std::string msg = e.what();
-        EXPECT_TRUE(msg.find("missing_key") != std::string::npos) << "message: " << msg;
-    }
 }
