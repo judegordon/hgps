@@ -3,6 +3,7 @@
 #include "config_section_parsing.h"
 #include "csv_parser.h"
 #include "json_access.h"
+#include "json_parser.h"
 #include "risk_factor_expected_loader.h"
 
 #include <fmt/core.h>
