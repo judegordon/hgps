@@ -3,6 +3,7 @@
 #include <rapidcsv.h>
 
 #include <filesystem>
+#include "json_parser.h"
 #include <stdexcept>
 
 namespace hgps::input {

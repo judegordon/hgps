@@ -5,6 +5,7 @@
 #include <nlohmann/json.hpp>
 
 #include <string>
+#include "json_parser.h"
 #include <string_view>
 
 namespace hgps::input {

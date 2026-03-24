@@ -2,6 +2,7 @@
 
 #include <fmt/color.h>
 #include <rapidcsv.h>
+#include "json_parser.h"
 
 #include <algorithm>
 #include <chrono>

@@ -1,4 +1,3 @@
-```cpp
 #pragma once
 
 #include "config.h"
@@ -17,4 +16,4 @@ load_hlm_risk_model_definition(const nlohmann::json &opt,
                                std::string_view source_path = {});
 
 } // namespace hgps::input
-```
+

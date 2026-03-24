@@ -2,6 +2,7 @@
 
 #include <cstdlib>
 #include <regex>
+#include "json_parser.h"
 
 namespace hgps::input {
 

@@ -1,6 +1,7 @@
 #include "staticlinear_trend_loader.h"
 
 #include "json_access.h"
+#include "json_parser.h"
 
 #include <fmt/core.h>
 

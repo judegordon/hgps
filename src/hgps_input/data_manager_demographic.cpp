@@ -2,6 +2,8 @@
 
 #include <rapidcsv.h>
 
+#include "json_parser.h"
+
 #include <algorithm>
 #include <filesystem>
 #include <stdexcept>
