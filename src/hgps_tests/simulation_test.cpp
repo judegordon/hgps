@@ -8,8 +8,8 @@
 #include "hgps/random_algorithm.h"
 #include "hgps/simple_policy_scenario.h"
 
-#include "CountryModule.h"
-#include "RiskFactorData.h"
+#include "country_module.h"
+#include "risk_factor_data.h"
 
 #include <atomic>
 #include <map>

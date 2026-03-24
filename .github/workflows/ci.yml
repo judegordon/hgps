@@ -83,7 +83,7 @@ jobs:
       - name: Generate coverage report
         if: matrix.platform == 'linux'
         working-directory: ${{ github.workspace }}/out/build/linux-debug
-        run: geninfo . --include 'src/HealthGPS*' --exclude 'src/hgps_tests' --output-file main_coverage.info
+        run: geninfo . --include 'src/hgps*' --exclude 'src/hgps_tests' --output-file main_coverage.info
 
       - name: Upload coverage to Codecov
         if: matrix.platform == 'linux'
