@@ -1,7 +1,6 @@
 #include "schema.h"
 
 #include "hgps/program_dirs.h"
-#include "json_parser.h"
 
 #include <fmt/color.h>
 #include <fmt/format.h>
