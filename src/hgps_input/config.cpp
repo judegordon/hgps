@@ -13,6 +13,7 @@
 #include "hgps/physical_activity_scenario.h"
 #include "hgps/simple_policy_scenario.h"
 
+#include "hgps_core/diagnostic.h"
 #include "hgps_core/poco.h"
 #include "hgps_core/scoped_timer.h"
 
@@ -85,6 +86,8 @@ Configuration get_configuration(const std::string &config_source,
 
     Configuration config;
     config.job_id = job_id;
+
+    core::Diagnostics diagnostics{};
 
     // verbosity
     config.verbosity = core::VerboseMode::none;
@@ -176,7 +179,7 @@ Configuration get_configuration(const std::string &config_source,
 
     // input dataset file
     try {
-        load_input_info(opt, config);
+        load_input_info(opt, config, diagnostics, config_source, "");
         fmt::print("Input dataset file: {}\n", config.file.name.string());
     } catch (const std::exception &e) {
         success = false;
@@ -185,7 +188,7 @@ Configuration get_configuration(const std::string &config_source,
 
     // Modelling information
     try {
-        load_modelling_info(opt, config);
+        load_modelling_info(opt, config, diagnostics, config_source, "");
     } catch (const std::exception &e) {
         success = false;
         fmt::print(fg(fmt::color::red), "Could not load modelling info: {}\n", e.what());
@@ -193,17 +196,24 @@ Configuration get_configuration(const std::string &config_source,
 
     // Run-time info
     try {
-        load_running_info(opt, config);
+        load_running_info(opt, config, diagnostics, config_source, "");
     } catch (const std::exception &e) {
         success = false;
         fmt::print(fg(fmt::color::red), "Could not load running info: {}\n", e.what());
     }
 
     try {
-        load_output_info(opt, config, output_folder);
+        load_output_info(opt, config, output_folder, diagnostics, config_source, "");
     } catch (const ConfigurationError &e) {
         success = false;
         fmt::print(fg(fmt::color::red), e.what());
+    }
+
+    if (diagnostics.has_errors()) {
+        success = false;
+        for (const auto &diagnostic : diagnostics) {
+            fmt::print(fg(fmt::color::red), "{}\n", core::format_diagnostic(diagnostic));
+        }
     }
 
     if (!success) {
