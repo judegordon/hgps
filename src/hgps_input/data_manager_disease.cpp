@@ -1,11 +1,14 @@
 #include "data_manager.h"
 
+#include "hgps_core/math_util.h"
+
 #include <rapidcsv.h>
 
 #include <algorithm>
 #include <filesystem>
 #include <stdexcept>
 #include <unordered_map>
+
 
 namespace hgps::input {
 

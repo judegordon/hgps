@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
+#include <filesystem>
 #include <regex>
 #include <stdexcept>
 
@@ -24,6 +25,9 @@ std::optional<PIFData> DataManager::get_pif_data(const DiseaseInfo &disease_info
 
     auto country_code = std::to_string(country.code);
     auto csv_filename = "IF" + country_code + ".csv";
+
+    // FIX: define pif_path before using it
+    auto pif_path = construct_pif_path(disease_info.code.to_string(), pif_config);
     auto full_path = pif_path / csv_filename;
 
     if (std::filesystem::exists(full_path)) {
