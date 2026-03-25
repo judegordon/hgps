@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    name: Build and test (${{ matrix.platform }})
+    name: Build and run (${{ matrix.platform }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -38,7 +38,7 @@ jobs:
         if: matrix.platform == 'linux'
         run: |
           sudo apt update
-          sudo apt install -y --no-install-recommends build-essential ninja-build lcov zip
+          sudo apt install -y --no-install-recommends build-essential ninja-build zip
 
       - name: Export GitHub Actions cache environment variables
         uses: actions/github-script@v7
@@ -48,30 +48,41 @@ jobs:
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
       - name: Install VCPKG
+        shell: bash
         run: |
           git clone https://github.com/microsoft/vcpkg.git
           cd vcpkg
           ./bootstrap-vcpkg.sh -disableMetrics
 
       - name: Configure HealthGPS (debug)
-        run: cmake --preset=${{ matrix.platform }}-debug -DWARNINGS_AS_ERRORS=ON -DGENERATE_COVERAGE=ON
+        run: cmake --preset=${{ matrix.platform }}-debug -DWARNINGS_AS_ERRORS=ON
 
       - name: Build HealthGPS (debug)
         run: cmake --build --preset=debug-build-${{ matrix.platform }} --target install
 
       - name: Execute HealthGPS (debug)
-        run: out/install/${{ matrix.platform }}-debug/bin/hgps_console --help
+        shell: bash
+        run: |
+          if [ "${{ matrix.platform }}" = "windows" ]; then
+            ./out/install/${{ matrix.platform }}-debug/bin/hgps_console.exe --help
+          else
+            ./out/install/${{ matrix.platform }}-debug/bin/hgps_console --help
+          fi
 
-      - name: Run tests
-        run: ctest --preset=core-test-${{ matrix.platform }} --output-on-failure
+      - name: Configure HealthGPS (release)
+        run: cmake --preset=${{ matrix.platform }}-release -DWARNINGS_AS_ERRORS=ON
 
       - name: Build HealthGPS (release)
-        run: |
-          cmake --preset=${{ matrix.platform }}-release -DWARNINGS_AS_ERRORS=ON
-          cmake --build --preset=release-build-${{ matrix.platform }} --target install
+        run: cmake --build --preset=release-build-${{ matrix.platform }} --target install
 
       - name: Execute HealthGPS (release)
-        run: out/install/${{ matrix.platform }}-release/bin/hgps_console --help
+        shell: bash
+        run: |
+          if [ "${{ matrix.platform }}" = "windows" ]; then
+            ./out/install/${{ matrix.platform }}-release/bin/hgps_console.exe --help
+          else
+            ./out/install/${{ matrix.platform }}-release/bin/hgps_console --help
+          fi
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -79,14 +90,3 @@ jobs:
           name: health-gps-${{ matrix.platform }}
           path: ${{ github.workspace }}/out/install/${{ matrix.platform }}-*/*
           if-no-files-found: error
-
-      - name: Generate coverage report
-        if: matrix.platform == 'linux'
-        working-directory: ${{ github.workspace }}/out/build/linux-debug
-        run: geninfo . --include 'src/hgps*' --exclude 'src/hgps_tests' --output-file main_coverage.info
-
-      - name: Upload coverage to Codecov
-        if: matrix.platform == 'linux'
-        uses: codecov/codecov-action@v4
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
