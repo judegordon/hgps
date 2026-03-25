@@ -29,6 +29,8 @@ target_sources(
             "column_primitive.h"
             "country.h"
             "datastore.h"
+            "diagnostics.h"
+            "diagnostics.cpp"
             "disease.h"
             "forward_type.h"
             "indicator.h"
