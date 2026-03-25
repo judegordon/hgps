@@ -2,13 +2,10 @@
 
 #include <fmt/color.h>
 #include <rapidcsv.h>
-#include "json_parser.h"
 
 #include <algorithm>
 #include <chrono>
-#include <cstdlib>
 #include <filesystem>
-#include <regex>
 #include <stdexcept>
 
 namespace hgps::input {
@@ -20,16 +17,14 @@ std::optional<PIFData> DataManager::get_pif_data(const DiseaseInfo &disease_info
         return std::nullopt;
     }
 
-    auto data_root_path = pif_config["data_root_path"].get<std::string>();
-    auto risk_factor = pif_config["risk_factor"].get<std::string>();
-    auto scenario = pif_config["scenario"].get<std::string>();
+    const auto risk_factor = pif_config["risk_factor"].get<std::string>();
+    const auto scenario = pif_config["scenario"].get<std::string>();
 
-    auto country_code = std::to_string(country.code);
-    auto csv_filename = "IF" + country_code + ".csv";
+    const auto country_code = std::to_string(country.code);
+    const auto csv_filename = "IF" + country_code + ".csv";
 
-    // FIX: define pif_path before using it
-    auto pif_path = construct_pif_path(disease_info.code.to_string(), pif_config);
-    auto full_path = pif_path / csv_filename;
+    const auto pif_path = construct_pif_path(disease_info.code.to_string(), pif_config);
+    const auto full_path = pif_path / csv_filename;
 
     if (std::filesystem::exists(full_path)) {
         try {
@@ -39,7 +34,7 @@ std::optional<PIFData> DataManager::get_pif_data(const DiseaseInfo &disease_info
                 pif_data.add_scenario_data(scenario, std::move(pif_table));
 
                 const auto *loaded_pif_table = pif_data.get_scenario_data(scenario);
-                auto file_size = std::filesystem::file_size(full_path);
+                const auto file_size = std::filesystem::file_size(full_path);
 
                 fmt::print(fg(fmt::color::green), "PIF Data Loaded Successfully:\n");
                 fmt::print("  - Disease: {}\n", disease_info.code.to_string());
@@ -69,53 +64,20 @@ std::optional<PIFData> DataManager::get_pif_data(const DiseaseInfo &disease_info
     return std::nullopt;
 }
 
-std::filesystem::path DataManager::construct_pif_path(const std::string &disease_code,
-                                                      const nlohmann::json &pif_config) const {
-    auto data_root_path = pif_config["data_root_path"].get<std::string>();
-    auto risk_factor = pif_config["risk_factor"].get<std::string>();
-    auto scenario = pif_config["scenario"].get<std::string>();
-
-    data_root_path = expand_environment_variables(data_root_path);
-
-    return std::filesystem::path(data_root_path) / "diseases" / disease_code / "PIF" / risk_factor /
-           scenario;
-}
-
-std::string DataManager::expand_environment_variables(const std::string &path) const {
-    std::string result = path;
-
-    std::regex env_var_regex(R"(\$\{([^}]+)\})");
-    std::smatch match;
-
-    while (std::regex_search(result, match, env_var_regex)) {
-        std::string var_name = match[1].str();
-        const char *env_value = std::getenv(var_name.c_str());
-
-        if (env_value) {
-            result.replace(match.position(), match.length(), env_value);
-        } else {
-            notify_warning(
-                fmt::format("Environment variable {} not found, using placeholder", var_name));
-        }
-    }
-
-    return result;
-}
-
 PIFTable DataManager::load_pif_from_csv(const std::filesystem::path &filepath) const {
     PIFTable table;
-    auto start_time = std::chrono::high_resolution_clock::now();
+    const auto start_time = std::chrono::high_resolution_clock::now();
 
     try {
         rapidcsv::Document doc(filepath.string());
-        auto mapping = create_fields_index_mapping(doc.GetColumnNames(),
-                                                   {"Gender", "Age", "YearPostInt", "IF_Mean"});
+        const auto mapping = create_fields_index_mapping(
+            doc.GetColumnNames(), {"Gender", "Age", "YearPostInt", "IF_Mean"});
 
         for (size_t i = 0; i < doc.GetRowCount(); i++) {
-            auto row = doc.GetRow<std::string>(i);
+            const auto row = doc.GetRow<std::string>(i);
 
             PIFDataItem item{};
-            int csv_gender = std::stoi(row[mapping["Gender"]]);
+            const int csv_gender = std::stoi(row[mapping["Gender"]]);
             item.gender = (csv_gender == 0) ? core::Gender::male : core::Gender::female;
             item.age = std::stoi(row[mapping["Age"]]);
             item.year_post_intervention = std::stoi(row[mapping["YearPostInt"]]);
@@ -132,8 +94,8 @@ PIFTable DataManager::load_pif_from_csv(const std::filesystem::path &filepath) c
 
         table.build_hash_table();
 
-        auto end_time = std::chrono::high_resolution_clock::now();
-        auto duration =
+        const auto end_time = std::chrono::high_resolution_clock::now();
+        const auto duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 
         fmt::print(fg(fmt::color::cyan), "PIF CSV File Loaded: {} ({} rows) in {}ms\n",
