@@ -77,11 +77,11 @@ PIFTable DataManager::load_pif_from_csv(const std::filesystem::path &filepath) c
             const auto row = doc.GetRow<std::string>(i);
 
             PIFDataItem item{};
-            const int csv_gender = std::stoi(row[mapping["Gender"]]);
+            const int csv_gender = std::stoi(row[mapping.at("Gender")]);
             item.gender = (csv_gender == 0) ? core::Gender::male : core::Gender::female;
-            item.age = std::stoi(row[mapping["Age"]]);
-            item.year_post_intervention = std::stoi(row[mapping["YearPostInt"]]);
-            item.pif_value = std::stod(row[mapping["IF_Mean"]]);
+            item.age = std::stoi(row[mapping.at("Age")]);
+            item.year_post_intervention = std::stoi(row[mapping.at("YearPostInt")]);
+            item.pif_value = std::stod(row[mapping.at("IF_Mean")]);
 
             if (item.pif_value < 0.0 || item.pif_value > 1.0) {
                 notify_warning(fmt::format("PIF value {} out of range [0.0, 1.0] at row {}",
