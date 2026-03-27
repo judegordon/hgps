@@ -24,7 +24,7 @@ load_and_validate_model_json(const std::filesystem::path &model_path,
                              hgps::core::Diagnostics &diagnostics);
 
 hgps::core::Income map_income_category(const std::string &key,
-                                       const std::string &category_count,
+                                       int category_count,
                                        hgps::core::Diagnostics &diagnostics,
                                        std::string_view source_path = {},
                                        std::string_view field_path = {});

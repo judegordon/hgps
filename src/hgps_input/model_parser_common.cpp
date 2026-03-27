@@ -143,7 +143,7 @@ load_and_validate_model_json(const std::filesystem::path &model_path,
 }
 
 hgps::core::Income map_income_category(const std::string &key,
-                                       const std::string &category_count,
+                                       int category_count,
                                        hgps::core::Diagnostics &diagnostics,
                                        std::string_view source_path,
                                        std::string_view field_path) {
@@ -159,11 +159,11 @@ hgps::core::Income map_income_category(const std::string &key,
         return hgps::core::Income::high;
     }
 
-    if (category_count == "3") {
+    if (category_count == 3) {
         if (hgps::core::case_insensitive::equals(key, "middle")) {
             return hgps::core::Income::middle;
         }
-    } else if (category_count == "4") {
+    } else if (category_count == 4) {
         if (hgps::core::case_insensitive::equals(key, "lowermiddle")) {
             return hgps::core::Income::lowermiddle;
         }
@@ -175,7 +175,7 @@ hgps::core::Income map_income_category(const std::string &key,
         diagnostics.error(hgps::core::DiagnosticCode::invalid_value,
                           {.source_path = std::string{source_path},
                            .field_path = std::string{field_path}},
-                          fmt::format("Unsupported income category count '{}'", category_count));
+                          fmt::format("Unsupported income category count {}", category_count));
         return hgps::core::Income::unknown;
     }
 

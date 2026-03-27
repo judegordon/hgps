@@ -127,7 +127,7 @@ Configuration get_configuration(const std::string &config_source,
         const auto &inc = pr["income"];
         req.income.enabled = inc["enabled"].get<bool>();
         req.income.type = inc["type"].get<std::string>();
-        req.income.categories = inc["categories"].get<std::string>();
+        req.income.categories = inc["categories"].get<int>();
         req.income.adjust_to_factors_mean = inc["adjust_to_factors_mean"].get<bool>();
         req.income.trended = inc["trended"].get<bool>();
         if (inc.contains("income_based_csv_output")) {

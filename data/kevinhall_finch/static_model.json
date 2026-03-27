@@ -1,0 +1,311 @@
+{
+    "$schema": "https://raw.githubusercontent.com/imperialCHEPI/healthgps/main/schemas/v2/config/models/staticlinear.json",
+    "ModelName": "StaticLinear",
+    "InformationSpeed": 0.1,
+    "PhysicalActivityStdDev": 0.268662432,
+    "RuralPrevalence": [
+        {
+            "Name": "Under18",
+            "Female": 0.0,
+            "Male": 0.0
+        },
+        {
+            "Name": "Over18",
+            "Female": 0.0,
+            "Male": 0.0
+        }
+    ],
+    "RegionFile": {
+        "name": "region.csv",
+        "format": "csv",
+        "delimiter": ",",
+        "encoding": "ASCII",
+        "columns": {
+            "Age": "integer",
+            "Gender": "integer",
+            "region1": "double",
+            "region2": "double",
+            "region3": "double",
+            "region4": "double"
+        }
+    },
+    "EthnicityFile": {
+        "name": "ethnicity.csv",
+        "format": "csv",
+        "delimiter": ",",
+        "encoding": "ASCII",
+        "columns": {
+            "adult": "integer",
+            "gender": "integer",
+            "ethnicity": "integer",
+            "region1": "double",
+            "region2": "double",
+            "region4": "double",
+            "region3": "double"
+        }
+    },
+    "IncomeModels": {
+        "continuous": {
+            "csv_file": "income_model.csv",
+            "format": "csv",
+            "delimiter": ",",
+            "encoding": "ASCII",
+            "columns": {
+                "Factor": "Factor",
+                "Coefficient": "Coefficient"
+            }
+        }
+    },
+    "PhysicalActivityModels": {
+        "continuous": {
+            "csv_file": "physicalactivity_model.csv",
+            "format": "csv",
+            "delimiter": ",",
+            "encoding": "ASCII",
+            "columns": {
+                "Factor": "string",
+                "Coefficient": "double"
+            }
+        }
+    },
+    "Nutrients": [
+        {
+            "Name": "Carbohydrate",
+            "Range": [0.018864257, 1781.290527],
+            "Energy": 4.0
+        },
+        {
+            "Name": "Protein",
+            "Range": [0.008585715, 359.7049561],
+            "Energy": 4.0
+        },
+        {
+            "Name": "Fat",
+            "Range": [0, 1232.129272],
+            "Energy": 9.0
+        },
+        {
+            "Name": "Sodium",
+            "Range": [0.000200005, 16.34803581],
+            "Energy": 0.0
+        },
+        {
+            "Name": "Alcohol",
+            "Range": [0.0, 306.9281311],
+            "Energy": 7.0
+        },
+        {
+            "Name": "ProcessedMeat",
+            "Range": [0.0, 932.5],
+            "Energy": 0.0
+        },
+        {
+            "Name": "RedMeat",
+            "Range": [0.0, 476.6325559],
+            "Energy": 0.0
+        },
+        {
+            "Name": "Legume",
+            "Range": [0.0, 433.6983613],
+            "Energy": 0.0
+        },
+        {
+            "Name": "Fruit",
+            "Range": [0.0, 1720.489525],
+            "Energy": 0.0
+        },
+        {
+            "Name": "Vegetable",
+            "Range": [0.0, 2046.825704],
+            "Energy": 0.0
+        },
+        {
+            "Name": "AddedSugar",
+            "Range": [0.0, 758.3163452],
+            "Energy": 0.0
+        },
+        {
+            "Name": "TotalSugar",
+            "Range": [0.019693965, 819.5865479],
+            "Energy": 0.0
+        },
+        {
+            "Name": "MonounsaturatedFat",
+            "Range": [0.0, 483.5317688],
+            "Energy": 0.0
+        },
+        {
+            "Name": "PolyunsaturatedFattyAcid",
+            "Range": [0.0, 473.1528015],
+            "Energy": 0.0
+        },
+        {
+            "Name": "SaturatedFat",
+            "Range": [0.0, 276.9013672],
+            "Energy": 0.0
+        },
+        {
+            "Name": "Fibre",
+            "Range": [0.0, 189.5542603],
+            "Energy": 0.0
+        },
+        {
+            "Name": "Calcium",
+            "Range": [0.737887883, 6684.71119],
+            "Energy": 0.0
+        },
+        {
+            "Name": "Iron",
+            "Range": [0.005067779, 98.2867514],
+            "Energy": 0.0
+        },
+        {
+            "Name": "VitaminC",
+            "Range": [0.007861946, 493.1192256],
+            "Energy": 0.0
+        },
+        {
+            "Name": "Copper",
+            "Range": [0.0, 17.2348732],
+            "Energy": 0.0
+        },
+        {
+            "Name": "Zinc",
+            "Range": [0.0, 42.68661953],
+            "Energy": 0.0
+        }
+    ],
+    "RiskFactorModels": {
+        "boxcox_coefficients": {
+            "name": "boxcox_coefficients.csv",
+            "format": "csv",
+            "delimiter": ",",
+            "encoding": "ASCII",
+            "columns": {
+                "FoodCarbohydrate": "double",
+                "FoodFat": "double",
+                "FoodProtein": "double",
+                "FoodSodium": "double",
+                "FoodAlcohol": "double",
+                "FoodFibre": "double",
+                "FoodMonounsaturatedFat": "double",
+                "FoodPolyunsaturatedFattyAcid": "double",
+                "FoodSaturatedFat": "double",
+                "FoodTotalSugar": "double",
+                "FoodAddedSugar": "double",
+                "FoodFruit": "double",
+                "FoodVegetable": "double",
+                "FoodLegume": "double",
+                "FoodRedMeat": "double",
+                "FoodProcessedMeat": "double",
+                "FoodCalcium": "double",
+                "FoodIron": "double",
+                "FoodVitaminC": "double",
+                "FoodCopper": "double",
+                "FoodZinc": "double"
+            }
+        },
+        "policy_coefficients": {
+            "name": "policyeffect_model.csv",
+            "format": "csv",
+            "delimiter": ",",
+            "encoding": "ASCII",
+            "columns": {
+                "FoodCarbohydrate": "double",
+                "FoodFat": "double",
+                "FoodProtein": "double",
+                "FoodSodium": "double",
+                "FoodAlcohol": "double",
+                "FoodFibre": "double",
+                "FoodMonounsaturatedFat": "double",
+                "FoodPolyunsaturatedFattyAcid": "double",
+                "FoodSaturatedFat": "double",
+                "FoodTotalSugar": "double",
+                "FoodAddedSugar": "double",
+                "FoodFruit": "double",
+                "FoodVegetable": "double",
+                "FoodLegume": "double",
+                "FoodRedMeat": "double",
+                "FoodProcessedMeat": "double",
+                "FoodCalcium": "double",
+                "FoodIron": "double",
+                "FoodVitaminC": "double",
+                "FoodCopper": "double",
+                "FoodZinc": "double"
+            }
+        },
+        "logistic_regression": {
+            "name": "logistic_regression.csv",
+            "format": "csv",
+            "delimiter": ",",
+            "encoding": "ASCII",
+            "columns": {
+                "FoodAlcohol": "double",
+                "FoodAddedSugar": "double",
+                "FoodFruit": "double",
+                "FoodVegetable": "double",
+                "FoodLegume": "double",
+                "FoodRedMeat": "double",
+                "FoodProcessedMeat": "double"
+            }
+        }
+    },
+    "RiskFactorCorrelationFile": {
+        "name": "Finch_residual_risk_factor_correlation.csv",
+        "format": "csv",
+        "delimiter": ",",
+        "encoding": "ASCII",
+        "columns": {
+            "FoodCarbohydrate": "double",
+            "FoodFat": "double",
+            "FoodProtein": "double",
+            "FoodSodium": "double",
+            "FoodAlcohol": "double",
+            "FoodFibre": "double",
+            "FoodMonounsaturatedFat": "double",
+            "FoodPolyunsaturatedFattyAcid": "double",
+            "FoodSaturatedFat": "double",
+            "FoodTotalSugar": "double",
+            "FoodAddedSugar": "double",
+            "FoodFruit": "double",
+            "FoodVegetable": "double",
+            "FoodLegume": "double",
+            "FoodRedMeat": "double",
+            "FoodProcessedMeat": "double",
+            "FoodCalcium": "double",
+            "FoodIron": "double",
+            "FoodVitaminC": "double",
+            "FoodCopper": "double",
+            "FoodZinc": "double"
+        }
+    },
+    "PolicyCovarianceFile": {
+        "name": "Finch_residual_policy_covariance.csv",
+        "format": "csv",
+        "delimiter": ",",
+        "encoding": "ASCII",
+        "columns": {
+            "FoodCarbohydrate": "double",
+            "FoodFat": "double",
+            "FoodProtein": "double",
+            "FoodAlcohol": "double",
+            "FoodSodium": "double",
+            "FoodFibre": "double",
+            "FoodMonounsaturatedFat": "double",
+            "FoodPolyunsaturatedFattyAcid": "double",
+            "FoodSaturatedFat": "double",
+            "FoodTotalSugar": "double",
+            "FoodAddedSugar": "double",
+            "FoodFruit": "double",
+            "FoodVegetable": "double",
+            "FoodLegume": "double",
+            "FoodRedMeat": "double",
+            "FoodProcessedMeat": "double",
+            "FoodCalcium": "double",
+            "FoodIron": "double",
+            "FoodVitaminC": "double",
+            "FoodCopper": "double",
+            "FoodZinc": "double"
+        }
+    }
+}

@@ -62,7 +62,7 @@ class StaticLinearModel final : public RiskFactorAdjustableModel {
             nullptr,
         bool is_continuous_income_model = false,
         const LinearModelParams &continuous_income_model = LinearModelParams{},
-        std::string income_categories = "3",
+        int income_categories = 3, // or 4
         const std::unordered_map<core::Identifier, PhysicalActivityModel>
             &physical_activity_models = {},
         bool has_active_policies = true,
@@ -118,7 +118,7 @@ class StaticLinearModel final : public RiskFactorAdjustableModel {
     // Continuous income model support (FINCH approach)
     bool is_continuous_income_model_;
     LinearModelParams continuous_income_model_;
-    std::string income_categories_;
+    int income_categories_;
 
     double calculate_continuous_income(Person &person, Random &random);
 
@@ -229,7 +229,7 @@ class StaticLinearModelDefinition : public RiskFactorAdjustableModelDefinition {
             nullptr,
         bool is_continuous_income_model = false,
         const LinearModelParams &continuous_income_model = LinearModelParams{},
-        std::string income_categories = "3",
+        int income_categories = 3, // or 4
         const std::unordered_map<core::Identifier, PhysicalActivityModel>
             &physical_activity_models = {},
         bool has_active_policies = true,
@@ -281,7 +281,7 @@ class StaticLinearModelDefinition : public RiskFactorAdjustableModelDefinition {
     // Continuous income model support (FINCH approach)
     bool is_continuous_income_model_;
     LinearModelParams continuous_income_model_;
-    std::string income_categories_;
+    int income_categories_;
     // Policy optimization flag - Mahima
     bool has_active_policies_;
 };

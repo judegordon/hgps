@@ -18,7 +18,7 @@ struct StaticLinearIncomeModelData {
     std::unordered_map<hgps::core::Income, hgps::LinearModelParams> models;
     bool is_continuous_model{false};
     hgps::LinearModelParams continuous_model;
-    std::string income_categories;
+    int income_categories{};
 };
 
 struct StaticLinearPhysicalActivityModelData {

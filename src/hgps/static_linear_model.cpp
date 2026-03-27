@@ -29,7 +29,7 @@ struct IncomeThresholdCache {
                                     // for 3 categories
     size_t population_size = 0;
     int year = -1;
-    std::string income_categories; // "3" or "4" to know which type of thresholds we have
+    int income_categories; // "3" or "4" to know which type of thresholds we have
 };
 
 // Helper function to get shared thread-local income threshold cache
@@ -67,7 +67,7 @@ StaticLinearModel::StaticLinearModel(
     std::shared_ptr<std::vector<double>> income_trend_lambda,
     std::shared_ptr<std::unordered_map<core::Identifier, double>> income_trend_decay_factors,
     bool is_continuous_income_model, const LinearModelParams &continuous_income_model,
-    std::string income_categories,
+    int income_categories,
     const std::unordered_map<core::Identifier, PhysicalActivityModel> &physical_activity_models,
     bool has_active_policies, const std::vector<LinearModelParams> &logistic_models)
     // NOLINTNEXTLINE(readability-function-cognitive-complexity)
@@ -414,7 +414,7 @@ void StaticLinearModel::generate_risk_factors(RuntimeContext &context) {
                       << " n=" << n_inc;
         }
         std::vector<double> thresholds;
-        if (income_categories_ == "4") {
+        if (income_categories_ == 4) {
             thresholds = calculate_income_quartiles(context.population());
         } else {
             thresholds = calculate_income_tertiles(context.population());
@@ -488,7 +488,7 @@ void StaticLinearModel::generate_risk_factors(RuntimeContext &context) {
         print_summary("Lower middle income", 2, lowmid_sum);
         print_summary("Middle income", 2, mid_sum);
         print_summary("Upper middle income", 3, upmid_sum);
-        print_summary("High income", income_categories_ == "4" ? 4 : 3, high_sum);
+        print_summary("High income", income_categories_ == 4 ? 4 : 3, high_sum);
     }
 
     // Initialise everyone with policies and trends.
@@ -559,7 +559,7 @@ void StaticLinearModel::generate_risk_factors(RuntimeContext &context) {
                 }
             }
             std::vector<double> thresholds;
-            if (income_categories_ == "4") {
+            if (income_categories_ == 4) {
                 thresholds = calculate_income_quartiles(context.population());
             } else {
                 thresholds = calculate_income_tertiles(context.population());
@@ -657,7 +657,7 @@ void StaticLinearModel::update_risk_factors(RuntimeContext &context) {
         // income_categories changed
         if (cache.thresholds.empty() || cache.population_size != current_pop_size ||
             cache.year != current_year || cache.income_categories != income_categories_) {
-            if (income_categories_ == "4") {
+            if (income_categories_ == 4) {
                 cache.thresholds = calculate_income_quartiles(context.population());
             } else {
                 // 3 categories: use tertiles
@@ -774,7 +774,7 @@ void StaticLinearModel::update_risk_factors(RuntimeContext &context) {
 
             // Always recalculate thresholds after trend adjustment to ensure they're based on
             // trend-adjusted income values
-            if (income_categories_ == "4") {
+            if (income_categories_ == 4) {
                 cache.thresholds = calculate_income_quartiles(context.population());
             } else {
                 // 3 categories: use tertiles
@@ -1886,7 +1886,7 @@ std::vector<double> StaticLinearModel::calculate_income_tertiles(const Populatio
 core::Income StaticLinearModel::convert_income_continuous_to_category(double continuous_income,
                                                                       const Population &population,
                                                                       Random & /*random*/) const {
-    if (income_categories_ == "4") {
+    if (income_categories_ == 4) {
         // 4-category system: low, lowermiddle, uppermiddle, high
         // Use quartiles: 0-25% (low), 26-50% (lowermiddle), 51-75% (uppermiddle), above 75% (high)
         // Q1 = 25th percentile, Q2 = 50th percentile, Q3 = 75th percentile
@@ -1920,7 +1920,7 @@ core::Income StaticLinearModel::convert_income_continuous_to_category(double con
 core::Income
 StaticLinearModel::convert_income_to_category(double continuous_income,
                                               const std::vector<double> &thresholds) const {
-    if (income_categories_ == "4") {
+    if (income_categories_ == 4) {
         // 4-category system: low, lowermiddle, uppermiddle, high
         // Use quartiles: 0-25% (low), 26-50% (lowermiddle), 51-75% (uppermiddle), above 75% (high)
         // Q1 = 25th percentile, Q2 = 50th percentile, Q3 = 75th percentile
@@ -2253,7 +2253,7 @@ StaticLinearModelDefinition::StaticLinearModelDefinition(
     std::unique_ptr<std::vector<double>> income_trend_lambda,
     std::unique_ptr<std::unordered_map<core::Identifier, double>> income_trend_decay_factors,
     bool is_continuous_income_model, const LinearModelParams &continuous_income_model,
-    std::string income_categories,
+    int income_categories,
     const std::unordered_map<core::Identifier, PhysicalActivityModel> &physical_activity_models,
     bool has_active_policies, std::vector<LinearModelParams> logistic_models)
     // NOLINTNEXTLINE(readability-function-cognitive-complexity)

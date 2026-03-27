@@ -170,7 +170,7 @@ struct ProjectRequirements {
     struct Income {
         bool enabled{true};
         std::string type{"categorical"}; // "continuous" | "categorical"
-        std::string categories{"3"};     // "3" | "4"
+        int categories{4};     // "3" | "4"
         bool adjust_to_factors_mean{false};
         bool trended{false};
         bool income_based_csv_output{true};

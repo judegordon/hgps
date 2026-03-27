@@ -134,12 +134,12 @@ void load_running_info(const json &j, Configuration &config,
     get_to(running, "diseases", config.diseases,
            diagnostics, source_path, "running");
 
-    // Seeds
+    // Seed
     {
-        std::vector<unsigned int> seeds;
-        if (get_to(running, "seed", seeds, diagnostics,
-                   source_path, "running") && !seeds.empty()) {
-            config.custom_seed = seeds[0];
+        unsigned int seed{};
+        if (get_to(running, "seed", seed, diagnostics,
+                   source_path, "running")) {
+            config.custom_seed = seed;
         }
     }
 

@@ -231,12 +231,12 @@ load_income_model_data(const nlohmann::json &opt,
     const auto &inc_req = config.project_requirements.income;
     data.income_categories = inc_req.categories;
 
-    if (data.income_categories != "3" && data.income_categories != "4") {
+    if (data.income_categories != 3 && data.income_categories != 4) {
         diagnostics.error(
             hgps::core::DiagnosticCode::invalid_value,
             {.source_path = std::string{source_path},
              .field_path = "project_requirements.income.categories"},
-            fmt::format(R"(income.categories must be "3" or "4". Got "{}")",
+            fmt::format(R"(income.categories must be 3 or 4. Got "{}")",
                         data.income_categories));
         return std::nullopt;
     }
@@ -275,7 +275,7 @@ load_income_model_data(const nlohmann::json &opt,
         data.continuous_model = *continuous_model;
 
         data.models.emplace(hgps::core::Income::low, hgps::LinearModelParams{});
-        if (data.income_categories == "4") {
+        if (data.income_categories == 4) {
             data.models.emplace(hgps::core::Income::lowermiddle, hgps::LinearModelParams{});
             data.models.emplace(hgps::core::Income::uppermiddle, hgps::LinearModelParams{});
         } else {
