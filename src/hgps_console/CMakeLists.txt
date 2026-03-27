@@ -26,7 +26,7 @@ if(WIN32)
     # compiler, not a C++ compiler
     set_source_files_properties(versioninfo.rc LANGUAGE RC)
     target_sources(hgps_console PRIVATE versioninfo.rc)
-endif(WIN32)
+endif()
 
 target_include_directories(hgps_console_lib PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 
@@ -51,16 +51,17 @@ target_link_libraries(
             cxxopts::cxxopts
             TBB::tbb)
 
-install(
-    TARGETS hgps_console
-    RUNTIME
-    ARCHIVE
-    LIBRARY
-    RUNTIME
-    FRAMEWORK
-    BUNDLE
-    PUBLIC_HEADER
-    RESOURCE)
+# Copy schemas into the build tree next to the executable
+add_custom_command(
+    TARGET hgps_console POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${PROJECT_SOURCE_DIR}/schemas
+            $<TARGET_FILE_DIR:hgps_console>/schemas
+)
+
+install(TARGETS hgps_console
+        RUNTIME DESTINATION bin)
+
 if(WIN32)
     install(
         TARGETS hgps_console
@@ -75,4 +76,8 @@ if(WIN32)
         $<TARGET_FILE_DIR:hgps_console>)
 endif()
 
-install(DIRECTORY ../../schemas DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
+# Install schemas next to the installed executable
+install(
+    DIRECTORY ${PROJECT_SOURCE_DIR}/schemas
+    DESTINATION bin
+)

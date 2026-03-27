@@ -16,7 +16,6 @@ namespace hgps {
 
 template <typename T>
 class Channel;
-
 class Scenario;
 class Simulation;
 class SimulationModuleFactory;

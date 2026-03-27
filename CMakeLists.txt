@@ -3,8 +3,6 @@ cmake_minimum_required(VERSION 3.20)
 project(
     Health-GPS
     VERSION 2.0.0
-    DESCRIPTION "Global Health Policy Simulation model (Health-GPS)"
-    HOMEPAGE_URL "https://github.com/imperialCHEPI/healthgps"
     LANGUAGES CXX
 )
 

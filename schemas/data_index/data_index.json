@@ -10,16 +10,16 @@
       "description": "Optional JSON Schema identifier."
     },
     "country": {
-      "$ref": "../components/data_index/country.json"
+      "$ref": "components/country.json"
     },
     "demographic": {
-      "$ref": "../components/data_index/demographic.json"
+      "$ref": "components/demographic.json"
     },
     "diseases": {
-      "$ref": "../components/data_index/diseases.json"
+      "$ref": "components/diseases.json"
     },
     "analysis": {
-      "$ref": "../components/data_index/analysis.json"
+      "$ref": "components/analysis.json"
     }
   },
   "required": [

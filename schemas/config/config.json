@@ -9,25 +9,25 @@
       "description": "Optional JSON Schema identifier."
     },
     "project_requirements": {
-      "$ref": "../components/config/project_requirements.json"
+      "$ref": "components/project_requirements.json"
     },
     "data": {
-      "$ref": "../components/config/data.json"
+      "$ref": "components/data.json"
     },
     "inputs": {
-      "$ref": "../components/config/inputs.json"
+      "$ref": "components/inputs.json"
     },
     "modelling": {
-      "$ref": "../components/config/modelling.json"
+      "$ref": "components/modelling.json"
     },
     "running": {
-      "$ref": "../components/config/running.json"
+      "$ref": "components/running.json"
     },
     "output": {
-      "$ref": "../components/config/output.json"
+      "$ref": "components/output.json"
     },
     "population_impact_fraction": {
-      "$ref": "../components/config/population_impact_fraction.json"
+      "$ref": "components/population_impact_fraction.json"
     }
   },
   "required": [
