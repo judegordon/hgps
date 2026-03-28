@@ -3,7 +3,7 @@
   "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/data_index/components/country.json",
   "allOf": [
     {
-      "$ref": "../../defs/dataset_metadata.json"
+      "$ref": "../defs/dataset_metadata.json"
     },
     {
       "type": "object",
@@ -32,8 +32,8 @@
         "encoding",
         "path",
         "file_name"
-      ],
-      "additionalProperties": false
+      ]
     }
-  ]
+  ],
+  "unevaluatedProperties": false
 }

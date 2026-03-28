@@ -33,12 +33,11 @@
         }
     },
     "data": {
-        "source": "https://github.com/imperialCHEPI/healthgps-data/releases/download/finch-v4/data.zip",
-        "checksum": "b8bef3b1f916b5cdc6497550947ae140661d2294b9a3ff61d65ce4098d46ecfc"
+        "index": "../../data/undb/index.json"
     },
     "inputs": {
         "dataset": {
-            "name": "../Finch.DataFile.csv",
+            "name": "input_dataset.csv",
             "format": "csv",
             "delimiter": ",",
             "encoding": "ASCII",
@@ -271,8 +270,8 @@
             "delimiter": ",",
             "encoding": "ASCII",
             "file_names": {
-                "factorsmean_male": "../Finch.FactorsMean.Male.csv",
-                "factorsmean_female": "../Finch.FactorsMean.Female.csv"
+                "factorsmean_male": "factors_mean_male.csv",
+                "factorsmean_female": "factors_mean_female.csv"
             }
         }
     },

@@ -1,5 +1,5 @@
 {
-    "$schema": "https://raw.githubusercontent.com/imperialCHEPI/healthgps/main/schemas/v2/config/models/staticlinear.json",
+    "$schema": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/models/types/staticlinear.json",
     "ModelName": "StaticLinear",
     "InformationSpeed": 0.1,
     "PhysicalActivityStdDev": 0.268662432,
@@ -58,7 +58,7 @@
     },
     "PhysicalActivityModels": {
         "continuous": {
-            "csv_file": "physicalactivity_model.csv",
+            "csv_file": "physical_activity_model.csv",
             "format": "csv",
             "delimiter": ",",
             "encoding": "ASCII",
@@ -206,7 +206,7 @@
             }
         },
         "policy_coefficients": {
-            "name": "policyeffect_model.csv",
+            "name": "policy_effect_model.csv",
             "format": "csv",
             "delimiter": ",",
             "encoding": "ASCII",
@@ -251,7 +251,7 @@
         }
     },
     "RiskFactorCorrelationFile": {
-        "name": "Finch_residual_risk_factor_correlation.csv",
+        "name": "residual_risk_factor_correlation.csv",
         "format": "csv",
         "delimiter": ",",
         "encoding": "ASCII",
@@ -280,7 +280,7 @@
         }
     },
     "PolicyCovarianceFile": {
-        "name": "Finch_residual_policy_covariance.csv",
+        "name": "residual_policy_covariance.csv",
         "format": "csv",
         "delimiter": ",",
         "encoding": "ASCII",

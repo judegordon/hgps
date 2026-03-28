@@ -6,15 +6,24 @@
   "properties": {
     "source": {
       "type": "string",
-      "description": "Location of the input dataset used by the simulation."
+      "description": "Location of an external packaged dataset used by the simulation."
     },
     "checksum": {
       "type": "string",
-      "description": "Optional checksum used to verify data integrity."
+      "description": "Checksum used to verify external packaged data integrity."
+    },
+    "index": {
+      "type": "string",
+      "description": "Path to a local data index JSON file."
     }
   },
-  "required": [
-    "source"
+  "oneOf": [
+    {
+      "required": ["source", "checksum"]
+    },
+    {
+      "required": ["index"]
+    }
   ],
   "additionalProperties": false
 }

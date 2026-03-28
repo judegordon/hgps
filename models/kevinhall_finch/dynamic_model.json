@@ -1,5 +1,5 @@
 {
-    "$schema": "https://raw.githubusercontent.com/imperialCHEPI/healthgps/main/schemas/v2/config/models/kevinhall.json",
+    "$schema": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/models/types/kevinhall.json",
     "ModelName": "KevinHall",
     "Nutrients": [
         {
@@ -301,7 +301,7 @@
     ],
     "WeightQuantiles": {
         "Female": {
-            "name": "weight_quantiles_NCDRisk_female.csv",
+            "name": "weight_quantiles_ncdrisk_female.csv",
             "format": "csv",
             "delimiter": ",",
             "encoding": "ASCII",
@@ -310,7 +310,7 @@
             }
         },
         "Male": {
-            "name": "weight_quantiles_NCDRisk_male.csv",
+            "name": "weight_quantiles_ncdrisk_male.csv",
             "format": "csv",
             "delimiter": ",",
             "encoding": "ASCII",
@@ -320,7 +320,7 @@
         }
     },
     "EnergyPhysicalActivityQuantiles": {
-        "name": "energy_physicalactivity_quantiles.csv",
+        "name": "energy_physical_activity_quantiles.csv",
         "format": "csv",
         "delimiter": ",",
         "encoding": "ASCII",

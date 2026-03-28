@@ -50,20 +50,37 @@ constexpr int ConfigSchemaVersion = 1;
 
 std::unique_ptr<DataSource> get_data_source_from_json(const nlohmann::json &opt,
                                                       const std::filesystem::path &root_path) {
-    auto source = opt["source"].get<std::string>();
+    if (opt.contains("index")) {
+        auto index_path = opt["index"].get<std::string>();
+        auto resolved = root_path / index_path;
+        resolved = std::filesystem::weakly_canonical(resolved);
 
-    // Checksum is not required if source is a directory, else it is mandatory
-    if (opt.contains("checksum")) {
+        if (!std::filesystem::exists(resolved)) {
+            throw std::runtime_error(
+                fmt::format("Local data index does not exist: {}", resolved.string()));
+        }
+
+        if (!std::filesystem::is_regular_file(resolved)) {
+            throw std::runtime_error(
+                fmt::format("Local data index is not a file: {}", resolved.string()));
+        }
+
+        return std::make_unique<DataSource>(resolved.parent_path().string());
+    }
+
+    if (opt.contains("source")) {
+        auto source = opt["source"].get<std::string>();
+
+        if (!opt.contains("checksum")) {
+            throw std::runtime_error("Missing checksum property for external data source");
+        }
+
         auto file_hash = opt["checksum"].get<std::string>();
         return std::make_unique<ValidatedDataSource>(std::move(source), root_path,
                                                      std::move(file_hash));
     }
 
-    if (!std::filesystem::is_directory(source)) {
-        throw std::runtime_error("Missing checksum property for data source");
-    }
-
-    return std::make_unique<DataSource>(std::move(source));
+    throw std::runtime_error("Data configuration must contain either 'index' or 'source'");
 }
 
 // Get path to config file

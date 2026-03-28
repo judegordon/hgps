@@ -3,7 +3,7 @@
   "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/data_index/components/analysis.json",
   "allOf": [
     {
-      "$ref": "../../defs/dataset_metadata.json"
+      "$ref": "../defs/dataset_metadata.json"
     },
     {
       "type": "object",
@@ -22,7 +22,7 @@
           "description": "Character encoding used in analysis data files."
         },
         "age_limits": {
-          "$ref": "../../defs/age_range.json"
+          "$ref": "../defs/age_range.json"
         },
         "time_year": {
           "type": "integer",
@@ -67,8 +67,8 @@
         "disability_file_name",
         "lms_file_name",
         "cost_of_disease"
-      ],
-      "additionalProperties": false
+      ]
     }
-  ]
+  ],
+  "unevaluatedProperties": false
 }

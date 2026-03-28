@@ -1,5 +1,5 @@
 {
-    "$schema": "https://raw.githubusercontent.com/imperialCHEPI/healthgps/main/schemas/v1/data_index.json",
+    "$schema": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/data_index/data_index.json",
     "country": {
         "format": "csv",
         "delimiter": ",",

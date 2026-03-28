@@ -37,6 +37,5 @@
       "type": "string",
       "description": "Directory path where the dataset is stored."
     }
-  },
-  "additionalProperties": false
+  }
 }

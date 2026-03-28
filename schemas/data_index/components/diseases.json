@@ -3,7 +3,7 @@
   "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/data_index/components/diseases.json",
   "allOf": [
     {
-      "$ref": "../../defs/dataset_metadata.json"
+      "$ref": "../defs/dataset_metadata.json"
     },
     {
       "type": "object",
@@ -19,7 +19,7 @@
           "const": "UTF8"
         },
         "age_limits": {
-          "$ref": "../../defs/age_range.json"
+          "$ref": "../defs/age_range.json"
         },
         "time_year": {
           "type": "integer",
@@ -30,7 +30,7 @@
           "$ref": "./disease.json"
         },
         "population_impact_fraction": {
-          "$ref": "../../defs/disease_population_impact_fraction_file.json"
+          "$ref": "../defs/disease_population_impact_fraction_file.json"
         },
         "registry": {
           "type": "array",
@@ -63,8 +63,8 @@
         "age_limits",
         "time_year",
         "disease"
-      ],
-      "additionalProperties": false
+      ]
     }
-  ]
+  ],
+  "unevaluatedProperties": false
 }

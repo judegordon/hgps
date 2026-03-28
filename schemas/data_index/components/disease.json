@@ -64,7 +64,7 @@
       "additionalProperties": false
     },
     "population_impact_fraction": {
-      "$ref": "../../defs/disease_population_impact_fraction_file.json"
+      "$ref": "../defs/disease_population_impact_fraction_file.json"
     },
     "parameters": {
       "type": "object",
