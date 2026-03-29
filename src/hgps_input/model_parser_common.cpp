@@ -125,7 +125,7 @@ load_and_validate_model_json(const std::filesystem::path &model_path,
     try {
         std::istringstream validation_stream{file_contents};
         validate_json(validation_stream,
-                      fmt::format("config/models/{}.json", model_name),
+                      fmt::format("models/types/{}.json", model_name),
                       schema_version);
     } catch (const hgps::core::HgpsException &e) {
         diagnostics.error(hgps::core::DiagnosticCode::schema_violation,

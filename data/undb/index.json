@@ -19,7 +19,7 @@
         "source": "UN Database - World Population Prospects 2019",
         "url": "https://population.un.org/wpp/",
         "license": "Creative Commons license",
-        "path": "undb",
+        "path": "",
         "age_limits": [0, 110],
         "time_limits": [1950, 2100],
         "projections": 2022,

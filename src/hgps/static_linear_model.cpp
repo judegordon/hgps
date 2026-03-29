@@ -77,7 +77,7 @@ StaticLinearModel::StaticLinearModel(
       // Continuous income model support (FINCH approach) - must come first
       is_continuous_income_model_{is_continuous_income_model},
       continuous_income_model_{continuous_income_model},
-      income_categories_{std::move(income_categories)},
+      income_categories_{income_categories},
       // Regular trend member variables - these are shared_ptr, so we can move them
       expected_trend_{std::move(expected_trend)},
       expected_trend_boxcox_{std::move(expected_trend_boxcox)},
@@ -137,9 +137,17 @@ StaticLinearModel::StaticLinearModel(
         throw core::HgpsException("Intervention policy Cholesky matrix contains non-finite values");
     }
 
-    // Validate UPF trend parameters only if trend type is UPFTrend
+        // Validate UPF trend parameters only if trend type is UPFTrend
     if (trend_type_ == TrendType::UPFTrend) {
-        std::cout << "\nDEBUG: Validating UPF trend parameters...";
+        if (!trend_models_) {
+            throw core::HgpsException("Time trend model list is missing");
+        }
+        if (!trend_ranges_) {
+            throw core::HgpsException("Time trend ranges list is missing");
+        }
+        if (!trend_lambda_) {
+            throw core::HgpsException("Time trend lambda list is missing");
+        }
         if (trend_models_->empty()) {
             throw core::HgpsException("Time trend model list is empty");
         }
@@ -149,8 +157,6 @@ StaticLinearModel::StaticLinearModel(
         if (trend_lambda_->empty()) {
             throw core::HgpsException("Time trend lambda list is empty");
         }
-    } else {
-        std::cout << "\nDEBUG: Skipping UPF trend validation (trend_type_ != UPFTrend)";
     }
 
     // Validate income trend parameters if income trend is enabled
@@ -185,14 +191,17 @@ StaticLinearModel::StaticLinearModel(
     }
 
     // Validate income trend data consistency
-    if (income_trend_models_ && income_trend_models_->empty()) {
-        throw core::HgpsException("Income trend model list is empty");
-    }
-    if (income_trend_ranges_ && income_trend_ranges_->empty()) {
-        throw core::HgpsException("Income trend ranges list is empty");
-    }
-    if (income_trend_lambda_ && income_trend_lambda_->empty()) {
-        throw core::HgpsException("Income trend lambda list is empty");
+        // Validate income trend data consistency only when income trend is enabled
+    if (trend_type_ == TrendType::IncomeTrend) {
+        if (income_trend_models_ && income_trend_models_->empty()) {
+            throw core::HgpsException("Income trend model list is empty");
+        }
+        if (income_trend_ranges_ && income_trend_ranges_->empty()) {
+            throw core::HgpsException("Income trend ranges list is empty");
+        }
+        if (income_trend_lambda_ && income_trend_lambda_->empty()) {
+            throw core::HgpsException("Income trend lambda list is empty");
+        }
     }
 
     // Validate that all risk factors have income trend parameters
@@ -2325,7 +2334,7 @@ StaticLinearModelDefinition::StaticLinearModelDefinition(
       // Continuous income model support (FINCH approach) - must be in declaration order
       is_continuous_income_model_{is_continuous_income_model},
       continuous_income_model_{continuous_income_model},
-      income_categories_{std::move(income_categories)},
+        income_categories_{income_categories},
       // Policy optimization flag - Mahima - must be last (declaration order)
       has_active_policies_{has_active_policies} {
 
@@ -2398,15 +2407,17 @@ StaticLinearModelDefinition::StaticLinearModelDefinition(
         }
     }
 
-    // Validate income trend data consistency
-    if (income_trend_models_ && income_trend_models_->empty()) {
-        throw core::HgpsException("Income trend model list is empty");
-    }
-    if (income_trend_ranges_ && income_trend_ranges_->empty()) {
-        throw core::HgpsException("Income trend ranges list is empty");
-    }
-    if (income_trend_lambda_ && income_trend_lambda_->empty()) {
-        throw core::HgpsException("Income trend lambda list is empty");
+        // Validate income trend data consistency only when income trend is enabled
+    if (trend_type == hgps::TrendType::IncomeTrend) {
+        if (income_trend_models_ && income_trend_models_->empty()) {
+            throw core::HgpsException("Income trend model list is empty");
+        }
+        if (income_trend_ranges_ && income_trend_ranges_->empty()) {
+            throw core::HgpsException("Income trend ranges list is empty");
+        }
+        if (income_trend_lambda_ && income_trend_lambda_->empty()) {
+            throw core::HgpsException("Income trend lambda list is empty");
+        }
     }
 
     // Validate that all risk factors have income trend parameters

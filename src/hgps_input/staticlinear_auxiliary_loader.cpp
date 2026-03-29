@@ -47,21 +47,63 @@ open_unlabelled_two_column_csv(const std::filesystem::path &path,
     }
 }
 
+struct CsvFileInfo {
+    std::filesystem::path path;
+    std::string delimiter{","};
+    std::string format;
+    std::string encoding;
+};
+
+std::optional<CsvFileInfo>
+get_csv_file_info(const nlohmann::json &node,
+                  const std::filesystem::path &root_path,
+                  std::string_view file_key,
+                  hgps::core::Diagnostics &diagnostics,
+                  std::string_view source_path,
+                  std::string_view field_path) {
+    bool ok = true;
+
+    std::string file_name;
+    hgps::input::get_to(node, std::string{file_key}, file_name, diagnostics, ok, source_path, field_path);
+
+    std::string delimiter = ",";
+    if (node.contains("delimiter")) {
+    hgps::input::get_to(node, "delimiter", delimiter, diagnostics, ok, source_path, field_path);
+}
+
+    std::string format;
+    if (node.contains("format")) {
+    hgps::input::get_to(node, "format", format, diagnostics, ok, source_path, field_path);
+}
+
+    std::string encoding;
+    if (node.contains("encoding")) {
+    hgps::input::get_to(node, "encoding", encoding, diagnostics, ok, source_path, field_path);
+}
+
+    if (!ok) {
+        return std::nullopt;
+    }
+
+    return CsvFileInfo{root_path / file_name, delimiter, format, encoding};
+}
+
 std::optional<hgps::LinearModelParams>
 load_two_column_linear_model_csv(const nlohmann::json &node,
                                  const std::filesystem::path &root_path,
+                                 std::string_view file_key,
                                  hgps::core::Diagnostics &diagnostics,
                                  std::string_view source_path,
                                  std::string_view field_path,
                                  bool skip_first_row) {
-    const auto file_info = hgps::input::get_file_info(node, root_path, diagnostics, source_path,
-                                                      field_path);
+    const auto file_info =
+        get_csv_file_info(node, root_path, file_key, diagnostics, source_path, field_path);
     if (!file_info.has_value()) {
         return std::nullopt;
     }
 
     const auto doc =
-        open_unlabelled_two_column_csv(file_info->name, file_info->delimiter, diagnostics,
+        open_unlabelled_two_column_csv(file_info->path, file_info->delimiter, diagnostics,
                                        field_path);
     if (!doc.has_value()) {
         return std::nullopt;
@@ -70,7 +112,7 @@ load_two_column_linear_model_csv(const nlohmann::json &node,
     if (doc->GetColumnCount() != 2) {
         diagnostics.error(
             hgps::core::DiagnosticCode::invalid_value,
-            {.source_path = file_info->name.string(), .field_path = std::string{field_path}},
+            {.source_path = file_info->path.string(), .field_path = std::string{field_path}},
             fmt::format("CSV file must have exactly 2 columns. Found {}", doc->GetColumnCount()));
         return std::nullopt;
     }
@@ -91,7 +133,7 @@ load_two_column_linear_model_csv(const nlohmann::json &node,
         } catch (const std::exception &e) {
             diagnostics.error(
                 hgps::core::DiagnosticCode::parse_failure,
-                {.source_path = file_info->name.string(), .field_path = std::string{field_path}},
+                {.source_path = file_info->path.string(), .field_path = std::string{field_path}},
                 fmt::format("Failed reading row {}: {}", row, e.what()));
             return std::nullopt;
         }
@@ -103,17 +145,18 @@ load_two_column_linear_model_csv(const nlohmann::json &node,
 std::optional<hgps::PhysicalActivityModel>
 load_continuous_physical_activity_model(const nlohmann::json &node,
                                         const std::filesystem::path &root_path,
+                                        std::string_view file_key,
                                         hgps::core::Diagnostics &diagnostics,
                                         std::string_view source_path,
                                         std::string_view field_path) {
-    const auto file_info = hgps::input::get_file_info(node, root_path, diagnostics, source_path,
-                                                      field_path);
+    const auto file_info =
+        get_csv_file_info(node, root_path, file_key, diagnostics, source_path, field_path);
     if (!file_info.has_value()) {
         return std::nullopt;
     }
 
     const auto doc =
-        open_unlabelled_two_column_csv(file_info->name, file_info->delimiter, diagnostics,
+        open_unlabelled_two_column_csv(file_info->path, file_info->delimiter, diagnostics,
                                        field_path);
     if (!doc.has_value()) {
         return std::nullopt;
@@ -122,7 +165,7 @@ load_continuous_physical_activity_model(const nlohmann::json &node,
     if (doc->GetColumnCount() != 2) {
         diagnostics.error(
             hgps::core::DiagnosticCode::invalid_value,
-            {.source_path = file_info->name.string(), .field_path = std::string{field_path}},
+            {.source_path = file_info->path.string(), .field_path = std::string{field_path}},
             fmt::format("Physical activity CSV file must have exactly 2 columns. Found {}",
                         doc->GetColumnCount()));
         return std::nullopt;
@@ -150,7 +193,7 @@ load_continuous_physical_activity_model(const nlohmann::json &node,
         } catch (const std::exception &e) {
             diagnostics.error(
                 hgps::core::DiagnosticCode::parse_failure,
-                {.source_path = file_info->name.string(), .field_path = std::string{field_path}},
+                {.source_path = file_info->path.string(), .field_path = std::string{field_path}},
                 fmt::format("Failed reading physical activity row {}: {}", row, e.what()));
             return std::nullopt;
         }
@@ -266,8 +309,13 @@ load_income_model_data(const nlohmann::json &opt,
         }
 
         const auto continuous_model =
-            load_two_column_linear_model_csv(continuous_json, config.root_path, diagnostics,
-                                             source_path, "IncomeModels.continuous", true);
+            load_two_column_linear_model_csv(continuous_json,
+                                             config.root_path,
+                                             "csv_file",
+                                             diagnostics,
+                                             source_path,
+                                             "IncomeModels.continuous",
+                                             true);
         if (!continuous_model.has_value()) {
             return std::nullopt;
         }
@@ -393,8 +441,12 @@ load_physical_activity_model_data(const nlohmann::json &opt,
         }
 
         const auto model =
-            load_continuous_physical_activity_model(model_config, config.root_path, diagnostics,
-                                                    source_path, "PhysicalActivityModels.continuous");
+            load_continuous_physical_activity_model(model_config,
+                                                    config.root_path,
+                                                    "csv_file",
+                                                    diagnostics,
+                                                    source_path,
+                                                    "PhysicalActivityModels.continuous");
         if (!model.has_value()) {
             return std::nullopt;
         }

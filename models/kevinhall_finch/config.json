@@ -9,7 +9,7 @@
         },
         "income": {
             "enabled": true,
-            "type": "categorical",
+            "type": "continuous",
             "categories": 4,
             "adjust_to_factors_mean": true,
             "trended": false

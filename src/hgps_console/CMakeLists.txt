@@ -51,13 +51,25 @@ target_link_libraries(
             cxxopts::cxxopts
             TBB::tbb)
 
-# Copy schemas into the build tree next to the executable
-add_custom_command(
-    TARGET hgps_console POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${PROJECT_SOURCE_DIR}/schemas
-            $<TARGET_FILE_DIR:hgps_console>/schemas
+file(GLOB_RECURSE HGPS_SCHEMA_FILES
+    "${PROJECT_SOURCE_DIR}/schemas/*.json"
 )
+
+set(HGPS_SCHEMA_OUTPUT_DIR
+    "${CMAKE_CURRENT_BINARY_DIR}/schemas"
+)
+
+add_custom_target(copy_schemas ALL
+    COMMAND ${CMAKE_COMMAND} -E rm -rf "${HGPS_SCHEMA_OUTPUT_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${HGPS_SCHEMA_OUTPUT_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${PROJECT_SOURCE_DIR}/schemas"
+            "${HGPS_SCHEMA_OUTPUT_DIR}"
+    DEPENDS ${HGPS_SCHEMA_FILES}
+    COMMENT "Copying schema files to build tree"
+)
+
+add_dependencies(hgps_console copy_schemas)
 
 install(TARGETS hgps_console
         RUNTIME DESTINATION bin)

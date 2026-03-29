@@ -45,7 +45,6 @@
         },
         "required": [
           "Name",
-          "Unit",
           "Range",
           "Energy"
         ],
@@ -63,7 +62,7 @@
             "description": "Food name."
           },
           "Nutrients": {
-            "$ref": "../../../defs/numeric_coefficient_map.json"
+            "$ref": "../../config/defs/numeric_coefficient_map.json"
           },
           "Price": {
             "type": [
@@ -106,10 +105,10 @@
       "description": "CSV files containing weight quantiles by sex.",
       "properties": {
         "Male": {
-          "$ref": "../../../defs/csv_file.json"
+          "$ref": "../../config/defs/csv_file.json"
         },
         "Female": {
-          "$ref": "../../../defs/csv_file.json"
+          "$ref": "../../config/defs/csv_file.json"
         }
       },
       "required": [
@@ -119,7 +118,7 @@
       "additionalProperties": false
     },
     "EnergyPhysicalActivityQuantiles": {
-      "$ref": "../../../defs/csv_file.json"
+      "$ref": "../../config/defs/csv_file.json"
     },
     "HeightStdDev": {
       "type": "object",

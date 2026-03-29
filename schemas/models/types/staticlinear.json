@@ -45,11 +45,11 @@
       }
     },
     "RegionFile": {
-      "$ref": "../../defs/csv_file.json",
+      "$ref": "../../config/defs/csv_file.json",
       "description": "CSV file containing region assignment probabilities by age and gender."
     },
     "EthnicityFile": {
-      "$ref": "../../defs/csv_file.json",
+      "$ref": "../../config/defs/csv_file.json",
       "description": "CSV file containing ethnicity assignment probabilities by age group, gender, and region."
     },
     "IncomeModels": {
@@ -211,21 +211,60 @@
         ]
       }
     },
+    "Nutrients": {
+      "type": "array",
+      "description": "Nutrient definitions used by the model.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "Name": {
+            "type": "string",
+            "description": "Nutrient name."
+          },
+          "Unit": {
+            "type": "string",
+            "description": "Measurement unit for the nutrient."
+          },
+          "Range": {
+            "type": "array",
+            "description": "Allowed nutrient range.",
+            "items": {
+              "type": "number",
+              "minimum": 0.0
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "Energy": {
+            "type": "number",
+            "minimum": 0.0,
+            "description": "Energy contribution of the nutrient."
+          }
+        },
+        "required": [
+          "Name",
+          "Range",
+          "Energy"
+        ],
+        "additionalProperties": false
+      }
+    },
     "RiskFactorModels": {
       "type": "object",
       "description": "CSV-based risk factor coefficient files.",
       "properties": {
         "boxcox_coefficients": {
-          "$ref": "../../defs/csv_file.json"
+          "$ref": "../../config/defs/csv_file.json"
         },
         "policy_coefficients": {
-          "$ref": "../../defs/csv_file.json"
+          "$ref": "../../config/defs/csv_file.json"
         },
         "trend_coefficients": {
-          "$ref": "../../defs/csv_file.json"
+          "$ref": "../../config/defs/csv_file.json"
         },
         "logistic_regression": {
-          "$ref": "../../defs/csv_file.json"
+          "$ref": "../../config/defs/csv_file.json"
         }
       },
       "required": [
@@ -234,11 +273,11 @@
       "additionalProperties": false
     },
     "RiskFactorCorrelationFile": {
-      "$ref": "../../defs/csv_file.json",
+      "$ref": "../../config/defs/csv_file.json",
       "description": "CSV file containing correlations between risk factors."
     },
     "PolicyCovarianceFile": {
-      "$ref": "../../defs/csv_file.json",
+      "$ref": "../../config/defs/csv_file.json",
       "description": "CSV file containing policy covariance values."
     }
   },
