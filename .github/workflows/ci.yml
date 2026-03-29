@@ -58,7 +58,7 @@ jobs:
         run: cmake --preset=${{ matrix.platform }}-debug -DWARNINGS_AS_ERRORS=ON
 
       - name: Build HealthGPS (debug)
-        run: cmake --build --preset=debug-build-${{ matrix.platform }} --target install
+        run: cmake --build --preset=${{ matrix.platform }}-debug-build --target install
 
       - name: Execute HealthGPS (debug)
         shell: bash
@@ -73,7 +73,7 @@ jobs:
         run: cmake --preset=${{ matrix.platform }}-release -DWARNINGS_AS_ERRORS=ON
 
       - name: Build HealthGPS (release)
-        run: cmake --build --preset=release-build-${{ matrix.platform }} --target install
+        run: cmake --build --preset=${{ matrix.platform }}-release-build --target install
 
       - name: Execute HealthGPS (release)
         shell: bash
