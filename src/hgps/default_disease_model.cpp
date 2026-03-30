@@ -1,5 +1,5 @@
 #include "default_disease_model.h"
-#include "hgps_input/pif_data.h"
+#include "hgps_input/data/pif_data.h"
 #include "person.h"
 #include "runtime_context.h"
 

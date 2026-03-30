@@ -1,6 +1,6 @@
 #include "repository.h"
-#include "hgps_input/data_manager.h"
-#include "hgps_input/pif_data.h"
+#include "hgps_input/data/data_manager.h"
+#include "hgps_input/data/pif_data.h"
 #include "converter.h"
 
 #include <fmt/core.h>

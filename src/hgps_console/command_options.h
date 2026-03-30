@@ -1,12 +1,8 @@
-/**
- * @file
- * @brief Functionality for parsing console application's command-line arguments
- */
 #pragma once
 
 #include <cxxopts.hpp>
 
-#include "hgps_input/data_source.h"
+#include "hgps_input/data/data_source.h"
 
 #include <optional>
 #include <string>
