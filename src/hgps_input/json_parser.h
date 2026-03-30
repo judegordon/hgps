@@ -1,6 +1,6 @@
 #pragma once
 
-#include "poco.h"
+#include "config_types.h"
 #include "riskmodel.h"
 
 #include <nlohmann/json.hpp>

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "data_source.h"
-#include "poco.h"
+#include "config_types.h"
 #include "version.h"
 
 #include "hgps_core/api.h"

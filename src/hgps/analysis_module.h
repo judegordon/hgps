@@ -1,6 +1,6 @@
 #pragma once
 
-#include "hgps_input/poco.h"
+#include "hgps_input/config_types.h"
 #include "analysis_definition.h"
 #include "interfaces.h"
 #include "modelinput.h"
