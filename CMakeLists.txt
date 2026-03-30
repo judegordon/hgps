@@ -24,7 +24,7 @@ endif()
 
 include(FetchContent)
 include(CTest)
-include(cmake/PreventInSourceBuilds.cmake)
+include(cmake/OutOfSource.cmake)
 
 message(STATUS "Compiler ID: ${CMAKE_CXX_COMPILER_ID}")
 
