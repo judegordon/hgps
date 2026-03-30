@@ -1,7 +1,7 @@
 #include "ebhlm_model_parser.h"
 
-#include "json_access.h"
-#include "json_parser.h"
+#include "io/json_access.h"
+#include "io/json_parser.h"
 #include "risk_factor_expected_loader.h"
 #include "riskmodel.h"
 

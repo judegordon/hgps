@@ -3,8 +3,8 @@
 #include "model_parser.h"
 #include "model_parser_common.h"
 
-#include "config_section_parsing.h"
-#include "csv_parser.h"
+#include "config/config_section_parsing.h"
+#include "io/csv_parser.h"
 #include "hgps/repository.h"
 
 #include <fmt/core.h>

@@ -1,7 +1,7 @@
 #include "data_source.h"
 #include "hgps/sha256.h"
-#include "download_file.h"
-#include "zip_file.h"
+#include "io/download_file.h"
+#include "io/zip_file.h"
 
 #include <fmt/format.h>
 

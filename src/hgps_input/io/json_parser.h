@@ -1,7 +1,7 @@
 #pragma once
 
-#include "config_types.h"
-#include "riskmodel.h"
+#include "config/config_types.h"
+#include "models/riskmodel.h"
 
 #include <nlohmann/json.hpp>
 

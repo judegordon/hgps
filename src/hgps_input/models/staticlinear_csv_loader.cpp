@@ -1,7 +1,7 @@
 #include "staticlinear_csv_loader.h"
 
-#include "config_section_parsing.h"
-#include "json_access.h"
+#include "config/config_section_parsing.h"
+#include "io/json_access.h"
 
 #include "hgps_core/string_util.h"
 

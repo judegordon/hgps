@@ -1,8 +1,8 @@
 #include "staticlinear_auxiliary_loader.h"
 
-#include "config_section_parsing.h"
-#include "json_access.h"
-#include "json_parser.h"
+#include "config/config_section_parsing.h"
+#include "io/json_access.h"
+#include "io/json_parser.h"
 #include "model_parser_common.h"
 
 #include <fmt/core.h>

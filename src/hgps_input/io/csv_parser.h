@@ -1,7 +1,7 @@
 #pragma once
 
 #include "hgps_core/api.h"
-#include "config_types.h"
+#include "config/config_types.h"
 
 namespace hgps::input {
 

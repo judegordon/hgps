@@ -4,7 +4,7 @@
 #include <hgps_core/string_util.h>
 #include <map>
 
-#include "hgps_input/config_types.h"
+#include "hgps_input/config/config_types.h"
 #include "mapping.h"
 #include "settings.h"
 

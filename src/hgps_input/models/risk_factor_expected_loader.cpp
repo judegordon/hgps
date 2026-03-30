@@ -1,6 +1,6 @@
 #include "risk_factor_expected_loader.h"
 
-#include "csv_parser.h"
+#include "io/csv_parser.h"
 
 #include "hgps_core/exception.h"
 #include "hgps_core/string_util.h"

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "config.h"
+#include "config/config.h"
 #include "hgps_core/diagnostics.h"
 
 #include "hgps/dynamic_hierarchical_linear_model.h"

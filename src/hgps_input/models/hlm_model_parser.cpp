@@ -1,6 +1,6 @@
 #include "hlm_model_parser.h"
 
-#include "json_parser.h"
+#include "io/json_parser.h"
 
 #include <fmt/core.h>
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "config.h"
+#include "config/config.h"
 #include "hgps_core/diagnostics.h"
 
 #include "hgps_core/identifier.h"

@@ -8,36 +8,39 @@ add_library(hgps_input STATIC)
 target_sources(
     hgps_input
     PRIVATE
-        config.cpp
-        config_parsing.cpp
-        config_path_parsing.cpp
-        config_section_parsing.cpp
-        csv_parser.cpp
-        data_manager.cpp
-        data_manager_analysis.cpp
-        data_manager_csv.cpp
-        data_manager_demographic.cpp
-        data_manager_disease.cpp
-        data_manager_paths.cpp
-        data_manager_pif.cpp
-        data_source.cpp
-        download_file.cpp
-        ebhlm_model_parser.cpp
-        hlm_model_parser.cpp
-        kevinhall_model_parser.cpp
-        staticlinear_model_parser.cpp
-        json_parser.cpp
-        model_parser.cpp
-        model_parser_common.cpp
-        model_repository_registration.cpp
-        pif_data.cpp
-        risk_factor_expected_loader.cpp
-        schema.cpp
-        staticlinear_auxiliary_loader.cpp
-        staticlinear_csv_loader.cpp
-        staticlinear_trend_loader.cpp
-        validated_data_source.cpp
-        zip_file.cpp
+        config/config.cpp
+        config/config_parsing.cpp
+        config/config_path_parsing.cpp
+        config/config_section_parsing.cpp
+        config/schema.cpp
+
+        data/data_manager.cpp
+        data/data_manager_analysis.cpp
+        data/data_manager_csv.cpp
+        data/data_manager_demographic.cpp
+        data/data_manager_disease.cpp
+        data/data_manager_paths.cpp
+        data/data_manager_pif.cpp
+        data/data_source.cpp
+        data/pif_data.cpp
+        data/validated_data_source.cpp
+
+        io/csv_parser.cpp
+        io/download_file.cpp
+        io/json_parser.cpp
+        io/zip_file.cpp
+
+        models/ebhlm_model_parser.cpp
+        models/hlm_model_parser.cpp
+        models/kevinhall_model_parser.cpp
+        models/model_parser.cpp
+        models/model_parser_common.cpp
+        models/model_repository_registration.cpp
+        models/risk_factor_expected_loader.cpp
+        models/staticlinear_auxiliary_loader.cpp
+        models/staticlinear_csv_loader.cpp
+        models/staticlinear_model_parser.cpp
+        models/staticlinear_trend_loader.cpp
 )
 
 target_link_libraries(

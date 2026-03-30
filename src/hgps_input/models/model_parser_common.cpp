@@ -1,8 +1,8 @@
 #include "model_parser_common.h"
 
-#include "json_access.h"
-#include "json_parser.h"
-#include "schema.h"
+#include "io/json_access.h"
+#include "io/json_parser.h"
+#include "config/schema.h"
 
 #include "hgps_core/exception.h"
 #include "hgps_core/string_util.h"

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "config.h"
+#include "config/config.h"
 #include "hgps_core/diagnostics.h"
 
 #include "hgps/risk_factor_adjustable_model.h"
