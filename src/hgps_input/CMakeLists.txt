@@ -43,6 +43,12 @@ target_sources(
         models/staticlinear_trend_loader.cpp
 )
 
+target_include_directories(
+    hgps_input
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 target_link_libraries(
     hgps_input
     PRIVATE
