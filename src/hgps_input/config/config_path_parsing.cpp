@@ -1,7 +1,7 @@
 #include "config_path_parsing.h"
 
-#include "json_access.h"
-#include "json_parser.h"
+#include "io/json_access.h"
+#include "io/json_parser.h"
 
 #include <fmt/format.h>
 

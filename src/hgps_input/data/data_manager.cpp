@@ -1,5 +1,5 @@
 #include "data_manager.h"
-#include "schema.h"
+#include "config/schema.h"
 
 #include <fmt/color.h>
 
