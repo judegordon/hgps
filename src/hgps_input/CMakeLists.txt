@@ -45,7 +45,7 @@ target_sources(
 
 target_include_directories(
     hgps_input
-    PRIVATE
+    PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
