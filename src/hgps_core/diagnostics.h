@@ -32,6 +32,7 @@ struct DiagnosticLocation {
     std::size_t line{0};
     std::size_t column{0};
 
+    [[nodiscard]] bool has_source_path() const noexcept { return !source_path.empty(); }
     [[nodiscard]] bool has_field_path() const noexcept { return !field_path.empty(); }
     [[nodiscard]] bool has_line() const noexcept { return line != 0; }
     [[nodiscard]] bool has_column() const noexcept { return column != 0; }
@@ -46,6 +47,10 @@ struct Diagnostic {
 
 [[nodiscard]] constexpr bool is_error(DiagnosticLevel level) noexcept {
     return level == DiagnosticLevel::error;
+}
+
+[[nodiscard]] constexpr bool is_warning(DiagnosticLevel level) noexcept {
+    return level == DiagnosticLevel::warning;
 }
 
 [[nodiscard]] std::string_view to_string(DiagnosticLevel level) noexcept;
@@ -84,6 +89,8 @@ class Diagnostics {
 
   private:
     container_type items_{};
+    std::size_t error_count_{0};
+    std::size_t warning_count_{0};
 };
 
 [[nodiscard]] std::string format_diagnostic(const Diagnostic &diagnostic);

@@ -13,7 +13,7 @@ std::string_view to_string(DiagnosticLevel level) noexcept {
         return "error";
     }
 
-    return "error";
+    return "unknown";
 }
 
 std::string_view to_string(DiagnosticCode code) noexcept {
@@ -46,12 +46,18 @@ std::string_view to_string(DiagnosticCode code) noexcept {
 }
 
 void Diagnostics::add(Diagnostic diagnostic) {
+    if (diagnostic.level == DiagnosticLevel::error) {
+        ++error_count_;
+    } else {
+        ++warning_count_;
+    }
+
     items_.push_back(std::move(diagnostic));
 }
 
 void Diagnostics::add(DiagnosticLevel level, DiagnosticCode code, DiagnosticLocation location,
                       std::string message) {
-    items_.push_back(Diagnostic{level, code, std::move(location), std::move(message)});
+    add(Diagnostic{level, code, std::move(location), std::move(message)});
 }
 
 void Diagnostics::error(DiagnosticCode code, DiagnosticLocation location, std::string message) {
@@ -67,21 +73,11 @@ bool Diagnostics::empty() const noexcept {
 }
 
 bool Diagnostics::has_errors() const noexcept {
-    for (const auto &item : items_) {
-        if (item.level == DiagnosticLevel::error) {
-            return true;
-        }
-    }
-    return false;
+    return error_count_ != 0;
 }
 
 bool Diagnostics::has_warnings() const noexcept {
-    for (const auto &item : items_) {
-        if (item.level == DiagnosticLevel::warning) {
-            return true;
-        }
-    }
-    return false;
+    return warning_count_ != 0;
 }
 
 std::size_t Diagnostics::size() const noexcept {
@@ -89,23 +85,11 @@ std::size_t Diagnostics::size() const noexcept {
 }
 
 std::size_t Diagnostics::error_count() const noexcept {
-    std::size_t count = 0;
-    for (const auto &item : items_) {
-        if (item.level == DiagnosticLevel::error) {
-            ++count;
-        }
-    }
-    return count;
+    return error_count_;
 }
 
 std::size_t Diagnostics::warning_count() const noexcept {
-    std::size_t count = 0;
-    for (const auto &item : items_) {
-        if (item.level == DiagnosticLevel::warning) {
-            ++count;
-        }
-    }
-    return count;
+    return warning_count_;
 }
 
 const Diagnostics::container_type &Diagnostics::all() const noexcept {
@@ -122,6 +106,8 @@ Diagnostics::const_iterator Diagnostics::end() const noexcept {
 
 void Diagnostics::clear() noexcept {
     items_.clear();
+    error_count_ = 0;
+    warning_count_ = 0;
 }
 
 std::string format_diagnostic(const Diagnostic &diagnostic) {
@@ -130,17 +116,17 @@ std::string format_diagnostic(const Diagnostic &diagnostic) {
     stream << '[' << to_string(diagnostic.level) << ']'
            << '[' << to_string(diagnostic.code) << ']';
 
-    if (!diagnostic.location.source_path.empty()) {
+    if (diagnostic.location.has_source_path()) {
         stream << ' ' << diagnostic.location.source_path;
     }
 
-    if (!diagnostic.location.field_path.empty()) {
+    if (diagnostic.location.has_field_path()) {
         stream << " (" << diagnostic.location.field_path << ')';
     }
 
-    if (diagnostic.location.line != 0) {
+    if (diagnostic.location.has_line()) {
         stream << ':' << diagnostic.location.line;
-        if (diagnostic.location.column != 0) {
+        if (diagnostic.location.has_column()) {
             stream << ':' << diagnostic.location.column;
         }
     }
