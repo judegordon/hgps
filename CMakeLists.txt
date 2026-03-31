@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 
 project(
     Health-GPS
-    VERSION 2.0.0
+    VERSION 1.0.0
     LANGUAGES CXX
 )
 
@@ -22,8 +22,6 @@ if(CATCH_EXCEPTIONS)
     add_compile_definitions(CATCH_EXCEPTIONS)
 endif()
 
-include(FetchContent)
-include(CTest)
 include(cmake/OutOfSource.cmake)
 
 message(STATUS "Compiler ID: ${CMAKE_CXX_COMPILER_ID}")

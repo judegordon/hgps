@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 1,
   "configurePresets": [
     {
       "name": "base",
@@ -97,42 +97,28 @@
   "buildPresets": [
     {
       "name": "linux-debug-build",
-      "displayName": "Default",
+      "displayName": "Linux Debug Build",
       "configurePreset": "linux-debug",
       "description": "Linux debug build"
     },
     {
       "name": "windows-debug-build",
-      "displayName": "Default",
+      "displayName": "Windows Debug Build",
       "configurePreset": "windows-debug",
       "description": "Vanilla build"
     },
     {
       "name": "linux-release-build",
-      "displayName": "Release",
+      "displayName": "Linux Release Build",
       "configurePreset": "linux-release",
       "description": "Linux release build"
     },
     {
       "name": "windows-release-build",
-      "displayName": "Release",
+      "displayName": "Windows Release Build",
       "configurePreset": "windows-release",
       "description": "Windows release build"
     }
-  ],
-  "testPresets": [
-    {
-      "name": "core-test-linux",
-      "description": "Enable output on failure",
-      "configurePreset": "linux-debug",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "core-test-windows",
-      "inherits": "core-test-linux",
-      "configurePreset": "windows-debug"
-    }
   ]
+
 }

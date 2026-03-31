@@ -13,7 +13,6 @@
         "jsoncons",
         "rapidcsv",
         "crossguid",
-        "gtest",
         "tbb",
         "libzippp",
         "openssl",
