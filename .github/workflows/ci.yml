@@ -83,10 +83,3 @@ jobs:
           else
             ./out/install/${{ matrix.platform }}-release/bin/hgps_console --help
           fi
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: health-gps-${{ matrix.platform }}
-          path: ${{ github.workspace }}/out/install/${{ matrix.platform }}-*/*
-          if-no-files-found: error

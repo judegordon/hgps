@@ -48,7 +48,8 @@
       "description": "Build on Linux (release).",
       "inherits": "linux-base",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "Release",
+        "CATCH_EXCEPTIONS": "ON"
       }
     },
     {
@@ -90,7 +91,8 @@
       "description": "Build on Windows with Visual Studio (release).",
       "inherits": "windows-base",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "Release",
+        "CATCH_EXCEPTIONS": "ON"
       }
     }
   ],
@@ -120,5 +122,4 @@
       "description": "Windows release build"
     }
   ]
-
 }
