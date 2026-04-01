@@ -1,33 +1,32 @@
 #pragma once
-#include "forward_type.h"
+#include "utils/concepts.h"
 
 #include <algorithm>
 #include <fmt/format.h>
-#include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
 
 namespace hgps::core {
 
-template <Numerical TYPE> class Array2D {
+template <Numerical TYPE>
+class Array2D {
   public:
     Array2D() = default;
 
-    Array2D(const size_t nrows, const size_t ncols)
+    Array2D(size_t nrows, size_t ncols)
         : rows_{nrows}, columns_{ncols}, data_(nrows * ncols) {
-        if (nrows <= 0 || ncols <= 0) {
+        if (nrows == 0 || ncols == 0) {
             throw std::invalid_argument("Invalid array constructor with 0 size");
         }
-
-        data_.shrink_to_fit();
     }
 
-    Array2D(const size_t nrows, const size_t ncols, TYPE value) : Array2D(nrows, ncols) {
+    Array2D(size_t nrows, size_t ncols, TYPE value)
+        : Array2D(nrows, ncols) {
         fill(value);
     }
 
-    Array2D(const size_t nrows, const size_t ncols, std::vector<TYPE> &values)
+    Array2D(size_t nrows, size_t ncols, const std::vector<TYPE>& values)
         : Array2D(nrows, ncols) {
 
         if (values.size() != size()) {
@@ -39,41 +38,35 @@ template <Numerical TYPE> class Array2D {
     }
 
     size_t size() const noexcept { return rows_ * columns_; }
-
     size_t rows() const noexcept { return rows_; }
-
     size_t columns() const noexcept { return columns_; }
 
-    TYPE &operator()(size_t row, size_t column) {
+    TYPE& operator()(size_t row, size_t column) {
         check_boundaries(row, column);
         return data_[row * columns_ + column];
     }
 
-    const TYPE &operator()(size_t row, size_t column) const {
+    const TYPE& operator()(size_t row, size_t column) const {
         check_boundaries(row, column);
         return data_[row * columns_ + column];
     }
 
     void fill(TYPE value) { std::fill(data_.begin(), data_.end(), value); }
-
     void clear() { fill(TYPE{}); }
 
-    std::vector<TYPE> to_vector() { return std::vector<TYPE>(data_); }
+    std::vector<TYPE> to_vector() const { return data_; }
 
-    std::string to_string() noexcept {
+    std::string to_string() const {
         std::stringstream ss;
         ss << "Array: " << rows_ << "x" << columns_ << "\n";
         for (size_t i = 0; i < rows_; i++) {
             ss << "{";
             for (size_t j = 0; j < columns_; j++) {
                 ss << operator()(i, j);
-                if ((j + 1) != columns_)
-                    ss << ", ";
+                if ((j + 1) != columns_) ss << ", ";
             }
-
             ss << "}\n";
         }
-
         return ss.str();
     }
 
@@ -87,7 +80,6 @@ template <Numerical TYPE> class Array2D {
             throw std::out_of_range(
                 fmt::format("Row {} is out of array bounds [0, {}).", row, rows_));
         }
-
         if (column >= columns_) {
             throw std::out_of_range(
                 fmt::format("Column {} is out of array bounds [0, {}).", column, columns_));
@@ -96,8 +88,7 @@ template <Numerical TYPE> class Array2D {
 };
 
 using FloatArray2D = Array2D<float>;
-
 using DoubleArray2D = Array2D<double>;
-
 using IntegerArray2D = Array2D<int>;
+
 } // namespace hgps::core

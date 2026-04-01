@@ -103,7 +103,8 @@
         },
         "required": [
           "active_period",
-          "impacts"
+          "impacts",
+          "impact_type"
         ],
         "additionalProperties": false
       }
