@@ -1,29 +1,31 @@
 #pragma once
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
+
 namespace hgps::core {
+
 class MathHelper {
   public:
     MathHelper() = delete;
 
-    static int radix() noexcept;
+    static int radix() noexcept { return std::numeric_limits<double>::radix; }
 
-    static double machine_precision() noexcept;
+    static double machine_precision() noexcept { return std::numeric_limits<double>::epsilon(); }
 
-    static double default_numerical_precision() noexcept;
+    static double default_numerical_precision() noexcept {
+        return std::sqrt(machine_precision());
+    }
 
-    static bool equal(double left, double right) noexcept;
+    static bool equal(double left, double right) noexcept {
+        return equal(left, right, default_numerical_precision());
+    }
 
-    static bool equal(double left, double right, double precision) noexcept;
-
-  private:
-    static int radix_;
-
-    static double machine_precision_;
-
-    static double numerical_precision_;
-
-    static void compute_radix() noexcept;
-
-    static void compute_machine_precision() noexcept;
+    static bool equal(double left, double right, double precision) noexcept {
+        const double norm = std::max(std::abs(left), std::abs(right));
+        return norm < precision || std::abs(left - right) < precision * norm;
+    }
 };
+
 } // namespace hgps::core

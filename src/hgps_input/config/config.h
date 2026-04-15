@@ -2,9 +2,8 @@
 
 #include "data/data_source.h"
 #include "config_types.h"
-#include "version.h"
 
-#include "hgps_core/api.h"
+
 
 #include <memory>
 #include <optional>

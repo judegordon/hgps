@@ -1,10 +1,19 @@
 #pragma once
 
-#include "interval.h"
-#include "poco.h"
+#include "types/country.h"
+#include "types/population_item.h"
+#include "types/mortality.h"
+#include "types/disease.h"
+#include "types/disease_analysis.h"
+#include "types/identifier.h"
+#include "types/indicator.h"
+#include "types/lms_data.h"
+#include "types/interval.h"
 
 #include <optional>
 #include <vector>
+#include <string>
+#include <functional>
 
 namespace hgps::core {
 

@@ -1,15 +1,24 @@
 #include "csv_parser.h"
+
 #include <rapidcsv.h>
 
+#include "hgps/gender_value.h"
 #include "hgps_core/scoped_timer.h"
 #include "hgps_core/string_util.h"
-#include "hgps/gender_value.h"
 
 #include <fmt/color.h>
+#include <fmt/format.h>
+
+#include <algorithm>
+#include <map>
+#include <stdexcept>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 #if USE_TIMER
-#define MEASURE_FUNCTION()                                                                         \
-    hgps::core::ScopedTimer timer { __func__ }
+#define MEASURE_FUNCTION() \
+    hgps::core::ScopedTimer timer{__func__}
 #else
 #define MEASURE_FUNCTION()
 #endif
@@ -18,89 +27,70 @@ namespace {
 
 namespace hc = hgps::core;
 
-hc::StringDataTableColumnBuilder parse_string_column(const std::string &name,
-                                                     const std::vector<std::string> &data) {
-    auto builder = hc::StringDataTableColumnBuilder(name);
-    for (const auto &value : data) {
-        // trim string
+char get_delimiter(const std::string& delimiter) {
+    if (delimiter.empty()) {
+        throw std::invalid_argument("CSV delimiter must not be empty.");
+    }
+
+    return delimiter.front();
+}
+
+hc::DataTableColumn parse_string_column(const std::string& name,
+                                        const std::vector<std::string>& data) {
+    hc::DataTableColumnBuilder<std::string> builder{name};
+
+    for (const auto& value : data) {
         auto str = hc::trim(value);
-
-        if (str.length() > 0) {
-            builder.append(str);
-            continue;
+        if (!str.empty()) {
+            builder.append(std::move(str));
+        } else {
+            builder.append_null();
         }
-
-        builder.append_null();
     }
 
-    return builder;
+    return builder.build();
 }
 
-hc::IntegerDataTableColumnBuilder parse_int_column(const std::string &name,
-                                                   const std::vector<std::string> &data) {
-    auto builder = hc::IntegerDataTableColumnBuilder(name);
-    for (const auto &value : data) {
-        if (value.length() > 0) {
-            builder.append(std::stoi(value));
-            continue;
-        }
+template <typename T, typename ParseFn>
+hc::DataTableColumn parse_numeric_column(const std::string& name,
+                                         const std::vector<std::string>& data,
+                                         ParseFn parse_value) {
+    hc::DataTableColumnBuilder<T> builder{name};
 
-        builder.append_null();
+    for (const auto& value : data) {
+        auto str = hc::trim(value);
+        if (!str.empty()) {
+            builder.append(parse_value(str));
+        } else {
+            builder.append_null();
+        }
     }
 
-    return builder;
-}
-
-hc::FloatDataTableColumnBuilder parse_float_column(const std::string &name,
-                                                   const std::vector<std::string> &data) {
-    auto builder = hc::FloatDataTableColumnBuilder(name);
-    for (const auto &value : data) {
-        if (value.length() > 0) {
-            builder.append(std::stof(value));
-            continue;
-        }
-
-        builder.append_null();
-    }
-
-    return builder;
-}
-
-hc::DoubleDataTableColumnBuilder parse_double_column(const std::string &name,
-                                                     const std::vector<std::string> &data) {
-    auto builder = hc::DoubleDataTableColumnBuilder(name);
-    for (const auto &value : data) {
-        if (value.length() > 0) {
-            builder.append(std::stod(value));
-            continue;
-        }
-
-        builder.append_null();
-    }
-
-    return builder;
+    return builder.build();
 }
 
 } // namespace
 
 namespace hgps::input {
 
-hgps::core::DataTable load_datatable_from_csv(const FileInfo &file_info) {
+hgps::core::DataTable load_datatable_from_csv(const FileInfo& file_info) {
     MEASURE_FUNCTION();
     using namespace rapidcsv;
 
     bool success = true;
-    Document doc{file_info.name.string(), LabelParams{},
-                 SeparatorParams{file_info.delimiter.front()}};
+    Document doc{
+        file_info.name.string(),
+        LabelParams{},
+        SeparatorParams{get_delimiter(file_info.delimiter)},
+    };
 
-    // Validate columns and create file columns map
     auto headers = doc.GetColumnNames();
     std::map<std::string, std::string, hc::case_insensitive::comparator> csv_column_map;
-    for (const auto &pair : file_info.columns) {
-        // HACK: replace pair with structured bindings once clang allows it.
-        const std::string &col_name = pair.first;
 
-        auto is_match = [&col_name](const auto &csv_col_name) {
+    for (const auto& pair : file_info.columns) {
+        const std::string& col_name = pair.first;
+
+        auto is_match = [&col_name](const auto& csv_col_name) {
             return hc::case_insensitive::equals(col_name, csv_col_name);
         };
 
@@ -117,29 +107,34 @@ hgps::core::DataTable load_datatable_from_csv(const FileInfo &file_info) {
         throw std::runtime_error("Required columns not found in dataset.");
     }
 
-    hgps::core::DataTable out_table;
-    for (const auto &[col_name, csv_col_name] : csv_column_map) {
-        std::string col_type = hc::to_lower(file_info.columns.at(col_name));
-
-        // Get raw data
-        auto data = doc.GetColumn<std::string>(csv_col_name);
+    hc::DataTable out_table;
+    for (const auto& [col_name, csv_col_name] : csv_column_map) {
+        const std::string col_type = hc::to_lower(file_info.columns.at(col_name));
+        const auto data = doc.GetColumn<std::string>(csv_col_name);
 
         try {
             if (col_type == "integer") {
-                out_table.add(parse_int_column(col_name, data).build());
+                out_table.add(parse_numeric_column<int>(col_name, data, [](const std::string& s) {
+                    return std::stoi(s);
+                }));
             } else if (col_type == "double") {
-                out_table.add(parse_double_column(col_name, data).build());
+                out_table.add(
+                    parse_numeric_column<double>(col_name, data, [](const std::string& s) {
+                        return std::stod(s);
+                    }));
             } else if (col_type == "float") {
-                out_table.add(parse_float_column(col_name, data).build());
+                out_table.add(parse_numeric_column<float>(col_name, data, [](const std::string& s) {
+                    return std::stof(s);
+                }));
             } else if (col_type == "string") {
-                out_table.add(parse_string_column(col_name, data).build());
+                out_table.add(parse_string_column(col_name, data));
             } else {
                 fmt::print(fg(fmt::color::dark_salmon), "Unknown data type: {} in column: {}\n",
                            col_type, col_name);
                 success = false;
             }
-        } catch (const std::exception &ex) {
-            fmt::print(fg(fmt::color::red), "Error passing column: {}, cause: {}\n", col_name,
+        } catch (const std::exception& ex) {
+            fmt::print(fg(fmt::color::red), "Error parsing column: {}, cause: {}\n", col_name,
                        ex.what());
             success = false;
         }
@@ -153,13 +148,14 @@ hgps::core::DataTable load_datatable_from_csv(const FileInfo &file_info) {
 }
 
 std::unordered_map<hgps::core::Identifier, std::vector<double>>
-load_baseline_from_csv(const std::string &filename, const std::string &delimiter) {
+load_baseline_from_csv(const std::string& filename, const std::string& delimiter) {
     using namespace rapidcsv;
 
     auto data = std::unordered_map<std::string, std::vector<double>>{};
-    auto doc = Document{filename, LabelParams{}, SeparatorParams(delimiter.front())};
+    auto doc = Document{filename, LabelParams{}, SeparatorParams(get_delimiter(delimiter))};
     auto column_names = doc.GetColumnNames();
     auto column_count = column_names.size();
+
     if (column_count < 2) {
         throw std::invalid_argument(fmt::format(
             "Invalid number of columns: {} in adjustment file: {}", column_names.size(), filename));
@@ -171,23 +167,26 @@ load_baseline_from_csv(const std::string &filename, const std::string &delimiter
     }
 
     std::transform(column_names.begin(), column_names.end(), column_names.begin(), hc::to_lower);
-    for (size_t col = 1; col < column_count; col++) {
-        data.emplace(hc::to_lower(column_names.at(col)), std::vector<double>{});
+
+    for (std::size_t col = 1; col < column_count; ++col) {
+        data.emplace(column_names.at(col), std::vector<double>{});
     }
 
-    for (size_t i = 0; i < doc.GetRowCount(); i++) {
-        auto row = doc.GetRow<std::string>(i);
-        for (size_t col = 1; col < row.size(); col++) {
-            data.at(column_names[col]).emplace_back(std::stod(row[col]));
+    for (std::size_t row_index = 0; row_index < doc.GetRowCount(); ++row_index) {
+        const auto row = doc.GetRow<std::string>(row_index);
+
+        for (std::size_t col = 1; col < row.size(); ++col) {
+            const auto value = hc::trim(row[col]);
+            data.at(column_names[col]).emplace_back(std::stod(value));
         }
     }
 
-    for (auto &col : data) {
+    for (auto& col : data) {
         col.second.shrink_to_fit();
     }
 
     auto result = std::unordered_map<hc::Identifier, std::vector<double>>{};
-    for (const auto &col : data) {
+    for (const auto& col : data) {
         result.emplace(hc::Identifier{col.first}, col.second);
     }
 

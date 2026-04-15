@@ -1,50 +1,44 @@
 #pragma once
 
-#include <memory>
-#include <mutex>
+#include "column.h"
+
+#include <functional>
 #include <optional>
 #include <ostream>
+#include <string>
 #include <unordered_map>
 #include <vector>
-#include <string>
-
-#include "column.h"
 
 namespace hgps::core {
 
 class DataTable {
   public:
-    using IteratorType = std::vector<std::unique_ptr<DataTableColumn>>::const_iterator;
+    using IteratorType = std::vector<DataTableColumn>::const_iterator;
 
     std::size_t num_columns() const noexcept;
-
     std::size_t num_rows() const noexcept;
 
     std::vector<std::string> names() const;
 
-    void add(std::unique_ptr<DataTableColumn> column);
+    void add(DataTableColumn column);
 
-    const DataTableColumn &column(std::size_t index) const;
-
-    const DataTableColumn &column(const std::string &name) const;
+    const DataTableColumn& column(std::size_t index) const;
+    const DataTableColumn& column(const std::string& name) const;
 
     std::optional<std::reference_wrapper<const DataTableColumn>>
-    column_if_exists(const std::string &name) const;
+    column_if_exists(const std::string& name) const;
 
     IteratorType cbegin() const noexcept { return columns_.cbegin(); }
-
     IteratorType cend() const noexcept { return columns_.cend(); }
 
     std::string to_string() const;
 
   private:
-    mutable std::mutex sync_mtx_{};
-    std::vector<std::string> names_{};
     std::unordered_map<std::string, std::size_t> index_{};
-    std::vector<std::unique_ptr<DataTableColumn>> columns_{};
+    std::vector<DataTableColumn> columns_{};
     std::size_t rows_count_ = 0;
 };
 
 } // namespace hgps::core
 
-std::ostream &operator<<(std::ostream &stream, const hgps::core::DataTable &table);
+std::ostream& operator<<(std::ostream& stream, const hgps::core::DataTable& table);

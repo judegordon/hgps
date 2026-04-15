@@ -1,8 +1,8 @@
 #pragma once
 
-#include "hgps_core/exception.h"
-#include "forward_type.h"
-#include "string_util.h"
+#include "diagnostics/internal_error.h"
+#include "../forward_type.h"
+#include "utils/string_util.h"
 
 #include <algorithm>
 #include <fmt/format.h>
@@ -28,13 +28,13 @@ template <Numerical TYPE> class Interval {
 
     bool contains(TYPE value) const noexcept { return lower_ <= value && value <= upper_; }
 
-    bool contains(Interval<TYPE> &other) const noexcept {
+    bool contains(const Interval<TYPE> &other) const noexcept {
         return contains(other.lower_) && contains(other.upper_);
     }
 
     TYPE clamp(TYPE value) const noexcept { return std::clamp(value, lower_, upper_); }
 
-    std::string to_string() const noexcept { return fmt::format("{}-{}", lower_, upper_); }
+    std::string to_string() const { return fmt::format("{}-{}", lower_, upper_); }
 
     auto operator<=>(const Interval<TYPE> &rhs) const = default;
 

@@ -1,9 +1,31 @@
 #pragma once
 
-#include "hgps_core/api.h"
+#include "hgps_core/interfaces/datastore.h"
+
+// core types
+#include "hgps_core/types/country.h"
+#include "hgps_core/types/population_item.h"
+#include "hgps_core/types/mortality.h"
+#include "hgps_core/types/disease.h"
+#include "hgps_core/types/disease_analysis.h"
+#include "hgps_core/types/identifier.h"
+#include "hgps_core/types/indicator.h"
+#include "hgps_core/types/lms_data.h"
+#include "hgps_core/types/interval.h"
+
+// project-specific
 #include "pif_data.h"
 
+// std
 #include <filesystem>
+#include <functional>
+#include <map>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
+// third-party
 #include <nlohmann/json.hpp>
 
 namespace hgps::input {

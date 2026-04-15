@@ -15,7 +15,7 @@ class ScopedTimer {
     auto operator=(const ScopedTimer &) -> ScopedTimer & = delete;
     auto operator=(ScopedTimer &&) -> ScopedTimer & = delete;
 
-    ~ScopedTimer() {
+    ~ScopedTimer() noexcept {
         using namespace std::chrono;
         auto stop = ClockType::now();
         auto duration = (stop - start_);
@@ -27,4 +27,5 @@ class ScopedTimer {
     const char *function_ = {};
     const ClockType::time_point start_ = {};
 };
+
 } // namespace hgps::core

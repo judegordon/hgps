@@ -87,7 +87,7 @@ void UnivariateSummary::clear() noexcept {
     std::fill(std::begin(moments_), std::end(moments_), 0.0);
 }
 
-void UnivariateSummary::append(double value) noexcept {
+void UnivariateSummary::append(double value) {
     if (is_empty()) {
         min_ = value;
         max_ = value;
@@ -114,7 +114,7 @@ void UnivariateSummary::append(double value) noexcept {
     moments_[0] = n1;
 }
 
-void UnivariateSummary::append(const std::optional<double> &option) noexcept {
+void UnivariateSummary::append(const std::optional<double> &option){
     if (option.has_value()) {
         append(option.value());
     } else {
@@ -122,7 +122,7 @@ void UnivariateSummary::append(const std::optional<double> &option) noexcept {
     }
 }
 
-void UnivariateSummary::append(const std::vector<double> &values) noexcept {
+void UnivariateSummary::append(const std::vector<double> &values){
     for (const auto &v : values) {
         append(v);
     }
@@ -132,7 +132,7 @@ void UnivariateSummary::append_null() noexcept { null_count_++; }
 
 void UnivariateSummary::append_null(unsigned int count) noexcept { null_count_ += count; }
 
-std::string UnivariateSummary::to_string() const noexcept {
+std::string UnivariateSummary::to_string() const {
 
     std::stringstream ss;
     ss << fmt::format("Name ..........= {}\n", name());

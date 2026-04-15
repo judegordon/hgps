@@ -5,7 +5,7 @@
 #include <vector>
 
 #include "country.h"
-#include "forward_type.h"
+#include "../forward_type.h"
 #include "identifier.h"
 
 namespace hgps::core {
@@ -27,9 +27,9 @@ inline bool operator>(const DiseaseInfo &lhs, const DiseaseInfo &rhs) {
 }
 
 struct DiseaseItem {
-    int with_age;
+    int with_age{};
 
-    Gender gender;
+    Gender gender{};
 
     std::map<int, double> measures;
 };

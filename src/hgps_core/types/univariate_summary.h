@@ -50,15 +50,15 @@ class UnivariateSummary {
 
     void append(double value) noexcept;
 
-    void append(const std::optional<double> &option) noexcept;
+    void append(const std::optional<double> &option);
 
-    void append(const std::vector<double> &values) noexcept;
+    void append(const std::vector<double> &values);
 
     void append_null() noexcept;
 
     void append_null(unsigned int count) noexcept;
 
-    std::string to_string() const noexcept;
+    std::string to_string() const;
 
     friend std::ostream &operator<<(std::ostream &stream, const UnivariateSummary &summary);
 
