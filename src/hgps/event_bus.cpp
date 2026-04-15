@@ -1,5 +1,5 @@
 #include "event_bus.h"
-#include "hgps_core/thread_util.h"
+#include "hgps_core/utils/thread_util.h"
 #include <crossguid/guid.hpp>
 
 namespace hgps {

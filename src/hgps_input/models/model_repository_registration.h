@@ -1,7 +1,7 @@
 #pragma once
 
 #include "config/config.h"
-#include "hgps_core/diagnostics.h"
+#include "hgps_core/diagnostics/input_issue.h"
 
 namespace hgps {
 class CachedRepository;

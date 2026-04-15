@@ -8,7 +8,7 @@
 #include <windows.h>
 #endif
 
-#include "hgps_core/exception.h"
+#include "hgps_core/diagnostics/internal_error.h"
 
 #include <sago/platform_folders.h>
 

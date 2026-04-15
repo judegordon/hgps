@@ -18,9 +18,8 @@
 #include "hgps/simple_policy_scenario.h"
 #include "hgps/simulation.h"
 
-#include "hgps_core/diagnostics.h"
-#include "hgps_core/poco.h"
-#include "hgps_core/scoped_timer.h"
+#include "hgps_core/diagnostics/input_issue.h"
+#include "hgps_core/utils/scoped_timer.h"
 
 #include <fmt/color.h>
 

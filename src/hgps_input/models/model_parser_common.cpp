@@ -4,8 +4,8 @@
 #include "io/json_parser.h"
 #include "config/schema.h"
 
-#include "hgps_core/exception.h"
-#include "hgps_core/string_util.h"
+#include "hgps_core/diagnostics/internal_error.h"
+#include "hgps_core/utils/string_util.h"
 
 #include <fmt/core.h>
 

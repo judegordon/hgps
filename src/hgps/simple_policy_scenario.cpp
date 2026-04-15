@@ -1,5 +1,5 @@
 #include "simple_policy_scenario.h"
-#include "hgps_core/string_util.h"
+#include "hgps_core/utils/string_util.h"
 
 namespace hgps {
 

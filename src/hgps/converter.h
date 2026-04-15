@@ -8,8 +8,14 @@
 #include "modelinput.h"
 #include "relative_risk.h"
 
-#include "hgps_core/datastore.h"
-#include "hgps_core/poco.h"
+#include "hgps_core/interfaces/datastore.h"
+
+#include "hgps_core/types/disease.h"
+#include "hgps_core/types/disease_analysis.h"
+#include "hgps_core/types/mortality.h"
+#include "hgps_core/types/life_expectancy.h"
+#include "hgps_core/types/lms_data.h"
+#include "hgps_core/types/identifier.h"
 
 namespace hgps {
 namespace detail {

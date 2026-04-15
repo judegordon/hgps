@@ -5,7 +5,7 @@
 #include "risk_factor_expected_loader.h"
 #include "riskmodel.h"
 
-#include "hgps_core/string_util.h"
+#include "hgps_core/utils/string_util.h"
 
 #include <fmt/core.h>
 

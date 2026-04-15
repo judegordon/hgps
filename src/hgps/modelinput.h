@@ -1,7 +1,7 @@
 #pragma once
 
-#include <hgps_core/datatable.h>
-#include <hgps_core/string_util.h>
+#include <hgps_core/data/datatable.h>
+#include <hgps_core/utils/string_util.h>
 #include <map>
 
 #include "hgps_input/config/config_types.h"

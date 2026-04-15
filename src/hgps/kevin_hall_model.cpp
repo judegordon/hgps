@@ -1,4 +1,4 @@
-#include "hgps_core/exception.h"
+#include "hgps_core/diagnostics/internal_error.h"
 
 #include "kevin_hall_model.h"
 #include "runtime_context.h"

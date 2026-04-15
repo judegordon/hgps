@@ -1,4 +1,4 @@
-#include "hgps_core/thread_util.h"
+#include "hgps_core/utils/thread_util.h"
 #include "hgps_input/data/data_manager.h"
 #include "hgps_input/config/config.h"
 #include "hgps_input/io/csv_parser.h"

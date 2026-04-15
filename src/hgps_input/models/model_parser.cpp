@@ -6,7 +6,7 @@
 #include "model_parser_common.h"
 #include "staticlinear_model_parser.h"
 
-#include "hgps_core/diagnostics.h"
+#include "hgps_core/diagnostics/input_issue.h"
 
 #include <utility>
 

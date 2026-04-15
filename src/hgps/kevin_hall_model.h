@@ -1,6 +1,6 @@
 #pragma once
 
-#include "hgps_core/exception.h"
+#include "hgps_core/diagnostics/internal_error.h"
 
 #include "interfaces.h"
 #include "map2d.h"

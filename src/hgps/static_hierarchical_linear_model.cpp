@@ -1,7 +1,7 @@
 #include "static_hierarchical_linear_model.h"
 #include "runtime_context.h"
 
-#include "hgps_core/exception.h"
+#include "hgps_core/diagnostics/internal_error.h"
 
 namespace hgps {
 

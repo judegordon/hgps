@@ -1,5 +1,5 @@
 #pragma once
-#include "hgps_core/identifier.h"
+#include "hgps_core/types/identifier.h"
 #include "channel.h"
 #include "person.h"
 #include "random_algorithm.h"

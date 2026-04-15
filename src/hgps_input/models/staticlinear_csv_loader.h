@@ -1,9 +1,9 @@
 #pragma once
 
 #include "config/config.h"
-#include "hgps_core/diagnostics.h"
+#include "hgps_core/diagnostics/input_issue.h"
 
-#include "hgps_core/identifier.h"
+#include "hgps_core/types/identifier.h"
 
 #include <Eigen/Dense>
 #include <nlohmann/json.hpp>

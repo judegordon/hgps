@@ -1,4 +1,3 @@
-// src/hgps_core/lms_data.h
 #pragma once
 #include "forward_type.h"
 

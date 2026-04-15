@@ -1,4 +1,4 @@
-#include "hgps_core/exception.h"
+#include "hgps_core/diagnostics/internal_error.h"
 
 #include "risk_factor_adjustable_model.h"
 

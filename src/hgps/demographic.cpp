@@ -1,5 +1,5 @@
 #include "demographic.h"
-#include "hgps_core/thread_util.h"
+#include "hgps_core/utils/thread_util.h"
 #include "converter.h"
 #include "sync_message.h"
 #include <algorithm>

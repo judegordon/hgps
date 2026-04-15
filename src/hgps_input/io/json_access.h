@@ -1,6 +1,6 @@
 #pragma once
 
-#include "hgps_core/diagnostics.h"
+#include "hgps_core/diagnostics/input_issue.h"
 
 #include <nlohmann/json.hpp>
 

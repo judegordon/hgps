@@ -1,7 +1,7 @@
 #pragma once
 
 #include "hgps_core/forward_type.h"
-#include "hgps_core/identifier.h"
+#include "hgps_core/types/identifier.h"
 
 #include "person.h"
 #include "risk_factor_model.h"

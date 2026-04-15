@@ -1,5 +1,5 @@
 #pragma once
-#include "hgps_core/interval.h"
+#include "hgps_core/types/interval.h"
 
 #include <filesystem>
 #include <map>

@@ -3,8 +3,8 @@
 #include <rapidcsv.h>
 
 #include "hgps/gender_value.h"
-#include "hgps_core/scoped_timer.h"
-#include "hgps_core/string_util.h"
+#include "hgps_core/utils/scoped_timer.h"
+#include "hgps_core/utils/string_util.h"
 
 #include <fmt/color.h>
 #include <fmt/format.h>

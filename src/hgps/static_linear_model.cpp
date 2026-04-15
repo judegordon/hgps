@@ -1,5 +1,5 @@
 #include "static_linear_model.h"
-#include "hgps_core/exception.h"
+#include "hgps_core/diagnostics/internal_error.h"
 #include "hgps_input/config/config_types.h"
 #include "population.h"
 #include "risk_factor_adjustable_model.h"

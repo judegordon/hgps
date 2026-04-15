@@ -1,6 +1,4 @@
 #pragma once
-
-#include "hgps_core/poco.h"
 #include "hgps_input/data/pif_data.h"
 #include "disease_table.h"
 #include "gender_value.h"

@@ -1,5 +1,5 @@
 #include "fiscal_scenario.h"
-#include "hgps_core/string_util.h"
+#include "hgps_core/utils/string_util.h"
 
 #include <fmt/core.h>
 #include <stdexcept>

@@ -3,8 +3,6 @@
 #include <string>
 
 #include "hgps_core/forward_type.h"
-#include "hgps_core/poco.h"
-
 namespace hgps {
 
 struct MeasureKey final {

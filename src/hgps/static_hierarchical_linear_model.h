@@ -1,6 +1,6 @@
 #pragma once
 
-#include "hgps_core/array2d.h"
+#include "hgps_core/data/array2d.h"
 #include "interfaces.h"
 #include "mapping.h"
 

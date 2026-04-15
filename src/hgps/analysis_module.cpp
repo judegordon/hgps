@@ -1,6 +1,6 @@
 
-#include "hgps_core/string_util.h"
-#include "hgps_core/thread_util.h"
+#include "hgps_core/utils/string_util.h"
+#include "hgps_core/utils/thread_util.h"
 
 #include "analysis_module.h"
 #include "converter.h"

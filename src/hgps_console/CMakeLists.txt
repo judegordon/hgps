@@ -8,17 +8,11 @@ add_executable(hgps_console "program.cpp")
 add_library(
     hgps_console_lib STATIC
     "command_options.cpp"
-    "command_options.h"
     "event_monitor.cpp"
-    "event_monitor.h"
     "individual_id_tracking_writer.cpp"
-    "individual_id_tracking_writer.h"
     "program.cpp"
     "result_file_writer.cpp"
-    "result_file_writer.h"
-    "model_info.h"
-    "resource.h"
-    "result_writer.h")
+)
 
 # Under Windows, we also include a resource file to the build
 if(WIN32)

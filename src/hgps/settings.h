@@ -1,7 +1,6 @@
 #pragma once
 
-#include <hgps_core/interval.h>
-#include <hgps_core/poco.h>
+#include <hgps_core/types/interval.h>
 
 namespace hgps {
 

@@ -1,6 +1,6 @@
 #include "converter.h"
 
-#include "hgps_core/string_util.h"
+#include "hgps_core/utils/string_util.h"
 #include "default_cancer_model.h"
 #include <fmt/format.h>
 

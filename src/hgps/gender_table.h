@@ -2,9 +2,9 @@
 #include <map>
 #include <numeric>
 
-#include "hgps_core/array2d.h"
+#include "hgps_core/data/array2d.h"
 #include "hgps_core/forward_type.h"
-#include "hgps_core/interval.h"
+#include "hgps_core/types/interval.h"
 #include "monotonic_vector.h"
 
 namespace hgps {
