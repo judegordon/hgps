@@ -117,10 +117,10 @@ StaticHierarchicalLinearModelDefinition::StaticHierarchicalLinearModelDefinition
     : models_{std::move(linear_models)}, levels_{std::move(model_levels)} {
 
     if (models_.empty()) {
-        throw core::HgpsException("The hierarchical model equations definition must not be empty");
+        throw core::InternalError("The hierarchical model equations definition must not be empty");
     }
     if (levels_.empty()) {
-        throw core::HgpsException("The hierarchical model levels definition must not be empty");
+        throw core::InternalError("The hierarchical model levels definition must not be empty");
     }
 }
 

@@ -11,18 +11,18 @@ namespace hgps::input {
 
 std::unique_ptr<hgps::RiskFactorSexAgeTable>
 load_risk_factor_expected(const Configuration &config,
-                          hgps::core::Diagnostics &diagnostics) {
+                          hgps::core::InputIssueReport &diagnostics) {
     const auto &info = config.modelling.baseline_adjustment;
 
     if (!hgps::core::case_insensitive::equals(info.format, "CSV")) {
-        diagnostics.error(hgps::core::DiagnosticCode::invalid_value,
+        diagnostics.error(hgps::core::IssueCode::invalid_value,
                           {.field_path = "modelling.baseline_adjustment.format"},
                           "Unsupported baseline adjustment file format: " + info.format);
         return nullptr;
     }
 
     if (!info.file_names.contains("factorsmean_male")) {
-        diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+        diagnostics.error(hgps::core::IssueCode::missing_key,
                           {.field_path = "modelling.baseline_adjustment.file_names.factorsmean_male"},
                           "Missing required baseline adjustment file");
         return nullptr;
@@ -30,7 +30,7 @@ load_risk_factor_expected(const Configuration &config,
 
     if (!info.file_names.contains("factorsmean_female")) {
         diagnostics.error(
-            hgps::core::DiagnosticCode::missing_key,
+            hgps::core::IssueCode::missing_key,
             {.field_path = "modelling.baseline_adjustment.file_names.factorsmean_female"},
             "Missing required baseline adjustment file");
         return nullptr;
@@ -45,7 +45,7 @@ load_risk_factor_expected(const Configuration &config,
         table->emplace_row(hgps::core::Gender::male,
                            load_baseline_from_csv(male_filename, info.delimiter));
     } catch (const std::exception &e) {
-        diagnostics.error(hgps::core::DiagnosticCode::parse_failure,
+        diagnostics.error(hgps::core::IssueCode::parse_failure,
                           {.source_path = male_filename,
                            .field_path = "modelling.baseline_adjustment.file_names.factorsmean_male"},
                           fmt::format("Failed to parse male baseline adjustment file: {}", e.what()));
@@ -57,7 +57,7 @@ load_risk_factor_expected(const Configuration &config,
                            load_baseline_from_csv(female_filename, info.delimiter));
     } catch (const std::exception &e) {
         diagnostics.error(
-            hgps::core::DiagnosticCode::parse_failure,
+            hgps::core::IssueCode::parse_failure,
             {.source_path = female_filename,
              .field_path = "modelling.baseline_adjustment.file_names.factorsmean_female"},
             fmt::format("Failed to parse female baseline adjustment file: {}", e.what()));
@@ -69,7 +69,7 @@ load_risk_factor_expected(const Configuration &config,
         for (const auto &[factor_name, values] : factors) {
             if (values.size() <= max_age) {
                 diagnostics.error(
-                    hgps::core::DiagnosticCode::invalid_value,
+                    hgps::core::IssueCode::invalid_value,
                     {.field_path = "modelling.baseline_adjustment"},
                     fmt::format(
                         "Baseline adjustment file for '{}' does not cover required age range [{}].",

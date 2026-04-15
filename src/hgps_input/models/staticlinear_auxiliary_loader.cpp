@@ -33,14 +33,14 @@ std::string normalise_delimiter(std::string delimiter) {
 std::optional<rapidcsv::Document>
 open_unlabelled_two_column_csv(const std::filesystem::path &path,
                                std::string_view delimiter,
-                               hgps::core::Diagnostics &diagnostics,
+                               hgps::core::InputIssueReport &diagnostics,
                                std::string_view field_path) {
     try {
         const auto normalised_delimiter = normalise_delimiter(std::string{delimiter});
         return rapidcsv::Document(path.string(), rapidcsv::LabelParams(-1, -1),
                                   rapidcsv::SeparatorParams{normalised_delimiter.front()});
     } catch (const std::exception &e) {
-        diagnostics.error(hgps::core::DiagnosticCode::parse_failure,
+        diagnostics.error(hgps::core::IssueCode::parse_failure,
                           {.source_path = path.string(), .field_path = std::string{field_path}},
                           e.what());
         return std::nullopt;
@@ -58,7 +58,7 @@ std::optional<CsvFileInfo>
 get_csv_file_info(const nlohmann::json &node,
                   const std::filesystem::path &root_path,
                   std::string_view file_key,
-                  hgps::core::Diagnostics &diagnostics,
+                  hgps::core::InputIssueReport &diagnostics,
                   std::string_view source_path,
                   std::string_view field_path) {
     bool ok = true;
@@ -92,7 +92,7 @@ std::optional<hgps::LinearModelParams>
 load_two_column_linear_model_csv(const nlohmann::json &node,
                                  const std::filesystem::path &root_path,
                                  std::string_view file_key,
-                                 hgps::core::Diagnostics &diagnostics,
+                                 hgps::core::InputIssueReport &diagnostics,
                                  std::string_view source_path,
                                  std::string_view field_path,
                                  bool skip_first_row) {
@@ -111,7 +111,7 @@ load_two_column_linear_model_csv(const nlohmann::json &node,
 
     if (doc->GetColumnCount() != 2) {
         diagnostics.error(
-            hgps::core::DiagnosticCode::invalid_value,
+            hgps::core::IssueCode::invalid_value,
             {.source_path = file_info->path.string(), .field_path = std::string{field_path}},
             fmt::format("CSV file must have exactly 2 columns. Found {}", doc->GetColumnCount()));
         return std::nullopt;
@@ -132,7 +132,7 @@ load_two_column_linear_model_csv(const nlohmann::json &node,
             }
         } catch (const std::exception &e) {
             diagnostics.error(
-                hgps::core::DiagnosticCode::parse_failure,
+                hgps::core::IssueCode::parse_failure,
                 {.source_path = file_info->path.string(), .field_path = std::string{field_path}},
                 fmt::format("Failed reading row {}: {}", row, e.what()));
             return std::nullopt;
@@ -146,7 +146,7 @@ std::optional<hgps::PhysicalActivityModel>
 load_continuous_physical_activity_model(const nlohmann::json &node,
                                         const std::filesystem::path &root_path,
                                         std::string_view file_key,
-                                        hgps::core::Diagnostics &diagnostics,
+                                        hgps::core::InputIssueReport &diagnostics,
                                         std::string_view source_path,
                                         std::string_view field_path) {
     const auto file_info =
@@ -164,7 +164,7 @@ load_continuous_physical_activity_model(const nlohmann::json &node,
 
     if (doc->GetColumnCount() != 2) {
         diagnostics.error(
-            hgps::core::DiagnosticCode::invalid_value,
+            hgps::core::IssueCode::invalid_value,
             {.source_path = file_info->path.string(), .field_path = std::string{field_path}},
             fmt::format("Physical activity CSV file must have exactly 2 columns. Found {}",
                         doc->GetColumnCount()));
@@ -192,7 +192,7 @@ load_continuous_physical_activity_model(const nlohmann::json &node,
             }
         } catch (const std::exception &e) {
             diagnostics.error(
-                hgps::core::DiagnosticCode::parse_failure,
+                hgps::core::IssueCode::parse_failure,
                 {.source_path = file_info->path.string(), .field_path = std::string{field_path}},
                 fmt::format("Failed reading physical activity row {}: {}", row, e.what()));
             return std::nullopt;
@@ -209,10 +209,10 @@ namespace hgps::input {
 std::optional<std::unordered_map<hgps::core::Identifier,
                                  std::unordered_map<hgps::core::Gender, double>>>
 load_rural_prevalence(const nlohmann::json &opt,
-                      hgps::core::Diagnostics &diagnostics,
+                      hgps::core::InputIssueReport &diagnostics,
                       std::string_view source_path) {
     if (!opt.contains("RuralPrevalence")) {
-        diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+        diagnostics.error(hgps::core::IssueCode::missing_key,
                           {.source_path = std::string{source_path},
                            .field_path = "RuralPrevalence"},
                           "Missing required key");
@@ -220,7 +220,7 @@ load_rural_prevalence(const nlohmann::json &opt,
     }
 
     if (!opt["RuralPrevalence"].is_array()) {
-        diagnostics.error(hgps::core::DiagnosticCode::wrong_type,
+        diagnostics.error(hgps::core::IssueCode::wrong_type,
                           {.source_path = std::string{source_path},
                            .field_path = "RuralPrevalence"},
                           "Key has wrong type");
@@ -259,10 +259,10 @@ load_rural_prevalence(const nlohmann::json &opt,
 std::optional<StaticLinearIncomeModelData>
 load_income_model_data(const nlohmann::json &opt,
                        const Configuration &config,
-                       hgps::core::Diagnostics &diagnostics,
+                       hgps::core::InputIssueReport &diagnostics,
                        std::string_view source_path) {
     if (!opt.contains("IncomeModels") || !opt["IncomeModels"].is_object()) {
-        diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+        diagnostics.error(hgps::core::IssueCode::missing_key,
                           {.source_path = std::string{source_path},
                            .field_path = "IncomeModels"},
                           "Missing required key");
@@ -276,7 +276,7 @@ load_income_model_data(const nlohmann::json &opt,
 
     if (data.income_categories != 3 && data.income_categories != 4) {
         diagnostics.error(
-            hgps::core::DiagnosticCode::invalid_value,
+            hgps::core::IssueCode::invalid_value,
             {.source_path = std::string{source_path},
              .field_path = "project_requirements.income.categories"},
             fmt::format(R"(income.categories must be 3 or 4. Got "{}")",
@@ -290,7 +290,7 @@ load_income_model_data(const nlohmann::json &opt,
     if (data.is_continuous_model) {
         if (!model_has_continuous) {
             diagnostics.error(
-                hgps::core::DiagnosticCode::missing_key,
+                hgps::core::IssueCode::missing_key,
                 {.source_path = std::string{source_path},
                  .field_path = "IncomeModels.continuous"},
                 R"(income.type is "continuous" but IncomeModels has no "continuous" entry)");
@@ -301,7 +301,7 @@ load_income_model_data(const nlohmann::json &opt,
 
         if (!continuous_json.contains("csv_file")) {
             diagnostics.error(
-                hgps::core::DiagnosticCode::missing_key,
+                hgps::core::IssueCode::missing_key,
                 {.source_path = std::string{source_path},
                  .field_path = "IncomeModels.continuous.csv_file"},
                 "Continuous income model must specify 'csv_file'");
@@ -333,7 +333,7 @@ load_income_model_data(const nlohmann::json &opt,
     } else {
         if (model_has_continuous && opt["IncomeModels"].size() == 1U) {
             diagnostics.error(
-                hgps::core::DiagnosticCode::invalid_value,
+                hgps::core::IssueCode::invalid_value,
                 {.source_path = std::string{source_path}, .field_path = "IncomeModels"},
                 R"(income.type is "categorical" but IncomeModels only has "continuous")");
             return std::nullopt;
@@ -370,7 +370,7 @@ load_income_model_data(const nlohmann::json &opt,
 std::optional<StaticLinearPhysicalActivityModelData>
 load_physical_activity_model_data(const nlohmann::json &opt,
                                   const Configuration &config,
-                                  hgps::core::Diagnostics &diagnostics,
+                                  hgps::core::InputIssueReport &diagnostics,
                                   std::string_view source_path) {
     StaticLinearPhysicalActivityModelData data;
 
@@ -389,7 +389,7 @@ load_physical_activity_model_data(const nlohmann::json &opt,
             return data;
         }
 
-        diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+        diagnostics.error(hgps::core::IssueCode::missing_key,
                           {.source_path = std::string{source_path},
                            .field_path = "PhysicalActivityModels"},
                           "Missing required key");
@@ -399,7 +399,7 @@ load_physical_activity_model_data(const nlohmann::json &opt,
     const auto &pa_type = pa_req.type;
     if (!opt["PhysicalActivityModels"].contains(pa_type)) {
         diagnostics.error(
-            hgps::core::DiagnosticCode::missing_key,
+            hgps::core::IssueCode::missing_key,
             {.source_path = std::string{source_path},
              .field_path = fmt::format("PhysicalActivityModels.{}", pa_type)},
             fmt::format("PhysicalActivityModels has no '{}' entry", pa_type));
@@ -433,7 +433,7 @@ load_physical_activity_model_data(const nlohmann::json &opt,
     if (pa_type == "continuous") {
         if (!model_config.contains("csv_file")) {
             diagnostics.error(
-                hgps::core::DiagnosticCode::missing_key,
+                hgps::core::IssueCode::missing_key,
                 {.source_path = std::string{source_path},
                  .field_path = "PhysicalActivityModels.continuous.csv_file"},
                 "Continuous physical activity model must specify 'csv_file'");
@@ -456,7 +456,7 @@ load_physical_activity_model_data(const nlohmann::json &opt,
         return data;
     }
 
-    diagnostics.error(hgps::core::DiagnosticCode::invalid_enum_value,
+    diagnostics.error(hgps::core::IssueCode::invalid_enum_value,
                       {.source_path = std::string{source_path},
                        .field_path = "project_requirements.physical_activity.type"},
                       fmt::format("Unsupported physical activity type '{}'", pa_type));

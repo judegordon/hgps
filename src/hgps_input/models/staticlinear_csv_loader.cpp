@@ -40,14 +40,14 @@ std::string to_lower_copy(std::string value) {
 std::optional<rapidcsv::Document>
 open_csv_document(const std::filesystem::path &path,
                   std::string_view delimiter,
-                  hgps::core::Diagnostics &diagnostics,
+                  hgps::core::InputIssueReport &diagnostics,
                   std::string_view field_path) {
     try {
         const auto normalised_delimiter = normalise_delimiter(std::string{delimiter});
         return rapidcsv::Document(path.string(), rapidcsv::LabelParams{},
                                   rapidcsv::SeparatorParams{normalised_delimiter.front()});
     } catch (const std::exception &e) {
-        diagnostics.error(hgps::core::DiagnosticCode::parse_failure,
+        diagnostics.error(hgps::core::IssueCode::parse_failure,
                           {.source_path = path.string(), .field_path = std::string{field_path}},
                           e.what());
         return std::nullopt;
@@ -58,14 +58,14 @@ std::optional<Eigen::MatrixXd>
 load_ordered_square_matrix(const rapidcsv::Document &document,
                            std::size_t dimension,
                            const std::filesystem::path &path,
-                           hgps::core::Diagnostics &diagnostics,
+                           hgps::core::InputIssueReport &diagnostics,
                            std::string_view field_path,
                            bool skip_first_column) {
     const std::size_t expected_columns = dimension + (skip_first_column ? 1U : 0U);
 
     if (document.GetColumnCount() != expected_columns) {
         diagnostics.error(
-            hgps::core::DiagnosticCode::invalid_value,
+            hgps::core::IssueCode::invalid_value,
             {.source_path = path.string(), .field_path = std::string{field_path}},
             fmt::format("Expected {} columns but found {}", expected_columns,
                         document.GetColumnCount()));
@@ -73,7 +73,7 @@ load_ordered_square_matrix(const rapidcsv::Document &document,
     }
 
     if (document.GetRowCount() != dimension) {
-        diagnostics.error(hgps::core::DiagnosticCode::invalid_value,
+        diagnostics.error(hgps::core::IssueCode::invalid_value,
                           {.source_path = path.string(), .field_path = std::string{field_path}},
                           fmt::format("Expected {} rows but found {}", dimension,
                                       document.GetRowCount()));
@@ -90,7 +90,7 @@ load_ordered_square_matrix(const rapidcsv::Document &document,
                     document.GetCell<double>(csv_col, row);
             } catch (const std::exception &e) {
                 diagnostics.error(
-                    hgps::core::DiagnosticCode::parse_failure,
+                    hgps::core::IssueCode::parse_failure,
                     {.source_path = path.string(), .field_path = std::string{field_path}},
                     fmt::format("Failed reading matrix value at row {}, column {}: {}", row, col,
                                 e.what()));
@@ -114,7 +114,7 @@ bool is_matrix_based_risk_factor_structure(const nlohmann::json &opt) {
 std::optional<MatrixCoefficientTable>
 load_matrix_coefficient_table(const nlohmann::json &node,
                               const Configuration &config,
-                              hgps::core::Diagnostics &diagnostics,
+                              hgps::core::InputIssueReport &diagnostics,
                               std::string_view source_path,
                               std::string_view field_path) {
     const auto file_info = get_file_info(node, config.root_path, diagnostics, source_path, field_path);
@@ -129,7 +129,7 @@ load_matrix_coefficient_table(const nlohmann::json &node,
     }
 
     if (document->GetColumnCount() < 2) {
-        diagnostics.error(hgps::core::DiagnosticCode::invalid_value,
+        diagnostics.error(hgps::core::IssueCode::invalid_value,
                           {.source_path = file_info->name.string(),
                            .field_path = std::string{field_path}},
                           "Coefficient table must have at least two columns");
@@ -143,7 +143,7 @@ load_matrix_coefficient_table(const nlohmann::json &node,
         try {
             coefficient_name = document->GetCell<std::string>(0, row);
         } catch (const std::exception &e) {
-            diagnostics.error(hgps::core::DiagnosticCode::parse_failure,
+            diagnostics.error(hgps::core::IssueCode::parse_failure,
                               {.source_path = file_info->name.string(),
                                .field_path = std::string{field_path}},
                               fmt::format("Failed reading coefficient row name at row {}: {}", row,
@@ -166,7 +166,7 @@ load_matrix_coefficient_table(const nlohmann::json &node,
                 coefficient_value = document->GetCell<double>(col, row);
             } catch (const std::exception &e) {
                 diagnostics.error(
-                    hgps::core::DiagnosticCode::parse_failure,
+                    hgps::core::IssueCode::parse_failure,
                     {.source_path = file_info->name.string(),
                      .field_path = std::string{field_path}},
                     fmt::format("Failed reading coefficient value at row {}, column {}: {}", row,
@@ -184,12 +184,12 @@ load_matrix_coefficient_table(const nlohmann::json &node,
 std::optional<StaticLinearMatrixData>
 load_staticlinear_matrix_data(const nlohmann::json &opt,
                               const Configuration &config,
-                              hgps::core::Diagnostics &diagnostics,
+                              hgps::core::InputIssueReport &diagnostics,
                               std::string_view source_path) {
     StaticLinearMatrixData data;
 
     if (!opt.contains("RiskFactorCorrelationFile")) {
-        diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+        diagnostics.error(hgps::core::IssueCode::missing_key,
                           {.source_path = std::string{source_path},
                            .field_path = "RiskFactorCorrelationFile"},
                           "Missing required key");
@@ -197,7 +197,7 @@ load_staticlinear_matrix_data(const nlohmann::json &opt,
     }
 
     if (!opt.contains("PolicyCovarianceFile")) {
-        diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+        diagnostics.error(hgps::core::IssueCode::missing_key,
                           {.source_path = std::string{source_path},
                            .field_path = "PolicyCovarianceFile"},
                           "Missing required key");
@@ -220,7 +220,7 @@ load_staticlinear_matrix_data(const nlohmann::json &opt,
 
     const auto correlation_headers = correlation_document->GetColumnNames();
     if (correlation_headers.size() < 2) {
-        diagnostics.error(hgps::core::DiagnosticCode::invalid_value,
+        diagnostics.error(hgps::core::IssueCode::invalid_value,
                           {.source_path = correlation_file_info->name.string(),
                            .field_path = "RiskFactorCorrelationFile"},
                           "Correlation matrix must include a row-label column and at least one data column");
@@ -257,7 +257,7 @@ load_staticlinear_matrix_data(const nlohmann::json &opt,
 
     const auto policy_headers = policy_document->GetColumnNames();
     if (policy_headers.empty()) {
-        diagnostics.error(hgps::core::DiagnosticCode::invalid_value,
+        diagnostics.error(hgps::core::IssueCode::invalid_value,
                           {.source_path = policy_file_info->name.string(),
                            .field_path = "PolicyCovarianceFile"},
                           "Policy covariance matrix has no columns");
@@ -270,7 +270,7 @@ load_staticlinear_matrix_data(const nlohmann::json &opt,
     }
 
     if (policy_document->GetRowCount() != data.policy_ordered_names.size()) {
-        diagnostics.error(hgps::core::DiagnosticCode::invalid_value,
+        diagnostics.error(hgps::core::IssueCode::invalid_value,
                           {.source_path = policy_file_info->name.string(),
                            .field_path = "PolicyCovarianceFile"},
                           fmt::format("Expected {} rows but found {}", data.policy_ordered_names.size(),
@@ -293,7 +293,7 @@ load_staticlinear_matrix_data(const nlohmann::json &opt,
 
         if (!found) {
             diagnostics.error(
-                hgps::core::DiagnosticCode::missing_key,
+                hgps::core::IssueCode::missing_key,
                 {.source_path = policy_file_info->name.string(),
                  .field_path = "PolicyCovarianceFile"},
                 fmt::format("Risk factor '{}' from correlation matrix not found in policy covariance matrix",
@@ -317,7 +317,7 @@ load_staticlinear_matrix_data(const nlohmann::json &opt,
                     policy_document->GetCell<double>(policy_col, policy_row);
             } catch (const std::exception &e) {
                 diagnostics.error(
-                    hgps::core::DiagnosticCode::parse_failure,
+                    hgps::core::IssueCode::parse_failure,
                     {.source_path = policy_file_info->name.string(),
                      .field_path = "PolicyCovarianceFile"},
                     fmt::format("Failed reading policy covariance value at row {}, column {}: {}",

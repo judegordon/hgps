@@ -111,7 +111,7 @@ Configuration get_configuration(const std::string &config_source,
     Configuration config;
     config.job_id = job_id;
 
-    core::Diagnostics diagnostics{};
+    core::InputIssueReport diagnostics{};
 
     // verbosity
     config.verbosity = core::VerboseMode::none;
@@ -238,7 +238,7 @@ Configuration get_configuration(const std::string &config_source,
     if (diagnostics.has_errors()) {
         success = false;
         for (const auto &diagnostic : diagnostics) {
-            fmt::print(fg(fmt::color::red), "{}\n", core::format_diagnostic(diagnostic));
+            fmt::print(fg(fmt::color::red), "{}\n", core::format_issue(diagnostic));
         }
     }
 

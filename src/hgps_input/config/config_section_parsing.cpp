@@ -12,7 +12,7 @@ using json = nlohmann::json;
 
 std::optional<FileInfo> get_file_info(const json &node,
                                       const std::filesystem::path &base_dir,
-                                      hgps::core::Diagnostics &diagnostics,
+                                      hgps::core::InputIssueReport &diagnostics,
                                       std::string_view source_path,
                                       std::string_view field_path) {
     bool success = true;
@@ -38,7 +38,7 @@ std::optional<FileInfo> get_file_info(const json &node,
 }
 
 std::optional<SettingsInfo> get_settings(const json &j,
-                                         hgps::core::Diagnostics &diagnostics,
+                                         hgps::core::InputIssueReport &diagnostics,
                                          std::string_view source_path,
                                          std::string_view field_path) {
     SettingsInfo info{};
@@ -52,7 +52,7 @@ std::optional<SettingsInfo> get_settings(const json &j,
 
 std::optional<BaselineInfo> get_baseline_info(const json &j,
                                               const std::filesystem::path &base_dir,
-                                              hgps::core::Diagnostics &diagnostics,
+                                              hgps::core::InputIssueReport &diagnostics,
                                               std::string_view source_path,
                                               std::string_view field_path) {
     const auto adj = get(j, "baseline_adjustments", diagnostics, source_path, field_path);
@@ -76,7 +76,7 @@ std::optional<BaselineInfo> get_baseline_info(const json &j,
                 rebase_valid_path(path, base_dir);
             } catch (const std::filesystem::filesystem_error &) {
                 diagnostics.error(
-                    hgps::core::DiagnosticCode::missing_file,
+                    hgps::core::IssueCode::missing_file,
                     {.source_path = std::string{source_path},
                      .field_path = join_field_path("modelling.baseline_adjustments.file_names", name)},
                     "Referenced file does not exist");
@@ -94,7 +94,7 @@ std::optional<BaselineInfo> get_baseline_info(const json &j,
 
 void load_interventions(const json &running,
                         Configuration &config,
-                        hgps::core::Diagnostics &diagnostics,
+                        hgps::core::InputIssueReport &diagnostics,
                         std::string_view source_path,
                         std::string_view field_path) {
     const auto interventions = get(running, "interventions", diagnostics, source_path, field_path);
@@ -113,7 +113,7 @@ void load_interventions(const json &running,
         const auto it = policy_types.find(*active_type_id);
         if (it == policy_types.end()) {
             diagnostics.error(
-                hgps::core::DiagnosticCode::invalid_value,
+                hgps::core::IssueCode::invalid_value,
                 {.source_path = std::string{source_path},
                  .field_path = "running.interventions.active_type_id"},
                 "Unknown active intervention type identifier");

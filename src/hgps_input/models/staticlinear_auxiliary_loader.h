@@ -29,19 +29,19 @@ struct StaticLinearPhysicalActivityModelData {
 std::optional<std::unordered_map<hgps::core::Identifier,
                                  std::unordered_map<hgps::core::Gender, double>>>
 load_rural_prevalence(const nlohmann::json &opt,
-                      hgps::core::Diagnostics &diagnostics,
+                      hgps::core::InputIssueReport &diagnostics,
                       std::string_view source_path = {});
 
 std::optional<StaticLinearIncomeModelData>
 load_income_model_data(const nlohmann::json &opt,
                        const Configuration &config,
-                       hgps::core::Diagnostics &diagnostics,
+                       hgps::core::InputIssueReport &diagnostics,
                        std::string_view source_path = {});
 
 std::optional<StaticLinearPhysicalActivityModelData>
 load_physical_activity_model_data(const nlohmann::json &opt,
                                   const Configuration &config,
-                                  hgps::core::Diagnostics &diagnostics,
+                                  hgps::core::InputIssueReport &diagnostics,
                                   std::string_view source_path = {});
 
 bool detect_active_policies(const std::vector<hgps::LinearModelParams> &policy_models);

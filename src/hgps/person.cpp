@@ -81,14 +81,14 @@ float Person::gender_to_value() const { return gender_to_value(gender); }
 
 float Person::gender_to_value(core::Gender gender) {
     if (gender == core::Gender::unknown) {
-        throw core::HgpsException("Gender is unknown.");
+        throw core::InternalError("Gender is unknown.");
     }
     return gender == core::Gender::male ? 1.0f : 0.0f;
 }
 
 std::string Person::gender_to_string() const {
     if (gender == core::Gender::unknown) {
-        throw core::HgpsException("Gender is unknown.");
+        throw core::InternalError("Gender is unknown.");
     }
     return gender == core::Gender::male ? "male" : "female";
 }
@@ -102,7 +102,7 @@ float Person::sector_to_value() const {
     case core::Sector::rural:
         return 1.0f;
     default:
-        throw core::HgpsException("Sector is unknown.");
+        throw core::InternalError("Sector is unknown.");
     }
 }
 
@@ -119,13 +119,13 @@ float Person::income_to_value() const {
         return 4.0f; // High income
     case core::Income::unknown:
     default:
-        throw core::HgpsException("Unknown income category");
+        throw core::InternalError("Unknown income category");
     }
 }
 
 float Person::region_to_value() const {
     if (region == "unknown") {
-        throw core::HgpsException(
+        throw core::InternalError(
             "Region is unknown - CSV data may not have been loaded properly.");
     }
 
@@ -135,16 +135,16 @@ float Person::region_to_value() const {
             std::string num_str = region.substr(6); // Get the number part
             return static_cast<float>(std::stoi(num_str));
         } catch (const std::exception &) {
-            throw core::HgpsException("Invalid region format: " + region);
+            throw core::InternalError("Invalid region format: " + region);
         }
     }
 
-    throw core::HgpsException("Unknown region format: " + region);
+    throw core::InternalError("Unknown region format: " + region);
 }
 
 float Person::ethnicity_to_value() const {
     if (ethnicity == "unknown") {
-        throw core::HgpsException(
+        throw core::InternalError(
             "Ethnicity is unknown - CSV data may not have been loaded properly.");
     }
 
@@ -154,11 +154,11 @@ float Person::ethnicity_to_value() const {
             std::string num_str = ethnicity.substr(9); // Get the number part
             return static_cast<float>(std::stoi(num_str));
         } catch (const std::exception &) {
-            throw core::HgpsException("Invalid ethnicity format: " + ethnicity);
+            throw core::InternalError("Invalid ethnicity format: " + ethnicity);
         }
     }
 
-    throw core::HgpsException("Unknown ethnicity format: " + ethnicity);
+    throw core::InternalError("Unknown ethnicity format: " + ethnicity);
 }
 
 void Person::emigrate(const unsigned int time) {

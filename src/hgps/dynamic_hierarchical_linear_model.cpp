@@ -152,10 +152,10 @@ DynamicHierarchicalLinearModelDefinition::DynamicHierarchicalLinearModelDefiniti
       boundary_percentage_{boundary_percentage} {
 
     if (equations_.empty()) {
-        throw core::HgpsException("The model equations definition must not be empty");
+        throw core::InternalError("The model equations definition must not be empty");
     }
     if (variables_.empty()) {
-        throw core::HgpsException("The model variables definition must not be empty");
+        throw core::InternalError("The model variables definition must not be empty");
     }
 }
 

@@ -16,7 +16,7 @@ template <Numerical TYPE> class Interval {
     explicit Interval(TYPE lower_value, TYPE upper_value)
         : lower_{lower_value}, upper_{upper_value} {
         if (lower_ > upper_) {
-            throw HgpsException(fmt::format("Invalid interval: {}-{}", lower_, upper_));
+            throw InternalError(fmt::format("Invalid interval: {}-{}", lower_, upper_));
         }
     }
 

@@ -242,7 +242,7 @@ void DemographicModule::update_population(RuntimeContext &context,
             // "unknown" is allowed.
             const auto &demographics = context.inputs().project_requirements().demographics;
             if (demographics.region && (person.region == "unknown" || person.region.empty())) {
-                throw core::HgpsException(fmt::format(
+                throw core::InternalError(fmt::format(
                     "Newborn #{} region was not initialized (was: '{}', after init: '{}'). "
                     "Region data may not be available for age 0, or region_prevalence_ is empty. "
                     "Check that region CSV data includes age_0 entries. "
@@ -251,7 +251,7 @@ void DemographicModule::update_population(RuntimeContext &context,
             }
             if (demographics.ethnicity &&
                 (person.ethnicity == "unknown" || person.ethnicity.empty())) {
-                throw core::HgpsException(
+                throw core::InternalError(
                     fmt::format("Newborn #{} ethnicity was not initialized. Ethnicity data may not "
                                 "be available for age 0, "
                                 "or ethnicity_prevalence_ is empty. Check that ethnicity CSV data "
@@ -466,7 +466,7 @@ void DemographicModule::initialise_region(RuntimeContext &context, Person &perso
             for (const auto &[age_key, _] : region_prevalence_) {
                 available_ages.push_back(age_key.to_string());
             }
-            throw core::HgpsException(fmt::format(
+            throw core::InternalError(fmt::format(
                 "Region data for age_0 (newborns) is missing. Available age keys: [{}]. "
                 "Region CSV file must include a row with Age=0.",
                 fmt::join(available_ages, ", ")));
@@ -488,7 +488,7 @@ void DemographicModule::initialise_region(RuntimeContext &context, Person &perso
             }
         }
         if (!found_closest) {
-            throw core::HgpsException(fmt::format("No valid region data found for age: {}. Region "
+            throw core::InternalError(fmt::format("No valid region data found for age: {}. Region "
                                                   "data exists but contains no valid age keys.",
                                                   person.age));
         }
@@ -497,7 +497,7 @@ void DemographicModule::initialise_region(RuntimeContext &context, Person &perso
     // Check if the gender exists for this age
     if (!region_prevalence_.at(target_age_id).contains(person.gender)) {
         std::string gender_str = (person.gender == core::Gender::male) ? "male" : "female";
-        throw core::HgpsException(fmt::format(
+        throw core::InternalError(fmt::format(
             "Gender '{}' not found in region_prevalence_ for age: {}. Available genders: {}",
             gender_str, target_age_id.to_string(), [this, &target_age_id]() {
                 std::vector<std::string> genders;
@@ -532,7 +532,7 @@ void DemographicModule::initialise_region(RuntimeContext &context, Person &perso
         probs.push_back(prob);
     }
 
-    throw core::HgpsException(fmt::format(
+    throw core::InternalError(fmt::format(
         "Failed to assign region: cumulative probabilities do not sum to 1.0. "
         "Age: {}, Gender: {}, Regions: {}, Probabilities: {}, Cumulative sum: {}",
         target_age_id.to_string(), (person.gender == core::Gender::male) ? "male" : "female",
@@ -573,7 +573,7 @@ void DemographicModule::initialise_ethnicity(RuntimeContext &context, Person &pe
             available_age_groups.emplace_back(ag.to_string());
         }
 
-        throw core::HgpsException(fmt::format(
+        throw core::InternalError(fmt::format(
             "Age group '{}' not found in ethnicity_prevalence_ map. Available age groups: [{}]. "
             "Please ensure ethnicity CSV file contains data for all required age groups.",
             age_group.to_string(), fmt::join(available_age_groups, ", ")));
@@ -587,7 +587,7 @@ void DemographicModule::initialise_ethnicity(RuntimeContext &context, Person &pe
             available_genders.emplace_back((g == core::Gender::male) ? "male" : "female");
         }
 
-        throw core::HgpsException(fmt::format("Gender '{}' not found in ethnicity_prevalence_ for "
+        throw core::InternalError(fmt::format("Gender '{}' not found in ethnicity_prevalence_ for "
                                               "age group: {}. Available genders: [{}].",
                                               gender_str, age_group.to_string(),
                                               fmt::join(available_genders, ", ")));
@@ -600,7 +600,7 @@ void DemographicModule::initialise_ethnicity(RuntimeContext &context, Person &pe
             available_regions.push_back(r);
         }
 
-        throw core::HgpsException(fmt::format(
+        throw core::InternalError(fmt::format(
             "Region '{}' not found in ethnicity_prevalence_ for age group: {} and gender: {}. "
             "Available regions: [{}]. Please ensure ethnicity CSV file contains data for all "
             "regions.",
@@ -645,7 +645,7 @@ void DemographicModule::initialise_ethnicity(RuntimeContext &context, Person &pe
         probs.push_back(prob);
     }
 
-    throw core::HgpsException(fmt::format(
+    throw core::InternalError(fmt::format(
         "Failed to assign ethnicity: cumulative probabilities do not sum to 1.0. "
         "Age group: {}, Gender: {}, Region: {}, Ethnicities: {}, Probabilities: {}, Cumulative "
         "sum: {}",

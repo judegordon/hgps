@@ -34,7 +34,7 @@ struct StaticLinearTrendData {
 
 std::optional<hgps::TrendType>
 resolve_staticlinear_trend_type(const Configuration &config,
-                                hgps::core::Diagnostics &diagnostics,
+                                hgps::core::InputIssueReport &diagnostics,
                                 std::string_view source_path = {},
                                 std::string_view field_path = {});
 
@@ -45,7 +45,7 @@ bool append_staticlinear_trend_entry(StaticLinearTrendData &trend_data,
                                      const hgps::core::Identifier &risk_factor_name,
                                      bool is_matrix_based_structure,
                                      const nlohmann::json *json_params,
-                                     hgps::core::Diagnostics &diagnostics,
+                                     hgps::core::InputIssueReport &diagnostics,
                                      std::string_view source_path = {},
                                      std::string_view field_path = {});
 

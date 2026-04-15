@@ -102,60 +102,60 @@ StaticLinearModel::StaticLinearModel(
       has_active_policies_{has_active_policies}, logistic_models_{logistic_models} {
 
     if (names_.empty()) {
-        throw core::HgpsException("Risk factor names list is empty");
+        throw core::InternalError("Risk factor names list is empty");
     }
 
     if (models_.empty()) {
-        throw core::HgpsException("Risk factor model list is empty");
+        throw core::InternalError("Risk factor model list is empty");
     }
 
     if (ranges_.empty()) {
-        throw core::HgpsException("Risk factor ranges list is empty");
+        throw core::InternalError("Risk factor ranges list is empty");
     }
 
     if (lambda_.empty()) {
-        throw core::HgpsException("Risk factor lambda list is empty");
+        throw core::InternalError("Risk factor lambda list is empty");
     }
 
     if (stddev_.empty()) {
-        throw core::HgpsException("Risk factor standard deviation list is empty");
+        throw core::InternalError("Risk factor standard deviation list is empty");
     }
 
     if (!cholesky_.allFinite()) {
-        throw core::HgpsException("Risk factor Cholesky matrix contains non-finite values");
+        throw core::InternalError("Risk factor Cholesky matrix contains non-finite values");
     }
 
     if (policy_models_.empty()) {
-        throw core::HgpsException("Intervention policy model list is empty");
+        throw core::InternalError("Intervention policy model list is empty");
     }
 
     if (policy_ranges_.empty()) {
-        throw core::HgpsException("Intervention policy ranges list is empty");
+        throw core::InternalError("Intervention policy ranges list is empty");
     }
 
     if (!policy_cholesky_.allFinite()) {
-        throw core::HgpsException("Intervention policy Cholesky matrix contains non-finite values");
+        throw core::InternalError("Intervention policy Cholesky matrix contains non-finite values");
     }
 
         // Validate UPF trend parameters only if trend type is UPFTrend
     if (trend_type_ == TrendType::UPFTrend) {
         if (!trend_models_) {
-            throw core::HgpsException("Time trend model list is missing");
+            throw core::InternalError("Time trend model list is missing");
         }
         if (!trend_ranges_) {
-            throw core::HgpsException("Time trend ranges list is missing");
+            throw core::InternalError("Time trend ranges list is missing");
         }
         if (!trend_lambda_) {
-            throw core::HgpsException("Time trend lambda list is missing");
+            throw core::InternalError("Time trend lambda list is missing");
         }
         if (trend_models_->empty()) {
-            throw core::HgpsException("Time trend model list is empty");
+            throw core::InternalError("Time trend model list is empty");
         }
         if (trend_ranges_->empty()) {
-            throw core::HgpsException("Time trend ranges list is empty");
+            throw core::InternalError("Time trend ranges list is empty");
         }
         if (trend_lambda_->empty()) {
-            throw core::HgpsException("Time trend lambda list is empty");
+            throw core::InternalError("Time trend lambda list is empty");
         }
     }
 
@@ -163,27 +163,27 @@ StaticLinearModel::StaticLinearModel(
     if (trend_type_ == TrendType::IncomeTrend) {
         std::cout << "\nDEBUG: Validating income trend parameters...";
         if (!expected_income_trend_) {
-            throw core::HgpsException(
+            throw core::InternalError(
                 "Income trend is enabled but expected_income_trend is missing");
         }
         if (!expected_income_trend_boxcox_) {
-            throw core::HgpsException(
+            throw core::InternalError(
                 "Income trend is enabled but expected_income_trend_boxcox is missing");
         }
         if (!income_trend_steps_) {
-            throw core::HgpsException("Income trend is enabled but income_trend_steps is missing");
+            throw core::InternalError("Income trend is enabled but income_trend_steps is missing");
         }
         if (!income_trend_models_) {
-            throw core::HgpsException("Income trend is enabled but income_trend_models is missing");
+            throw core::InternalError("Income trend is enabled but income_trend_models is missing");
         }
         if (!income_trend_ranges_) {
-            throw core::HgpsException("Income trend is enabled but income_trend_ranges is missing");
+            throw core::InternalError("Income trend is enabled but income_trend_ranges is missing");
         }
         if (!income_trend_lambda_) {
-            throw core::HgpsException("Income trend is enabled but income_trend_lambda is missing");
+            throw core::InternalError("Income trend is enabled but income_trend_lambda is missing");
         }
         if (!income_trend_decay_factors_) {
-            throw core::HgpsException(
+            throw core::InternalError(
                 "Income trend is enabled but income_trend_decay_factors is missing");
         }
     } else {
@@ -194,13 +194,13 @@ StaticLinearModel::StaticLinearModel(
         // Validate income trend data consistency only when income trend is enabled
     if (trend_type_ == TrendType::IncomeTrend) {
         if (income_trend_models_ && income_trend_models_->empty()) {
-            throw core::HgpsException("Income trend model list is empty");
+            throw core::InternalError("Income trend model list is empty");
         }
         if (income_trend_ranges_ && income_trend_ranges_->empty()) {
-            throw core::HgpsException("Income trend ranges list is empty");
+            throw core::InternalError("Income trend ranges list is empty");
         }
         if (income_trend_lambda_ && income_trend_lambda_->empty()) {
-            throw core::HgpsException("Income trend lambda list is empty");
+            throw core::InternalError("Income trend lambda list is empty");
         }
     }
 
@@ -209,24 +209,24 @@ StaticLinearModel::StaticLinearModel(
     if (trend_type_ == TrendType::IncomeTrend && expected_income_trend_) {
         for (const auto &name : names_) {
             if (!expected_income_trend_->contains(name)) {
-                throw core::HgpsException(
+                throw core::InternalError(
                     "One or more expected income trend value is missing for risk factor: " +
                     name.to_string());
             }
             if (!expected_income_trend_boxcox_->contains(name)) {
-                throw core::HgpsException("One or more expected income trend BoxCox value is "
+                throw core::InternalError("One or more expected income trend BoxCox value is "
                                           "missing for risk factor: " +
                                           name.to_string());
             }
 
             if (!income_trend_steps_->contains(name)) {
-                throw core::HgpsException(
+                throw core::InternalError(
                     "One or more income trend steps value is missing for risk factor: " +
                     name.to_string());
             }
 
             if (!income_trend_decay_factors_->contains(name)) {
-                throw core::HgpsException(
+                throw core::InternalError(
                     "One or more income trend decay factor is missing for risk factor: " +
                     name.to_string());
             }
@@ -236,20 +236,20 @@ StaticLinearModel::StaticLinearModel(
                      "!= IncomeTrend or expected_income_trend_ is null)";
     }
     if (rural_prevalence_.empty()) {
-        throw core::HgpsException("Rural prevalence mapping is empty");
+        throw core::InternalError("Rural prevalence mapping is empty");
     }
     if (income_models_.empty()) {
-        throw core::HgpsException("Income models mapping is empty");
+        throw core::InternalError("Income models mapping is empty");
     }
 
     // Validate UPF trend parameters for all risk factors only if trend type is UPFTrend
     if (trend_type_ == TrendType::UPFTrend) {
         for (const auto &name : names_) {
             if (!expected_trend_->contains(name)) {
-                throw core::HgpsException("One or more expected trend value is missing");
+                throw core::InternalError("One or more expected trend value is missing");
             }
             if (!expected_trend_boxcox_->contains(name)) {
-                throw core::HgpsException("One or more expected trend BoxCox value is missing");
+                throw core::InternalError("One or more expected trend BoxCox value is missing");
             }
         }
     }
@@ -399,7 +399,7 @@ void StaticLinearModel::generate_risk_factors(RuntimeContext &context) {
             }
         }
 
-        // Diagnostic: confirm adjusted and clamped income range
+        // InputIssue: confirm adjusted and clamped income range
         double min_inc = std::numeric_limits<double>::max();
         double max_inc = std::numeric_limits<double>::lowest();
         double sum_inc = 0.0;
@@ -1559,7 +1559,7 @@ void StaticLinearModel::initialise_categorical_income(Person &person, Random &ra
         }
     }
 
-    throw core::HgpsException("Logic Error: failed to initialise categorical income category");
+    throw core::InternalError("Logic Error: failed to initialise categorical income category");
 }
 
 // MAHIMA: This is the FINCH approach for continuous income calculation
@@ -1791,7 +1791,7 @@ std::vector<double> StaticLinearModel::calculate_income_quartiles(const Populati
         }
     }
     if (sorted_incomes.empty()) {
-        throw core::HgpsException(
+        throw core::InternalError(
             "No continuous income values found in population for quartile calculation");
     }
 
@@ -1853,7 +1853,7 @@ std::vector<double> StaticLinearModel::calculate_income_tertiles(const Populatio
         }
     }
     if (sorted_incomes.empty()) {
-        throw core::HgpsException(
+        throw core::InternalError(
             "No continuous income values found in population for tertile calculation");
     }
 
@@ -1935,7 +1935,7 @@ StaticLinearModel::convert_income_to_category(double continuous_income,
         // Q1 = 25th percentile, Q2 = 50th percentile, Q3 = 75th percentile
         // thresholds should contain [Q1, Q2, Q3]
         if (thresholds.size() < 3) {
-            throw core::HgpsException("Invalid quartile thresholds for 4-category income system. "
+            throw core::InternalError("Invalid quartile thresholds for 4-category income system. "
                                       "Expected 3 thresholds, got " +
                                       std::to_string(thresholds.size()));
         }
@@ -1954,7 +1954,7 @@ StaticLinearModel::convert_income_to_category(double continuous_income,
     // Use tertiles: 0-33% (low), 34-67% (middle), above 67% (high)
     // thresholds should contain [T1, T2]
     if (thresholds.size() < 2) {
-        throw core::HgpsException("Invalid tertile thresholds for 3-category income system. "
+        throw core::InternalError("Invalid tertile thresholds for 3-category income system. "
                                   "Expected 2 thresholds, got " +
                                   std::to_string(thresholds.size()));
     }
@@ -1987,7 +1987,7 @@ void StaticLinearModel::initialise_physical_activity(RuntimeContext &context, Pe
     } else {
         auto it = physical_activity_models_.find(core::Identifier("continuous"));
         if (it == physical_activity_models_.end()) {
-            throw core::HgpsException{
+            throw core::InternalError{
                 "project_requirements.physical_activity.type is \"continuous\" but no continuous "
                 "physical activity model is loaded. Add PhysicalActivityModels.continuous in "
                 "static_model.json or set physical_activity.type to \"simple\" in config.json."};
@@ -2339,70 +2339,70 @@ StaticLinearModelDefinition::StaticLinearModelDefinition(
       has_active_policies_{has_active_policies} {
 
     if (names_.empty()) {
-        throw core::HgpsException("Risk factor names list is empty");
+        throw core::InternalError("Risk factor names list is empty");
     }
     if (models_.empty()) {
-        throw core::HgpsException("Risk factor model list is empty");
+        throw core::InternalError("Risk factor model list is empty");
     }
     if (ranges_.empty()) {
-        throw core::HgpsException("Risk factor ranges list is empty");
+        throw core::InternalError("Risk factor ranges list is empty");
     }
     if (lambda_.empty()) {
-        throw core::HgpsException("Risk factor lambda list is empty");
+        throw core::InternalError("Risk factor lambda list is empty");
     }
     if (stddev_.empty()) {
-        throw core::HgpsException("Risk factor standard deviation list is empty");
+        throw core::InternalError("Risk factor standard deviation list is empty");
     }
     if (!cholesky_.allFinite()) {
-        throw core::HgpsException("Risk factor Cholesky matrix contains non-finite values");
+        throw core::InternalError("Risk factor Cholesky matrix contains non-finite values");
     }
     if (policy_models_.empty()) {
-        throw core::HgpsException("Intervention policy model list is empty");
+        throw core::InternalError("Intervention policy model list is empty");
     }
     if (policy_ranges_.empty()) {
-        throw core::HgpsException("Intervention policy ranges list is empty");
+        throw core::InternalError("Intervention policy ranges list is empty");
     }
     if (!policy_cholesky_.allFinite()) {
-        throw core::HgpsException("Intervention policy Cholesky matrix contains non-finite values");
+        throw core::InternalError("Intervention policy Cholesky matrix contains non-finite values");
     }
 
     // Validate UPF trend parameters only if trend type is UPFTrend
     if (trend_type == hgps::TrendType::UPFTrend) {
         if (trend_models_->empty()) {
-            throw core::HgpsException("Time trend model list is empty");
+            throw core::InternalError("Time trend model list is empty");
         }
         if (trend_ranges_->empty()) {
-            throw core::HgpsException("Time trend ranges list is empty");
+            throw core::InternalError("Time trend ranges list is empty");
         }
         if (trend_lambda_->empty()) {
-            throw core::HgpsException("Time trend lambda list is empty");
+            throw core::InternalError("Time trend lambda list is empty");
         }
     }
 
     // Validate income trend parameters if income trend is enabled
     if (trend_type == hgps::TrendType::IncomeTrend) {
         if (!expected_income_trend_) {
-            throw core::HgpsException(
+            throw core::InternalError(
                 "Income trend is enabled but expected_income_trend is missing");
         }
         if (!expected_income_trend_boxcox_) {
-            throw core::HgpsException(
+            throw core::InternalError(
                 "Income trend is enabled but expected_income_trend_boxcox is missing");
         }
         if (!income_trend_steps_) {
-            throw core::HgpsException("Income trend is enabled but income_trend_steps is missing");
+            throw core::InternalError("Income trend is enabled but income_trend_steps is missing");
         }
         if (!income_trend_models_) {
-            throw core::HgpsException("Income trend is enabled but income_trend_models is missing");
+            throw core::InternalError("Income trend is enabled but income_trend_models is missing");
         }
         if (!income_trend_ranges_) {
-            throw core::HgpsException("Income trend is enabled but income_trend_ranges is missing");
+            throw core::InternalError("Income trend is enabled but income_trend_ranges is missing");
         }
         if (!income_trend_lambda_) {
-            throw core::HgpsException("Income trend is enabled but income_trend_lambda is missing");
+            throw core::InternalError("Income trend is enabled but income_trend_lambda is missing");
         }
         if (!income_trend_decay_factors_) {
-            throw core::HgpsException(
+            throw core::InternalError(
                 "Income trend is enabled but income_trend_decay_factors is missing");
         }
     }
@@ -2410,13 +2410,13 @@ StaticLinearModelDefinition::StaticLinearModelDefinition(
         // Validate income trend data consistency only when income trend is enabled
     if (trend_type == hgps::TrendType::IncomeTrend) {
         if (income_trend_models_ && income_trend_models_->empty()) {
-            throw core::HgpsException("Income trend model list is empty");
+            throw core::InternalError("Income trend model list is empty");
         }
         if (income_trend_ranges_ && income_trend_ranges_->empty()) {
-            throw core::HgpsException("Income trend ranges list is empty");
+            throw core::InternalError("Income trend ranges list is empty");
         }
         if (income_trend_lambda_ && income_trend_lambda_->empty()) {
-            throw core::HgpsException("Income trend lambda list is empty");
+            throw core::InternalError("Income trend lambda list is empty");
         }
     }
 
@@ -2424,22 +2424,22 @@ StaticLinearModelDefinition::StaticLinearModelDefinition(
     if (trend_type == hgps::TrendType::IncomeTrend && expected_income_trend_) {
         for (const auto &name : names_) {
             if (!expected_income_trend_->contains(name)) {
-                throw core::HgpsException(
+                throw core::InternalError(
                     "One or more expected income trend value is missing for risk factor: " +
                     name.to_string());
             }
             if (!expected_income_trend_boxcox_->contains(name)) {
-                throw core::HgpsException("One or more expected income trend BoxCox value is "
+                throw core::InternalError("One or more expected income trend BoxCox value is "
                                           "missing for risk factor: " +
                                           name.to_string());
             }
             if (!income_trend_steps_->contains(name)) {
-                throw core::HgpsException(
+                throw core::InternalError(
                     "One or more income trend steps value is missing for risk factor: " +
                     name.to_string());
             }
             if (!income_trend_decay_factors_->contains(name)) {
-                throw core::HgpsException(
+                throw core::InternalError(
                     "One or more income trend decay factor is missing for risk factor: " +
                     name.to_string());
             }
@@ -2447,10 +2447,10 @@ StaticLinearModelDefinition::StaticLinearModelDefinition(
     }
 
     if (rural_prevalence_.empty()) {
-        throw core::HgpsException("Rural prevalence mapping is empty");
+        throw core::InternalError("Rural prevalence mapping is empty");
     }
     if (income_models_.empty()) {
-        throw core::HgpsException("Income models mapping is empty");
+        throw core::InternalError("Income models mapping is empty");
     }
 
     // Policy detection is now done earlier in the model parser for better performance
@@ -2459,10 +2459,10 @@ StaticLinearModelDefinition::StaticLinearModelDefinition(
     if (trend_type == hgps::TrendType::UPFTrend) {
         for (const auto &name : names_) {
             if (!expected_trend_->contains(name)) {
-                throw core::HgpsException("One or more expected trend value is missing");
+                throw core::InternalError("One or more expected trend value is missing");
             }
             if (!expected_trend_boxcox_->contains(name)) {
-                throw core::HgpsException("One or more expected trend BoxCox value is missing");
+                throw core::InternalError("One or more expected trend BoxCox value is missing");
             }
         }
     }

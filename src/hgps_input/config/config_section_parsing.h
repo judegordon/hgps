@@ -13,24 +13,24 @@ namespace hgps::input {
 
 std::optional<FileInfo> get_file_info(const nlohmann::json &node,
                                       const std::filesystem::path &base_dir,
-                                      hgps::core::Diagnostics &diagnostics,
+                                      hgps::core::InputIssueReport &diagnostics,
                                       std::string_view source_path = {},
                                       std::string_view field_path = {});
 
 std::optional<SettingsInfo> get_settings(const nlohmann::json &j,
-                                         hgps::core::Diagnostics &diagnostics,
+                                         hgps::core::InputIssueReport &diagnostics,
                                          std::string_view source_path = {},
                                          std::string_view field_path = {});
 
 std::optional<BaselineInfo> get_baseline_info(const nlohmann::json &j,
                                               const std::filesystem::path &base_dir,
-                                              hgps::core::Diagnostics &diagnostics,
+                                              hgps::core::InputIssueReport &diagnostics,
                                               std::string_view source_path = {},
                                               std::string_view field_path = {});
 
 void load_interventions(const nlohmann::json &running,
                         Configuration &config,
-                        hgps::core::Diagnostics &diagnostics,
+                        hgps::core::InputIssueReport &diagnostics,
                         std::string_view source_path = {},
                         std::string_view field_path = {});
 

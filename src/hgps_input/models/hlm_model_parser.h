@@ -12,7 +12,7 @@ namespace hgps::input {
 
 std::unique_ptr<hgps::StaticHierarchicalLinearModelDefinition>
 load_hlm_risk_model_definition(const nlohmann::json &opt,
-                               hgps::core::Diagnostics &diagnostics,
+                               hgps::core::InputIssueReport &diagnostics,
                                std::string_view source_path = {});
 
 } // namespace hgps::input

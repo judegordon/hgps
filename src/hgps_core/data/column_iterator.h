@@ -1,26 +1,17 @@
 #pragma once
 
+#include <cstddef>
 #include <iterator>
+#include <stdexcept>
 
 namespace hgps::core {
 
-namespace detail {
-
-template <typename ColumnType> struct DefaultValueAccessor {
-    using ValueType = decltype(std::declval<ColumnType>().value_safe(0));
-
-    ValueType operator()(const ColumnType &column, std::size_t index) {
-        return column.value_safe(index);
-    }
-};
-} // namespace detail
-
-template <typename ColumnType, typename ValueAccessor = detail::DefaultValueAccessor<ColumnType>>
+template <typename ColumnType>
 class DataTableColumnIterator {
   public:
-    using value_type = typename ValueAccessor::ValueType;
-    using difference_type = std::size_t;
-    using reference = value_type &;
+    using value_type = typename ColumnType::value_type;
+    using difference_type = std::ptrdiff_t;
+    using reference = value_type;
     using iterator_category = std::random_access_iterator_tag;
 
     DataTableColumnIterator() : column_(nullptr), index_(0) {}
@@ -28,84 +19,92 @@ class DataTableColumnIterator {
     explicit DataTableColumnIterator(const ColumnType &column, std::size_t index = 0)
         : column_(&column), index_(index) {}
 
-    std::size_t index() const { return index_; }
+    std::size_t index() const noexcept { return index_; }
 
     value_type operator*() const {
         return column_->is_null(index_) ? value_type{} : column_->value_safe(index_).value();
     }
 
-    // Forward / backward
     DataTableColumnIterator &operator--() {
         --index_;
         return *this;
     }
+
     DataTableColumnIterator &operator++() {
         ++index_;
         return *this;
     }
+
     DataTableColumnIterator operator++(int) {
         DataTableColumnIterator tmp(*this);
-        ++index_;
-        return tmp;
-    }
-    DataTableColumnIterator operator--(int) {
-        DataTableColumnIterator tmp(*this);
-        --index_;
+        ++(*this);
         return tmp;
     }
 
-    // Arithmetic
+    DataTableColumnIterator operator--(int) {
+        DataTableColumnIterator tmp(*this);
+        --(*this);
+        return tmp;
+    }
+
     difference_type operator-(const DataTableColumnIterator &other) const {
-        return index_ - other.index_;
+        if (column_ != other.column_) {
+            throw std::logic_error("Cannot subtract iterators from different columns.");
+        }
+
+        return static_cast<difference_type>(index_) - static_cast<difference_type>(other.index_);
     }
 
     DataTableColumnIterator operator+(difference_type n) const {
-        return DataTableColumnIterator(*column_, index_ + n);
+        return DataTableColumnIterator(
+            *column_, static_cast<std::size_t>(static_cast<difference_type>(index_) + n));
     }
+
     DataTableColumnIterator operator-(difference_type n) const {
-        return DataTableColumnIterator(*column_, index_ - n);
+        return DataTableColumnIterator(
+            *column_, static_cast<std::size_t>(static_cast<difference_type>(index_) - n));
     }
+
     DataTableColumnIterator &operator+=(difference_type n) {
-        index_ += n;
+        index_ = static_cast<std::size_t>(static_cast<difference_type>(index_) + n);
         return *this;
     }
+
     DataTableColumnIterator &operator-=(difference_type n) {
-        index_ -= n;
+        index_ = static_cast<std::size_t>(static_cast<difference_type>(index_) - n);
         return *this;
     }
 
-    friend inline DataTableColumnIterator operator+(difference_type diff,
-                                                    const DataTableColumnIterator &other) {
-        return DataTableColumnIterator(*other.column_, diff + other.index_);
+    friend DataTableColumnIterator operator+(difference_type diff,
+                                             const DataTableColumnIterator &other) {
+        return other + diff;
     }
 
-    friend inline DataTableColumnIterator operator-(difference_type diff,
-                                                    const DataTableColumnIterator &other) {
-        return DataTableColumnIterator(*other.column_, diff - other.index_);
+    bool operator==(const DataTableColumnIterator &other) const {
+        return column_ == other.column_ && index_ == other.index_;
     }
 
-    // Comparisons
-    bool operator==(const DataTableColumnIterator &other) const { return index_ == other.index_; }
-    bool operator!=(const DataTableColumnIterator &other) const { return index_ != other.index_; }
-    bool operator<(const DataTableColumnIterator &other) const { return index_ < other.index_; }
-    bool operator>(const DataTableColumnIterator &other) const { return index_ > other.index_; }
-    bool operator<=(const DataTableColumnIterator &other) const { return index_ <= other.index_; }
-    bool operator>=(const DataTableColumnIterator &other) const { return index_ >= other.index_; }
+    bool operator!=(const DataTableColumnIterator &other) const {
+        return !(*this == other);
+    }
+
+    bool operator<(const DataTableColumnIterator &other) const {
+        if (column_ != other.column_) {
+            throw std::logic_error("Cannot compare iterators from different columns.");
+        }
+
+        return index_ < other.index_;
+    }
+
+    bool operator>(const DataTableColumnIterator &other) const { return other < *this; }
+
+    bool operator<=(const DataTableColumnIterator &other) const { return !(*this > other); }
+
+    bool operator>=(const DataTableColumnIterator &other) const { return !(*this < other); }
 
   private:
     const ColumnType *column_;
     std::size_t index_;
 };
+
 } // namespace hgps::core
-
-namespace std {
-
-template <typename ColumnType>
-struct iterator_traits<::hgps::core::DataTableColumnIterator<ColumnType>> {
-    using IteratorType = ::hgps::core::DataTableColumnIterator<ColumnType>;
-    using difference_type = typename IteratorType::difference_type;
-    using value_type = typename IteratorType::value_type;
-    using reference = typename IteratorType::reference;
-    using iterator_category = typename IteratorType::iterator_category;
-};
-} // namespace std

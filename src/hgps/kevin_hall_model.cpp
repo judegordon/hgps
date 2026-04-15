@@ -226,14 +226,14 @@ KevinHallAdjustmentTable KevinHallModel::receive_weight_adjustments(RuntimeConte
     // Intervention scenario: receive adjustments from baseline scenario.
     auto message = context.scenario().channel().try_receive(context.sync_timeout_millis());
     if (!message.has_value()) {
-        throw core::HgpsException(
+        throw core::InternalError(
             "Simulation out of sync, receive Kevin Hall adjustments message has timed out");
     }
 
     auto &basePtr = message.value();
     auto *messagePrt = dynamic_cast<KevinHallAdjustmentMessage *>(basePtr.get());
     if (!messagePrt) {
-        throw core::HgpsException(
+        throw core::InternalError(
             "Simulation out of sync, failed to receive a Kevin Hall adjustments message");
     }
 
@@ -489,7 +489,7 @@ void KevinHallModel::initialise_kevin_hall_state(Person &person,
     } else if (person.gender == core::Gender::male) {
         F = BW * (0.14 * person.age + 37.31 * log(BW / pow(H / 100, 2.0)) - 103.94) / 100.0;
     } else {
-        throw core::HgpsException("Unknown gender");
+        throw core::InternalError("Unknown gender");
     }
 
     if (F < 0.0) {
@@ -843,28 +843,28 @@ KevinHallModelDefinition::KevinHallModelDefinition(
       height_stddev_{std::move(height_stddev)}, height_slope_{std::move(height_slope)} {
 
     if (energy_equation_.empty()) {
-        throw core::HgpsException("Energy equation mapping is empty");
+        throw core::InternalError("Energy equation mapping is empty");
     }
     if (nutrient_ranges_.empty()) {
-        throw core::HgpsException("Nutrient ranges mapping is empty");
+        throw core::InternalError("Nutrient ranges mapping is empty");
     }
     if (nutrient_equations_.empty()) {
-        throw core::HgpsException("Nutrient equation mapping is empty");
+        throw core::InternalError("Nutrient equation mapping is empty");
     }
     if (food_prices_.empty()) {
-        throw core::HgpsException("Food prices mapping is empty");
+        throw core::InternalError("Food prices mapping is empty");
     }
     if (weight_quantiles_.empty()) {
-        throw core::HgpsException("Weight quantiles mapping is empty");
+        throw core::InternalError("Weight quantiles mapping is empty");
     }
     if (epa_quantiles_.empty()) {
-        throw core::HgpsException("Energy Physical Activity quantiles mapping is empty");
+        throw core::InternalError("Energy Physical Activity quantiles mapping is empty");
     }
     if (height_stddev_.empty()) {
-        throw core::HgpsException("Height standard deviation mapping is empty");
+        throw core::InternalError("Height standard deviation mapping is empty");
     }
     if (height_slope_.empty()) {
-        throw core::HgpsException("Height slope mapping is empty");
+        throw core::InternalError("Height slope mapping is empty");
     }
 }
 

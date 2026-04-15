@@ -11,6 +11,6 @@ namespace hgps::input {
 
 void register_risk_factor_model_definitions(hgps::CachedRepository &repository,
                                             const Configuration &config,
-                                            hgps::core::Diagnostics &diagnostics);
+                                            hgps::core::InputIssueReport &diagnostics);
 
 } // namespace hgps::input

@@ -1,22 +1,27 @@
 #pragma once
 
-#include <algorithm>
-#include <optional>
-#include <vector>
-
 #include "column.h"
 #include "column_iterator.h"
 
+#include <algorithm>
+#include <cctype>
+#include <optional>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
 namespace hgps::core {
 
-template <typename TYPE> class PrimitiveDataTableColumn : public DataTableColumn {
+template <typename TYPE>
+class PrimitiveDataTableColumn : public DataTableColumn {
   public:
     using value_type = TYPE;
     using IteratorType = DataTableColumnIterator<PrimitiveDataTableColumn<TYPE>>;
 
-    explicit PrimitiveDataTableColumn(std::string &&name, std::vector<TYPE> &&data)
-        : DataTableColumn(), name_{name}, data_{data} {
-        if (name_.length() < 2 || !std::isalpha(name_.front())) {
+    explicit PrimitiveDataTableColumn(std::string&& name, std::vector<TYPE>&& data)
+        : DataTableColumn(), name_{std::move(name)}, data_{std::move(data)} {
+        if (name_.length() < 2 ||
+            !std::isalpha(static_cast<unsigned char>(name_.front()))) {
             throw std::invalid_argument(
                 "Invalid column name: minimum length of two and start with alpha character.");
         }
@@ -24,10 +29,14 @@ template <typename TYPE> class PrimitiveDataTableColumn : public DataTableColumn
         null_count_ = 0;
     }
 
-    explicit PrimitiveDataTableColumn(std::string &&name, std::vector<TYPE> &&data,
-                                      std::vector<bool> &&null_bitmap)
-        : DataTableColumn(), name_{name}, data_{data}, null_bitmap_{null_bitmap} {
-        if (name_.length() < 2 || !std::isalpha(name_.front())) {
+    explicit PrimitiveDataTableColumn(std::string&& name, std::vector<TYPE>&& data,
+                                      std::vector<bool>&& null_bitmap)
+        : DataTableColumn(),
+          name_{std::move(name)},
+          data_{std::move(data)},
+          null_bitmap_{std::move(null_bitmap)} {
+        if (name_.length() < 2 ||
+            !std::isalpha(static_cast<unsigned char>(name_.front()))) {
             throw std::invalid_argument(
                 "Invalid column name: minimum length of two and start with alpha character.");
         }
@@ -42,14 +51,13 @@ template <typename TYPE> class PrimitiveDataTableColumn : public DataTableColumn
 
     std::string type() const noexcept override { return typeid(TYPE).name(); }
 
-    std::string name() const noexcept override { return name_; }
+    const std::string& name() const noexcept override { return name_; }
 
     std::size_t null_count() const noexcept override { return null_count_; }
 
     std::size_t size() const noexcept override { return data_.size(); }
 
     bool is_null(std::size_t index) const noexcept override {
-        // Bound checks hit performance!
         if (index >= size()) {
             return true;
         }
@@ -58,7 +66,6 @@ template <typename TYPE> class PrimitiveDataTableColumn : public DataTableColumn
     }
 
     bool is_valid(std::size_t index) const noexcept override {
-        // Bound checks hit performance!
         if (index >= size()) {
             return false;
         }
@@ -66,7 +73,7 @@ template <typename TYPE> class PrimitiveDataTableColumn : public DataTableColumn
         return null_bitmap_.empty() || null_bitmap_[index];
     }
 
-    const std::any value(std::size_t index) const noexcept override {
+    std::any value(std::size_t index) const noexcept override {
         if (is_valid(index)) {
             return data_[index];
         }
@@ -74,7 +81,7 @@ template <typename TYPE> class PrimitiveDataTableColumn : public DataTableColumn
         return std::any();
     }
 
-    const std::optional<value_type> value_safe(const std::size_t index) const noexcept {
+    std::optional<value_type> value_safe(std::size_t index) const noexcept {
         if (is_valid(index)) {
             return data_[index];
         }
@@ -82,7 +89,7 @@ template <typename TYPE> class PrimitiveDataTableColumn : public DataTableColumn
         return std::nullopt;
     }
 
-    const value_type value_unsafe(const std::size_t index) const { return data_[index]; }
+    value_type value_unsafe(std::size_t index) const { return data_[index]; }
 
     IteratorType begin() const { return IteratorType(*this); }
 
@@ -101,6 +108,7 @@ class StringDataTableColumn : public PrimitiveDataTableColumn<std::string> {
 
     std::string type() const noexcept override { return "string"; }
 
-    void accept(DataTableColumnVisitor &visitor) const override { visitor.visit(*this); }
+    void accept(DataTableColumnVisitor& visitor) const override { visitor.visit(*this); }
 };
+
 } // namespace hgps::core

@@ -12,3 +12,5 @@ vcpkg_installed/
 .idea/
 *.code-workspace
 *.swp
+
+test.cpp

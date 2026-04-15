@@ -19,7 +19,7 @@ namespace {
 
 bool parse_model_type(const std::string &model_type_str,
                       hgps::RiskFactorModelType &model_type,
-                      hgps::core::Diagnostics &diagnostics) {
+                      hgps::core::InputIssueReport &diagnostics) {
     if (model_type_str == "static") {
         model_type = hgps::RiskFactorModelType::Static;
         return true;
@@ -30,7 +30,7 @@ bool parse_model_type(const std::string &model_type_str,
         return true;
     }
 
-    diagnostics.error(hgps::core::DiagnosticCode::invalid_enum_value,
+    diagnostics.error(hgps::core::IssueCode::invalid_enum_value,
                       {.field_path = "modelling.risk_factor_models"},
                       fmt::format("Unknown risk factor model type '{}'", model_type_str));
     return false;
@@ -39,7 +39,7 @@ bool parse_model_type(const std::string &model_type_str,
 bool load_and_register_region_prevalence(hgps::CachedRepository &repository,
                                          const nlohmann::json &opt,
                                          const hgps::input::Configuration &config,
-                                         hgps::core::Diagnostics &diagnostics,
+                                         hgps::core::InputIssueReport &diagnostics,
                                          std::string_view source_path) {
     if (!opt.contains("RegionFile")) {
         return true;
@@ -56,7 +56,7 @@ bool load_and_register_region_prevalence(hgps::CachedRepository &repository,
     try {
         region_table = hgps::input::load_datatable_from_csv(*region_file);
     } catch (const std::exception &e) {
-        diagnostics.error(hgps::core::DiagnosticCode::parse_failure,
+        diagnostics.error(hgps::core::IssueCode::parse_failure,
                           {.source_path = region_file->name.string(), .field_path = "RegionFile"},
                           e.what());
         return false;
@@ -90,12 +90,12 @@ bool load_and_register_region_prevalence(hgps::CachedRepository &repository,
             }
         }
     } catch (const std::bad_any_cast &) {
-        diagnostics.error(hgps::core::DiagnosticCode::wrong_type,
+        diagnostics.error(hgps::core::IssueCode::wrong_type,
                           {.source_path = region_file->name.string(), .field_path = "RegionFile"},
                           "Region file contains values of unexpected type");
         return false;
     } catch (const std::exception &e) {
-        diagnostics.error(hgps::core::DiagnosticCode::parse_failure,
+        diagnostics.error(hgps::core::IssueCode::parse_failure,
                           {.source_path = region_file->name.string(), .field_path = "RegionFile"},
                           e.what());
         return false;
@@ -108,7 +108,7 @@ bool load_and_register_region_prevalence(hgps::CachedRepository &repository,
 bool load_and_register_ethnicity_prevalence(hgps::CachedRepository &repository,
                                             const nlohmann::json &opt,
                                             const hgps::input::Configuration &config,
-                                            hgps::core::Diagnostics &diagnostics,
+                                            hgps::core::InputIssueReport &diagnostics,
                                             std::string_view source_path) {
     if (!opt.contains("EthnicityFile")) {
         return true;
@@ -125,7 +125,7 @@ bool load_and_register_ethnicity_prevalence(hgps::CachedRepository &repository,
     try {
         ethnicity_table = hgps::input::load_datatable_from_csv(*ethnicity_file);
     } catch (const std::exception &e) {
-        diagnostics.error(hgps::core::DiagnosticCode::parse_failure,
+        diagnostics.error(hgps::core::IssueCode::parse_failure,
                           {.source_path = ethnicity_file->name.string(),
                            .field_path = "EthnicityFile"},
                           e.what());
@@ -165,13 +165,13 @@ bool load_and_register_ethnicity_prevalence(hgps::CachedRepository &repository,
             }
         }
     } catch (const std::bad_any_cast &) {
-        diagnostics.error(hgps::core::DiagnosticCode::wrong_type,
+        diagnostics.error(hgps::core::IssueCode::wrong_type,
                           {.source_path = ethnicity_file->name.string(),
                            .field_path = "EthnicityFile"},
                           "Ethnicity file contains values of unexpected type");
         return false;
     } catch (const std::exception &e) {
-        diagnostics.error(hgps::core::DiagnosticCode::parse_failure,
+        diagnostics.error(hgps::core::IssueCode::parse_failure,
                           {.source_path = ethnicity_file->name.string(),
                            .field_path = "EthnicityFile"},
                           e.what());
@@ -188,7 +188,7 @@ namespace hgps::input {
 
 void register_risk_factor_model_definitions(hgps::CachedRepository &repository,
                                             const Configuration &config,
-                                            hgps::core::Diagnostics &diagnostics) {
+                                            hgps::core::InputIssueReport &diagnostics) {
     for (const auto &[model_type_str, model_path] : config.modelling.risk_factor_models) {
         hgps::RiskFactorModelType model_type{};
         if (!parse_model_type(model_type_str, model_type, diagnostics)) {

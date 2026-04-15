@@ -19,7 +19,7 @@
 
 namespace {
 
-bool has_new_errors(const hgps::core::Diagnostics &diagnostics,
+bool has_new_errors(const hgps::core::InputIssueReport &diagnostics,
                     const std::size_t initial_error_count) {
     return diagnostics.error_count() > initial_error_count;
 }
@@ -31,10 +31,10 @@ bool is_reserved_matrix_row(std::string_view row_name) {
 
 const nlohmann::json *find_legacy_risk_factor_params(const nlohmann::json &opt,
                                                      const hgps::core::Identifier &risk_factor_name,
-                                                     hgps::core::Diagnostics &diagnostics,
+                                                     hgps::core::InputIssueReport &diagnostics,
                                                      std::string_view source_path) {
     if (!opt.contains("RiskFactorModels") || !opt["RiskFactorModels"].is_object()) {
-        diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+        diagnostics.error(hgps::core::IssueCode::missing_key,
                           {.source_path = std::string{source_path},
                            .field_path = "RiskFactorModels"},
                           "Missing required key");
@@ -47,7 +47,7 @@ const nlohmann::json *find_legacy_risk_factor_params(const nlohmann::json &opt,
         }
     }
 
-    diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+    diagnostics.error(hgps::core::IssueCode::missing_key,
                       {.source_path = std::string{source_path},
                        .field_path = "RiskFactorModels." + risk_factor_name.to_string()},
                       fmt::format("Risk factor '{}' not found in RiskFactorModels",
@@ -59,12 +59,12 @@ std::optional<double>
 get_required_matrix_value(const hgps::input::MatrixCoefficientTable &table,
                           std::string_view row_name,
                           const std::string &risk_factor_name,
-                          hgps::core::Diagnostics &diagnostics,
+                          hgps::core::InputIssueReport &diagnostics,
                           std::string_view source_path,
                           std::string_view field_path) {
     const auto row_it = table.rows.find(std::string{row_name});
     if (row_it == table.rows.end()) {
-        diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+        diagnostics.error(hgps::core::IssueCode::missing_key,
                           {.source_path = std::string{source_path},
                            .field_path = hgps::input::join_field_path(field_path, row_name)},
                           fmt::format("Missing required coefficient row '{}'", row_name));
@@ -74,7 +74,7 @@ get_required_matrix_value(const hgps::input::MatrixCoefficientTable &table,
     const auto value_it = row_it->second.find(risk_factor_name);
     if (value_it == row_it->second.end()) {
         diagnostics.error(
-            hgps::core::DiagnosticCode::missing_key,
+            hgps::core::IssueCode::missing_key,
             {.source_path = std::string{source_path},
              .field_path = hgps::input::join_field_path(
                  hgps::input::join_field_path(field_path, row_name), risk_factor_name)},
@@ -88,7 +88,7 @@ get_required_matrix_value(const hgps::input::MatrixCoefficientTable &table,
 std::optional<hgps::LinearModelParams>
 build_matrix_linear_model(const hgps::input::MatrixCoefficientTable &table,
                           const std::string &risk_factor_name,
-                          hgps::core::Diagnostics &diagnostics,
+                          hgps::core::InputIssueReport &diagnostics,
                           std::string_view source_path,
                           std::string_view field_path,
                           bool include_log_coefficients = false) {
@@ -125,11 +125,11 @@ build_matrix_linear_model(const hgps::input::MatrixCoefficientTable &table,
 bool validate_expected_values_cover_risk_factors(
     const hgps::RiskFactorSexAgeTable &expected,
     const std::vector<hgps::core::Identifier> &risk_factor_names,
-    hgps::core::Diagnostics &diagnostics,
+    hgps::core::InputIssueReport &diagnostics,
     std::string_view source_path) {
     for (const auto &name : risk_factor_names) {
         if (!expected.at(hgps::core::Gender::male).contains(name)) {
-            diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+            diagnostics.error(hgps::core::IssueCode::missing_key,
                               {.source_path = std::string{source_path},
                                .field_path = "baseline_adjustment.male"},
                               fmt::format(
@@ -139,7 +139,7 @@ bool validate_expected_values_cover_risk_factors(
         }
 
         if (!expected.at(hgps::core::Gender::female).contains(name)) {
-            diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+            diagnostics.error(hgps::core::IssueCode::missing_key,
                               {.source_path = std::string{source_path},
                                .field_path = "baseline_adjustment.female"},
                               fmt::format(
@@ -159,7 +159,7 @@ namespace hgps::input {
 std::unique_ptr<hgps::StaticLinearModelDefinition>
 load_staticlinear_risk_model_definition(const nlohmann::json &opt,
                                         const Configuration &config,
-                                        hgps::core::Diagnostics &diagnostics,
+                                        hgps::core::InputIssueReport &diagnostics,
                                         std::string_view source_path) {
     const auto initial_error_count = diagnostics.error_count();
 
@@ -185,7 +185,7 @@ load_staticlinear_risk_model_definition(const nlohmann::json &opt,
 
     if (is_matrix_based_structure) {
         if (!opt.contains("RiskFactorModels") || !opt["RiskFactorModels"].is_object()) {
-            diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+            diagnostics.error(hgps::core::IssueCode::missing_key,
                               {.source_path = std::string{source_path},
                                .field_path = "RiskFactorModels"},
                               "Missing required key");
@@ -193,7 +193,7 @@ load_staticlinear_risk_model_definition(const nlohmann::json &opt,
         }
 
         if (!opt["RiskFactorModels"].contains("boxcox_coefficients")) {
-            diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+            diagnostics.error(hgps::core::IssueCode::missing_key,
                               {.source_path = std::string{source_path},
                                .field_path = "RiskFactorModels.boxcox_coefficients"},
                               "Missing required key");
@@ -201,7 +201,7 @@ load_staticlinear_risk_model_definition(const nlohmann::json &opt,
         }
 
         if (!opt["RiskFactorModels"].contains("policy_coefficients")) {
-            diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+            diagnostics.error(hgps::core::IssueCode::missing_key,
                               {.source_path = std::string{source_path},
                                .field_path = "RiskFactorModels.policy_coefficients"},
                               "Missing required key");
@@ -346,7 +346,7 @@ load_staticlinear_risk_model_definition(const nlohmann::json &opt,
             policy_model = *built_policy_model;
         } else {
             if (!json_params->contains("Policy") || !(*json_params)["Policy"].is_object()) {
-                diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+                diagnostics.error(hgps::core::IssueCode::missing_key,
                                   {.source_path = std::string{source_path},
                                    .field_path = join_field_path(legacy_field_path, "Policy")},
                                   "Missing required key");
@@ -375,7 +375,7 @@ load_staticlinear_risk_model_definition(const nlohmann::json &opt,
                 matrix_data->policy_ordered_names[matrix_data->policy_column_mapping[index]]
                     .to_string())) {
             diagnostics.error(
-                hgps::core::DiagnosticCode::invalid_value,
+                hgps::core::IssueCode::invalid_value,
                 {.source_path = std::string{source_path},
                  .field_path = "PolicyCovarianceFile"},
                 fmt::format("Risk factor '{}' does not match policy covariance ordering",
@@ -438,7 +438,7 @@ load_staticlinear_risk_model_definition(const nlohmann::json &opt,
         opt["RiskFactorModels"].is_object() &&
         opt["RiskFactorModels"].size() != matrix_data->ordered_names.size()) {
         diagnostics.error(
-            hgps::core::DiagnosticCode::invalid_value,
+            hgps::core::IssueCode::invalid_value,
             {.source_path = std::string{source_path}, .field_path = "RiskFactorModels"},
             fmt::format("Risk factor count ({}) does not match correlation matrix column count ({})",
                         opt["RiskFactorModels"].size(),
@@ -448,7 +448,7 @@ load_staticlinear_risk_model_definition(const nlohmann::json &opt,
 
     Eigen::LLT<Eigen::MatrixXd> correlation_llt{matrix_data->correlation};
     if (correlation_llt.info() != Eigen::Success) {
-        diagnostics.error(hgps::core::DiagnosticCode::invalid_value,
+        diagnostics.error(hgps::core::IssueCode::invalid_value,
                           {.source_path = std::string{source_path},
                            .field_path = "RiskFactorCorrelationFile"},
                           "Risk factor correlation matrix is not positive definite");
@@ -458,7 +458,7 @@ load_staticlinear_risk_model_definition(const nlohmann::json &opt,
 
     Eigen::LLT<Eigen::MatrixXd> policy_llt{matrix_data->policy_covariance};
     if (policy_llt.info() != Eigen::Success) {
-        diagnostics.error(hgps::core::DiagnosticCode::invalid_value,
+        diagnostics.error(hgps::core::IssueCode::invalid_value,
                           {.source_path = std::string{source_path},
                            .field_path = "PolicyCovarianceFile"},
                           "Policy covariance matrix is not positive definite");
@@ -519,13 +519,13 @@ load_staticlinear_risk_model_definition(const nlohmann::json &opt,
             std::move(physical_activity_data->models), has_active_policies,
             std::move(logistic_models));
     } catch (const std::exception &e) {
-        diagnostics.error(hgps::core::DiagnosticCode::parse_failure,
+        diagnostics.error(hgps::core::IssueCode::parse_failure,
                           {.source_path = std::string{source_path}},
                           e.what());
         return nullptr;
     } catch (...) {
         diagnostics.error(
-            hgps::core::DiagnosticCode::parse_failure,
+            hgps::core::IssueCode::parse_failure,
             {.source_path = std::string{source_path}},
             "Unknown error while constructing static linear model definition");
         return nullptr;

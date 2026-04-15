@@ -52,20 +52,20 @@ DummyModelDefinition::DummyModelDefinition(RiskFactorModelType type,
       policy_start_{std::move(policy_start)} {
 
     if (names_.empty()) {
-        throw core::HgpsException("Risk factor names list is empty");
+        throw core::InternalError("Risk factor names list is empty");
     }
     if (values_.empty()) {
-        throw core::HgpsException("Risk factor values list is empty");
+        throw core::InternalError("Risk factor values list is empty");
     }
     if (policy_.empty()) {
-        throw core::HgpsException("Risk factor policy lisy empty");
+        throw core::InternalError("Risk factor policy lisy empty");
     }
     if (policy_start_.empty()) {
-        throw core::HgpsException("Risk factor policy start list is empty");
+        throw core::InternalError("Risk factor policy start list is empty");
     }
     if (names_.size() != values_.size() || names_.size() != policy_.size() ||
         names_.size() != policy_start_.size()) {
-        throw core::HgpsException("Risk factor param list sizes mismatch");
+        throw core::InternalError("Risk factor param list sizes mismatch");
     }
 }
 

@@ -16,7 +16,7 @@ std::unique_ptr<hgps::RiskFactorModelDefinition>
 load_risk_model_definition(hgps::RiskFactorModelType model_type,
                            const std::filesystem::path &model_path,
                            const Configuration &config,
-                           hgps::core::Diagnostics &diagnostics) {
+                           hgps::core::InputIssueReport &diagnostics) {
     const auto loaded_model = load_and_validate_model_json(model_path, diagnostics);
     if (!loaded_model.has_value()) {
         return nullptr;
@@ -38,7 +38,7 @@ load_risk_model_definition(hgps::RiskFactorModelType model_type,
             }
 
             diagnostics.error(
-                hgps::core::DiagnosticCode::invalid_enum_value,
+                hgps::core::IssueCode::invalid_enum_value,
                 {.source_path = source_path, .field_path = "ModelName"},
                 "Static model name '" + model_name + "' is not recognised");
             return nullptr;
@@ -53,24 +53,24 @@ load_risk_model_definition(hgps::RiskFactorModelType model_type,
             }
 
             diagnostics.error(
-                hgps::core::DiagnosticCode::invalid_enum_value,
+                hgps::core::IssueCode::invalid_enum_value,
                 {.source_path = source_path, .field_path = "ModelName"},
                 "Dynamic model name '" + model_name + "' is not recognised");
             return nullptr;
 
         default:
-            diagnostics.error(hgps::core::DiagnosticCode::invalid_enum_value,
+            diagnostics.error(hgps::core::IssueCode::invalid_enum_value,
                               {.source_path = source_path, .field_path = "model_type"},
                               "Unknown risk factor model type");
             return nullptr;
         }
     } catch (const std::exception &e) {
-        diagnostics.error(hgps::core::DiagnosticCode::parse_failure,
+        diagnostics.error(hgps::core::IssueCode::parse_failure,
                           {.source_path = source_path},
                           e.what());
         return nullptr;
     } catch (...) {
-        diagnostics.error(hgps::core::DiagnosticCode::parse_failure,
+        diagnostics.error(hgps::core::IssueCode::parse_failure,
                           {.source_path = source_path},
                           "Unknown error while loading risk factor model definition");
         return nullptr;

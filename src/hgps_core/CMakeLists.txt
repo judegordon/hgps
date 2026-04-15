@@ -6,7 +6,7 @@ target_compile_features(hgps_core PUBLIC cxx_std_${CMAKE_CXX_STANDARD})
 target_sources(
     hgps_core
     PRIVATE
-        data/datatable.cpp
+        data/data_table.cpp
         diagnostics/diagnostics.cpp
         diagnostics/exception.cpp
         types/identifier.cpp

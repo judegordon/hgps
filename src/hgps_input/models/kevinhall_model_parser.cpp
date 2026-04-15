@@ -22,7 +22,7 @@ namespace hgps::input {
 std::unique_ptr<hgps::KevinHallModelDefinition>
 load_kevinhall_risk_model_definition(const nlohmann::json &opt,
                                      const Configuration &config,
-                                     hgps::core::Diagnostics &diagnostics,
+                                     hgps::core::InputIssueReport &diagnostics,
                                      std::string_view source_path) {
     auto expected = load_risk_factor_expected(config, diagnostics);
     if (!expected) {
@@ -35,14 +35,14 @@ load_kevinhall_risk_model_definition(const nlohmann::json &opt,
         std::make_unique<std::unordered_map<hgps::core::Identifier, int>>();
 
     if (!opt.contains("Nutrients") || !opt["Nutrients"].is_array()) {
-        diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+        diagnostics.error(hgps::core::IssueCode::missing_key,
                           {.source_path = std::string{source_path}, .field_path = "Nutrients"},
                           "Missing required key");
         return nullptr;
     }
 
     if (!opt.contains("Foods") || !opt["Foods"].is_array()) {
-        diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+        diagnostics.error(hgps::core::IssueCode::missing_key,
                           {.source_path = std::string{source_path}, .field_path = "Foods"},
                           "Missing required key");
         return nullptr;
@@ -101,7 +101,7 @@ load_kevinhall_risk_model_definition(const nlohmann::json &opt,
                 expected_trend_value = food["ExpectedTrend"].get<double>();
             } catch (const nlohmann::json::exception &e) {
                 diagnostics.error(
-                    hgps::core::DiagnosticCode::wrong_type,
+                    hgps::core::IssueCode::wrong_type,
                     {.source_path = std::string{source_path},
                      .field_path = join_field_path(food_path, "ExpectedTrend")},
                     e.what());
@@ -114,7 +114,7 @@ load_kevinhall_risk_model_definition(const nlohmann::json &opt,
                 trend_steps_value = food["TrendSteps"].get<int>();
             } catch (const nlohmann::json::exception &e) {
                 diagnostics.error(
-                    hgps::core::DiagnosticCode::wrong_type,
+                    hgps::core::IssueCode::wrong_type,
                     {.source_path = std::string{source_path},
                      .field_path = join_field_path(food_path, "TrendSteps")},
                     e.what());
@@ -135,7 +135,7 @@ load_kevinhall_risk_model_definition(const nlohmann::json &opt,
     }
 
     if (!opt.contains("WeightQuantiles") || !opt["WeightQuantiles"].is_object()) {
-        diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+        diagnostics.error(hgps::core::IssueCode::missing_key,
                           {.source_path = std::string{source_path},
                            .field_path = "WeightQuantiles"},
                           "Missing required key");
@@ -143,7 +143,7 @@ load_kevinhall_risk_model_definition(const nlohmann::json &opt,
     }
 
     if (!opt["WeightQuantiles"].contains("Female")) {
-        diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+        diagnostics.error(hgps::core::IssueCode::missing_key,
                           {.source_path = std::string{source_path},
                            .field_path = "WeightQuantiles.Female"},
                           "Missing required key");
@@ -151,7 +151,7 @@ load_kevinhall_risk_model_definition(const nlohmann::json &opt,
     }
 
     if (!opt["WeightQuantiles"].contains("Male")) {
-        diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+        diagnostics.error(hgps::core::IssueCode::missing_key,
                           {.source_path = std::string{source_path},
                            .field_path = "WeightQuantiles.Male"},
                           "Missing required key");
@@ -176,7 +176,7 @@ load_kevinhall_risk_model_definition(const nlohmann::json &opt,
     try {
         weight_quantiles_table_female = load_datatable_from_csv(*weight_quantiles_female_file);
     } catch (const std::exception &e) {
-        diagnostics.error(hgps::core::DiagnosticCode::parse_failure,
+        diagnostics.error(hgps::core::IssueCode::parse_failure,
                           {.source_path = weight_quantiles_female_file->name.string(),
                            .field_path = "WeightQuantiles.Female"},
                           e.what());
@@ -187,7 +187,7 @@ load_kevinhall_risk_model_definition(const nlohmann::json &opt,
     try {
         weight_quantiles_table_male = load_datatable_from_csv(*weight_quantiles_male_file);
     } catch (const std::exception &e) {
-        diagnostics.error(hgps::core::DiagnosticCode::parse_failure,
+        diagnostics.error(hgps::core::IssueCode::parse_failure,
                           {.source_path = weight_quantiles_male_file->name.string(),
                            .field_path = "WeightQuantiles.Male"},
                           e.what());
@@ -213,7 +213,7 @@ load_kevinhall_risk_model_definition(const nlohmann::json &opt,
                 std::any_cast<double>(weight_quantiles_table_male.column(0).value(row)));
         }
     } catch (const std::bad_any_cast &) {
-        diagnostics.error(hgps::core::DiagnosticCode::wrong_type,
+        diagnostics.error(hgps::core::IssueCode::wrong_type,
                           {.source_path = std::string{source_path},
                            .field_path = "WeightQuantiles"},
                           "Weight quantiles must contain numeric values");
@@ -225,7 +225,7 @@ load_kevinhall_risk_model_definition(const nlohmann::json &opt,
     }
 
     if (!opt.contains("EnergyPhysicalActivityQuantiles")) {
-        diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+        diagnostics.error(hgps::core::IssueCode::missing_key,
                           {.source_path = std::string{source_path},
                            .field_path = "EnergyPhysicalActivityQuantiles"},
                           "Missing required key");
@@ -243,7 +243,7 @@ load_kevinhall_risk_model_definition(const nlohmann::json &opt,
     try {
         epa_quantiles_table = load_datatable_from_csv(*epa_quantiles_file);
     } catch (const std::exception &e) {
-        diagnostics.error(hgps::core::DiagnosticCode::parse_failure,
+        diagnostics.error(hgps::core::IssueCode::parse_failure,
                           {.source_path = epa_quantiles_file->name.string(),
                            .field_path = "EnergyPhysicalActivityQuantiles"},
                           e.what());
@@ -258,7 +258,7 @@ load_kevinhall_risk_model_definition(const nlohmann::json &opt,
             epa_quantiles.push_back(std::any_cast<double>(epa_quantiles_table.column(0).value(row)));
         }
     } catch (const std::bad_any_cast &) {
-        diagnostics.error(hgps::core::DiagnosticCode::wrong_type,
+        diagnostics.error(hgps::core::IssueCode::wrong_type,
                           {.source_path = std::string{source_path},
                            .field_path = "EnergyPhysicalActivityQuantiles"},
                           "Energy physical activity quantiles must contain numeric values");
@@ -268,14 +268,14 @@ load_kevinhall_risk_model_definition(const nlohmann::json &opt,
     std::sort(epa_quantiles.begin(), epa_quantiles.end());
 
     if (!opt.contains("HeightStdDev") || !opt["HeightStdDev"].is_object()) {
-        diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+        diagnostics.error(hgps::core::IssueCode::missing_key,
                           {.source_path = std::string{source_path}, .field_path = "HeightStdDev"},
                           "Missing required key");
         return nullptr;
     }
 
     if (!opt.contains("HeightSlope") || !opt["HeightSlope"].is_object()) {
-        diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+        diagnostics.error(hgps::core::IssueCode::missing_key,
                           {.source_path = std::string{source_path}, .field_path = "HeightSlope"},
                           "Missing required key");
         return nullptr;
@@ -304,13 +304,13 @@ load_kevinhall_risk_model_definition(const nlohmann::json &opt,
             std::move(food_prices), std::move(weight_quantiles), std::move(epa_quantiles),
             std::move(height_stddev), std::move(height_slope));
     } catch (const std::exception &e) {
-        diagnostics.error(hgps::core::DiagnosticCode::parse_failure,
+        diagnostics.error(hgps::core::IssueCode::parse_failure,
                           {.source_path = std::string{source_path}},
                           e.what());
         return nullptr;
     } catch (...) {
         diagnostics.error(
-            hgps::core::DiagnosticCode::parse_failure,
+            hgps::core::IssueCode::parse_failure,
             {.source_path = std::string{source_path}},
             "Unknown error while constructing Kevin Hall model definition");
         return nullptr;

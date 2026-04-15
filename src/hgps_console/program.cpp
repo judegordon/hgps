@@ -132,12 +132,12 @@ int main(int argc, char *argv[]) { // NOLINT(bugprone-exception-escape)
         auto data_repository = hgps::CachedRepository{data_api};
 
         // Register the input risk factors model definitions
-        hgps::core::Diagnostics model_diagnostics;
+        hgps::core::InputIssueReport model_diagnostics;
         register_risk_factor_model_definitions(data_repository, config, model_diagnostics);
         if (model_diagnostics.has_errors()) {
             for (const auto &diagnostic : model_diagnostics) {
                 fmt::print(fmt::fg(fmt::color::red), "{}\n",
-                           hgps::core::format_diagnostic(diagnostic));
+                           hgps::core::format_issue(diagnostic));
             }
             return exit_application(EXIT_FAILURE);
         }

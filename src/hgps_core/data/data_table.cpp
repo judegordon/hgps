@@ -1,5 +1,6 @@
-#include "datatable.h"
-#include "string_util.h"
+#include "data_table.h"
+#include "utils/string_util.h"
+
 #include <fmt/format.h>
 
 #include <sstream>
@@ -14,12 +15,9 @@ std::size_t DataTable::num_rows() const noexcept { return rows_count_; }
 std::vector<std::string> DataTable::names() const { return names_; }
 
 void DataTable::add(std::unique_ptr<DataTableColumn> column) {
+    std::scoped_lock lk(sync_mtx_);
 
-    std::scoped_lock lk(*sync_mtx_);
-
-    if ((rows_count_ > 0 && column->size() != rows_count_) ||
-        (num_columns() > 0 && rows_count_ == 0 && column->size() != rows_count_)) {
-
+    if (num_columns() > 0 && column->size() != rows_count_) {
         throw std::invalid_argument(
             "Column size mismatch, new columns must have the same size of existing ones.");
     }
@@ -35,9 +33,9 @@ void DataTable::add(std::unique_ptr<DataTableColumn> column) {
     columns_.push_back(std::move(column));
 }
 
-const DataTableColumn &DataTable::column(std::size_t index) const { return *columns_.at(index); }
+const DataTableColumn& DataTable::column(std::size_t index) const { return *columns_.at(index); }
 
-const DataTableColumn &DataTable::column(const std::string &name) const {
+const DataTableColumn& DataTable::column(const std::string& name) const {
     auto lower_name = to_lower(name);
     auto found = index_.find(lower_name);
     if (found != index_.end()) {
@@ -48,7 +46,7 @@ const DataTableColumn &DataTable::column(const std::string &name) const {
 }
 
 std::optional<std::reference_wrapper<const DataTableColumn>>
-DataTable::column_if_exists(const std::string &name) const {
+DataTable::column_if_exists(const std::string& name) const {
     auto found = index_.find(to_lower(name));
     if (found != index_.end()) {
         return std::cref(*columns_.at(found->second));
@@ -56,10 +54,10 @@ DataTable::column_if_exists(const std::string &name) const {
     return std::nullopt;
 }
 
-std::string DataTable::to_string() const noexcept {
-    std::stringstream ss;
+std::string DataTable::to_string() const {
+    std::ostringstream ss;
     std::size_t longestColumnName = 0;
-    for (const auto &col : columns_) {
+    for (const auto& col : columns_) {
         longestColumnName = std::max(longestColumnName, col->name().length());
     }
 
@@ -70,7 +68,7 @@ std::string DataTable::to_string() const noexcept {
     ss << fmt::format("|{:-<{}}|\n", '-', width);
     ss << fmt::format("| {:{}} : {:10} : {:>10} |\n", "Column Name", pad, "Data Type", "# Nulls");
     ss << fmt::format("|{:-<{}}|\n", '-', width);
-    for (const auto &col : columns_) {
+    for (const auto& col : columns_) {
         ss << fmt::format("| {:{}} : {:10} : {:10} |\n", col->name(), pad, col->type(),
                           col->null_count());
     }
@@ -82,7 +80,7 @@ std::string DataTable::to_string() const noexcept {
 
 } // namespace hgps::core
 
-std::ostream &operator<<(std::ostream &stream, const hgps::core::DataTable &table) {
+std::ostream& operator<<(std::ostream& stream, const hgps::core::DataTable& table) {
     stream << table.to_string();
     return stream;
 }

@@ -11,6 +11,6 @@ namespace hgps::input {
 
 std::unique_ptr<hgps::RiskFactorSexAgeTable>
 load_risk_factor_expected(const Configuration &config,
-                          hgps::core::Diagnostics &diagnostics);
+                          hgps::core::InputIssueReport &diagnostics);
 
 } // namespace hgps::input

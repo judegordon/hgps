@@ -10,7 +10,7 @@
 namespace {
 
 hgps::LinearModelParams load_trend_model_from_json(const nlohmann::json &trend_json,
-                                                   hgps::core::Diagnostics &diagnostics,
+                                                   hgps::core::InputIssueReport &diagnostics,
                                                    bool &ok,
                                                    std::string_view source_path,
                                                    std::string_view field_path) {
@@ -32,7 +32,7 @@ namespace hgps::input {
 
 std::optional<hgps::TrendType>
 resolve_staticlinear_trend_type(const Configuration &config,
-                                hgps::core::Diagnostics &diagnostics,
+                                hgps::core::InputIssueReport &diagnostics,
                                 std::string_view source_path,
                                 std::string_view field_path) {
     const auto &trend = config.project_requirements.trend;
@@ -53,7 +53,7 @@ resolve_staticlinear_trend_type(const Configuration &config,
         return hgps::TrendType::IncomeTrend;
     }
 
-    diagnostics.error(hgps::core::DiagnosticCode::invalid_enum_value,
+    diagnostics.error(hgps::core::IssueCode::invalid_enum_value,
                       {.source_path = std::string{source_path},
                        .field_path = join_field_path(field_path, "trend.type")},
                       fmt::format("Unsupported trend type '{}'", trend.type));
@@ -93,11 +93,11 @@ bool append_staticlinear_trend_entry(StaticLinearTrendData &trend_data,
                                      const hgps::core::Identifier &risk_factor_name,
                                      bool is_matrix_based_structure,
                                      const nlohmann::json *json_params,
-                                     hgps::core::Diagnostics &diagnostics,
+                                     hgps::core::InputIssueReport &diagnostics,
                                      std::string_view source_path,
                                      std::string_view field_path) {
     if (json_params == nullptr && !is_matrix_based_structure) {
-        diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+        diagnostics.error(hgps::core::IssueCode::missing_key,
                           {.source_path = std::string{source_path},
                            .field_path = std::string{field_path}},
                           "Missing legacy risk factor parameters");
@@ -107,7 +107,7 @@ bool append_staticlinear_trend_entry(StaticLinearTrendData &trend_data,
     if (trend_type == hgps::TrendType::UPFTrend) {
         if (is_matrix_based_structure) {
             diagnostics.error(
-                hgps::core::DiagnosticCode::invalid_value,
+                hgps::core::IssueCode::invalid_value,
                 {.source_path = std::string{source_path},
                  .field_path = std::string{field_path}},
                 fmt::format("Matrix-based structure requires CSV-backed trend support for '{}'",
@@ -116,7 +116,7 @@ bool append_staticlinear_trend_entry(StaticLinearTrendData &trend_data,
         }
 
         if (!json_params->contains("Trend") || !(*json_params)["Trend"].is_object()) {
-            diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+            diagnostics.error(hgps::core::IssueCode::missing_key,
                               {.source_path = std::string{source_path},
                                .field_path = join_field_path(field_path, "Trend")},
                               fmt::format("Trend is enabled but Trend data is missing for '{}'",
@@ -174,7 +174,7 @@ bool append_staticlinear_trend_entry(StaticLinearTrendData &trend_data,
     if (trend_type == hgps::TrendType::IncomeTrend) {
         if (is_matrix_based_structure) {
             diagnostics.error(
-                hgps::core::DiagnosticCode::invalid_value,
+                hgps::core::IssueCode::invalid_value,
                 {.source_path = std::string{source_path},
                  .field_path = std::string{field_path}},
                 fmt::format(
@@ -185,7 +185,7 @@ bool append_staticlinear_trend_entry(StaticLinearTrendData &trend_data,
 
         if (!json_params->contains("IncomeTrend") || !(*json_params)["IncomeTrend"].is_object()) {
             diagnostics.error(
-                hgps::core::DiagnosticCode::missing_key,
+                hgps::core::IssueCode::missing_key,
                 {.source_path = std::string{source_path},
                  .field_path = join_field_path(field_path, "IncomeTrend")},
                 fmt::format("Income trend is enabled but IncomeTrend data is missing for '{}'",
@@ -214,7 +214,7 @@ bool append_staticlinear_trend_entry(StaticLinearTrendData &trend_data,
 
         if (!json_params->contains("ExpectedIncomeTrend")) {
             diagnostics.error(
-                hgps::core::DiagnosticCode::missing_key,
+                hgps::core::IssueCode::missing_key,
                 {.source_path = std::string{source_path},
                  .field_path = join_field_path(field_path, "ExpectedIncomeTrend")},
                 fmt::format("ExpectedIncomeTrend is missing for '{}'",
@@ -224,7 +224,7 @@ bool append_staticlinear_trend_entry(StaticLinearTrendData &trend_data,
 
         if (!json_params->contains("ExpectedIncomeTrendBoxCox")) {
             diagnostics.error(
-                hgps::core::DiagnosticCode::missing_key,
+                hgps::core::IssueCode::missing_key,
                 {.source_path = std::string{source_path},
                  .field_path = join_field_path(field_path, "ExpectedIncomeTrendBoxCox")},
                 fmt::format("ExpectedIncomeTrendBoxCox is missing for '{}'",
@@ -234,7 +234,7 @@ bool append_staticlinear_trend_entry(StaticLinearTrendData &trend_data,
 
         if (!json_params->contains("IncomeTrendSteps")) {
             diagnostics.error(
-                hgps::core::DiagnosticCode::missing_key,
+                hgps::core::IssueCode::missing_key,
                 {.source_path = std::string{source_path},
                  .field_path = join_field_path(field_path, "IncomeTrendSteps")},
                 fmt::format("IncomeTrendSteps is missing for '{}'",
@@ -244,7 +244,7 @@ bool append_staticlinear_trend_entry(StaticLinearTrendData &trend_data,
 
         if (!json_params->contains("IncomeDecayFactor")) {
             diagnostics.error(
-                hgps::core::DiagnosticCode::missing_key,
+                hgps::core::IssueCode::missing_key,
                 {.source_path = std::string{source_path},
                  .field_path = join_field_path(field_path, "IncomeDecayFactor")},
                 fmt::format("IncomeDecayFactor is missing for '{}'",

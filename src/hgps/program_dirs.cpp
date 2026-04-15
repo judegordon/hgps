@@ -17,7 +17,7 @@
 namespace {
 constexpr const char *program_name = "healthgps";
 
-void throw_path_error() { throw hgps::core::HgpsException("Could not get program path"); }
+void throw_path_error() { throw hgps::core::InternalError("Could not get program path"); }
 } // anonymous namespace
 
 namespace hgps {

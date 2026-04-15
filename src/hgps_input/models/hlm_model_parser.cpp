@@ -13,24 +13,24 @@ namespace hgps::input {
 
 std::unique_ptr<hgps::StaticHierarchicalLinearModelDefinition>
 load_hlm_risk_model_definition(const nlohmann::json &opt,
-                               hgps::core::Diagnostics &diagnostics,
+                               hgps::core::InputIssueReport &diagnostics,
                                std::string_view source_path) {
     HierarchicalModelInfo model_info;
 
     try {
         model_info.models = opt.at("models").get<std::unordered_map<std::string, LinearModelInfo>>();
     } catch (const nlohmann::json::out_of_range &) {
-        diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+        diagnostics.error(hgps::core::IssueCode::missing_key,
                           {.source_path = std::string{source_path}, .field_path = "models"},
                           "Missing required key");
         return nullptr;
     } catch (const nlohmann::json::type_error &) {
-        diagnostics.error(hgps::core::DiagnosticCode::wrong_type,
+        diagnostics.error(hgps::core::IssueCode::wrong_type,
                           {.source_path = std::string{source_path}, .field_path = "models"},
                           "Key has wrong type");
         return nullptr;
     } catch (const nlohmann::json::exception &e) {
-        diagnostics.error(hgps::core::DiagnosticCode::parse_failure,
+        diagnostics.error(hgps::core::IssueCode::parse_failure,
                           {.source_path = std::string{source_path}, .field_path = "models"},
                           e.what());
         return nullptr;
@@ -40,17 +40,17 @@ load_hlm_risk_model_definition(const nlohmann::json &opt,
         model_info.levels =
             opt.at("levels").get<std::unordered_map<std::string, HierarchicalLevelInfo>>();
     } catch (const nlohmann::json::out_of_range &) {
-        diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+        diagnostics.error(hgps::core::IssueCode::missing_key,
                           {.source_path = std::string{source_path}, .field_path = "levels"},
                           "Missing required key");
         return nullptr;
     } catch (const nlohmann::json::type_error &) {
-        diagnostics.error(hgps::core::DiagnosticCode::wrong_type,
+        diagnostics.error(hgps::core::IssueCode::wrong_type,
                           {.source_path = std::string{source_path}, .field_path = "levels"},
                           "Key has wrong type");
         return nullptr;
     } catch (const nlohmann::json::exception &e) {
-        diagnostics.error(hgps::core::DiagnosticCode::parse_failure,
+        diagnostics.error(hgps::core::IssueCode::parse_failure,
                           {.source_path = std::string{source_path}, .field_path = "levels"},
                           e.what());
         return nullptr;
@@ -84,7 +84,7 @@ load_hlm_risk_model_definition(const nlohmann::json &opt,
         try {
             level_index = std::stoi(level_key);
         } catch (const std::exception &) {
-            diagnostics.error(hgps::core::DiagnosticCode::invalid_value,
+            diagnostics.error(hgps::core::IssueCode::invalid_value,
                               {.source_path = std::string{source_path},
                                .field_path = "levels." + level_key},
                               fmt::format("Hierarchical level key '{}' is not a valid integer",
@@ -124,12 +124,12 @@ load_hlm_risk_model_definition(const nlohmann::json &opt,
         return std::make_unique<hgps::StaticHierarchicalLinearModelDefinition>(std::move(models),
                                                                                std::move(levels));
     } catch (const std::exception &e) {
-        diagnostics.error(hgps::core::DiagnosticCode::parse_failure,
+        diagnostics.error(hgps::core::IssueCode::parse_failure,
                           {.source_path = std::string{source_path}},
                           e.what());
         return nullptr;
     } catch (...) {
-        diagnostics.error(hgps::core::DiagnosticCode::parse_failure,
+        diagnostics.error(hgps::core::IssueCode::parse_failure,
                           {.source_path = std::string{source_path}},
                           "Unknown error while constructing HLM model definition");
         return nullptr;

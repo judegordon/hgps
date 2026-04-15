@@ -24,7 +24,7 @@ inline std::string join_field_path(std::string_view parent, std::string_view key
 }
 
 inline nlohmann::json get(const nlohmann::json &j, const std::string &key,
-                          hgps::core::Diagnostics &diagnostics,
+                          hgps::core::InputIssueReport &diagnostics,
                           std::string_view source_path = {},
                           std::string_view field_path = {}) {
     const auto full_field_path = join_field_path(field_path, key);
@@ -32,17 +32,17 @@ inline nlohmann::json get(const nlohmann::json &j, const std::string &key,
     try {
         return j.at(key);
     } catch (const nlohmann::json::out_of_range &) {
-        diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+        diagnostics.error(hgps::core::IssueCode::missing_key,
                           {.source_path = std::string{source_path},
                            .field_path = full_field_path},
                           "Missing required key");
     } catch (const nlohmann::json::type_error &) {
-        diagnostics.error(hgps::core::DiagnosticCode::wrong_type,
+        diagnostics.error(hgps::core::IssueCode::wrong_type,
                           {.source_path = std::string{source_path},
                            .field_path = full_field_path},
                           "Key has wrong type");
     } catch (const nlohmann::json::exception &e) {
-        diagnostics.error(hgps::core::DiagnosticCode::parse_failure,
+        diagnostics.error(hgps::core::IssueCode::parse_failure,
                           {.source_path = std::string{source_path},
                            .field_path = full_field_path},
                           e.what());
@@ -53,7 +53,7 @@ inline nlohmann::json get(const nlohmann::json &j, const std::string &key,
 
 template <typename T>
 bool get_to(const nlohmann::json &j, const std::string &key, T &out,
-            hgps::core::Diagnostics &diagnostics,
+            hgps::core::InputIssueReport &diagnostics,
             std::string_view source_path = {},
             std::string_view field_path = {}) {
     const auto full_field_path = join_field_path(field_path, key);
@@ -62,19 +62,19 @@ bool get_to(const nlohmann::json &j, const std::string &key, T &out,
         out = j.at(key).get<T>();
         return true;
     } catch (const nlohmann::json::out_of_range &) {
-        diagnostics.error(hgps::core::DiagnosticCode::missing_key,
+        diagnostics.error(hgps::core::IssueCode::missing_key,
                           {.source_path = std::string{source_path},
                            .field_path = full_field_path},
                           "Missing required key");
         return false;
     } catch (const nlohmann::json::type_error &) {
-        diagnostics.error(hgps::core::DiagnosticCode::wrong_type,
+        diagnostics.error(hgps::core::IssueCode::wrong_type,
                           {.source_path = std::string{source_path},
                            .field_path = full_field_path},
                           "Key has wrong type");
         return false;
     } catch (const nlohmann::json::exception &e) {
-        diagnostics.error(hgps::core::DiagnosticCode::parse_failure,
+        diagnostics.error(hgps::core::IssueCode::parse_failure,
                           {.source_path = std::string{source_path},
                            .field_path = full_field_path},
                           e.what());
@@ -84,7 +84,7 @@ bool get_to(const nlohmann::json &j, const std::string &key, T &out,
 
 template <typename T>
 bool get_to(const nlohmann::json &j, const std::string &key, T &out,
-            hgps::core::Diagnostics &diagnostics, bool &success,
+            hgps::core::InputIssueReport &diagnostics, bool &success,
             std::string_view source_path = {},
             std::string_view field_path = {}) {
     const bool ok = get_to(j, key, out, diagnostics, source_path, field_path);

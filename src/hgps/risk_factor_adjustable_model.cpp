@@ -111,7 +111,7 @@ double RiskFactorAdjustableModel::get_expected(RuntimeContext &context, core::Ge
                                                const core::Identifier &factor, OptionalRange range,
                                                bool apply_trend) const {
     if (!expected_->contains(sex, factor)) {
-        throw core::HgpsException(fmt::format(
+        throw core::InternalError(fmt::format(
             "Expected value not found for factor '{}' (sex={}) in factors mean table. "
             "Ensure FactorsMean.Male.csv and FactorsMean.Female.csv have a column for this factor.",
             factor.to_string(), sex == core::Gender::male ? "male" : "female"));
@@ -180,14 +180,14 @@ void RiskFactorAdjustableModel::adjust_risk_factors(RuntimeContext &context,
         auto message = context.scenario().channel().try_receive(context.sync_timeout_millis());
         if (!message.has_value()) {
             std::cout << "\n[SYNC] Intervention: Message not received, timeout occurred!";
-            throw core::HgpsException(
+            throw core::InternalError(
                 "Simulation out of sync, receive baseline adjustments message has timed out");
         }
 
         auto &basePtr = message.value();
         auto *messagePrt = dynamic_cast<RiskFactorAdjustmentMessage *>(basePtr.get());
         if (!messagePrt) {
-            throw core::HgpsException(
+            throw core::InternalError(
                 "Simulation out of sync, failed to receive a baseline adjustments message");
         }
 
@@ -446,16 +446,16 @@ RiskFactorAdjustableModelDefinition::RiskFactorAdjustableModelDefinition(
       trend_steps_{std::move(trend_steps)}, trend_type_{trend_type} {
 
     if (expected_->empty()) {
-        throw core::HgpsException("Risk factor expected value mapping is empty");
+        throw core::InternalError("Risk factor expected value mapping is empty");
     }
 
     // Only validate trend data if trends are actually being used
     if (trend_type_ != TrendType::Null) {
         if (expected_trend_->empty()) {
-            throw core::HgpsException("Risk factor expected trend mapping is empty");
+            throw core::InternalError("Risk factor expected trend mapping is empty");
         }
         if (trend_steps_->empty()) {
-            throw core::HgpsException("Risk factor trend steps mapping is empty");
+            throw core::InternalError("Risk factor trend steps mapping is empty");
         }
     }
 }

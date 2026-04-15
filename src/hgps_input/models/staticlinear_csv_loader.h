@@ -35,14 +35,14 @@ bool is_matrix_based_risk_factor_structure(const nlohmann::json &opt);
 std::optional<MatrixCoefficientTable>
 load_matrix_coefficient_table(const nlohmann::json &node,
                               const Configuration &config,
-                              hgps::core::Diagnostics &diagnostics,
+                              hgps::core::InputIssueReport &diagnostics,
                               std::string_view source_path = {},
                               std::string_view field_path = {});
 
 std::optional<StaticLinearMatrixData>
 load_staticlinear_matrix_data(const nlohmann::json &opt,
                               const Configuration &config,
-                              hgps::core::Diagnostics &diagnostics,
+                              hgps::core::InputIssueReport &diagnostics,
                               std::string_view source_path = {});
 
 } // namespace hgps::input

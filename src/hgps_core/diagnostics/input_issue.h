@@ -7,12 +7,12 @@
 
 namespace hgps::core {
 
-enum class DiagnosticLevel {
+enum class IssueLevel {
     warning,
     error
 };
 
-enum class DiagnosticCode {
+enum class IssueCode {
     unknown = 0,
     missing_key,
     wrong_type,
@@ -22,11 +22,10 @@ enum class DiagnosticCode {
     invalid_path,
     parse_failure,
     missing_column,
-    duplicate_entry,
-    schema_violation
+    duplicate_entry
 };
 
-struct DiagnosticLocation {
+struct IssueLocation {
     std::string source_path{};
     std::string field_path{};
     std::size_t line{0};
@@ -38,39 +37,39 @@ struct DiagnosticLocation {
     [[nodiscard]] bool has_column() const noexcept { return column != 0; }
 };
 
-struct Diagnostic {
-    DiagnosticLevel level{DiagnosticLevel::error};
-    DiagnosticCode code{DiagnosticCode::unknown};
-    DiagnosticLocation location{};
+struct InputIssue {
+    IssueLevel level{IssueLevel::error};
+    IssueCode code{IssueCode::unknown};
+    IssueLocation location{};
     std::string message{};
 };
 
-[[nodiscard]] constexpr bool is_error(DiagnosticLevel level) noexcept {
-    return level == DiagnosticLevel::error;
+[[nodiscard]] constexpr bool is_error(IssueLevel level) noexcept {
+    return level == IssueLevel::error;
 }
 
-[[nodiscard]] constexpr bool is_warning(DiagnosticLevel level) noexcept {
-    return level == DiagnosticLevel::warning;
+[[nodiscard]] constexpr bool is_warning(IssueLevel level) noexcept {
+    return level == IssueLevel::warning;
 }
 
-[[nodiscard]] std::string_view to_string(DiagnosticLevel level) noexcept;
-[[nodiscard]] std::string_view to_string(DiagnosticCode code) noexcept;
+[[nodiscard]] std::string_view to_string(IssueLevel level) noexcept;
+[[nodiscard]] std::string_view to_string(IssueCode code) noexcept;
 
-class Diagnostics {
+class InputIssueReport {
   public:
-    using container_type = std::vector<Diagnostic>;
+    using container_type = std::vector<InputIssue>;
     using const_iterator = container_type::const_iterator;
 
-    Diagnostics() = default;
+    InputIssueReport() = default;
 
-    void add(Diagnostic diagnostic);
+    void add(InputIssue issue);
 
-    void add(DiagnosticLevel level, DiagnosticCode code, DiagnosticLocation location,
+    void add(IssueLevel level, IssueCode code, IssueLocation location,
              std::string message);
 
-    void error(DiagnosticCode code, DiagnosticLocation location, std::string message);
+    void error(IssueCode code, IssueLocation location, std::string message);
 
-    void warning(DiagnosticCode code, DiagnosticLocation location, std::string message);
+    void warning(IssueCode code, IssueLocation location, std::string message);
 
     [[nodiscard]] bool empty() const noexcept;
     [[nodiscard]] bool has_errors() const noexcept;
@@ -93,6 +92,6 @@ class Diagnostics {
     std::size_t warning_count_{0};
 };
 
-[[nodiscard]] std::string format_diagnostic(const Diagnostic &diagnostic);
+[[nodiscard]] std::string format_issue(const InputIssue &issue);
 
 } // namespace hgps::core

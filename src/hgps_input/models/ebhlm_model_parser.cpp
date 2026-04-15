@@ -20,7 +20,7 @@ namespace hgps::input {
 std::unique_ptr<hgps::DynamicHierarchicalLinearModelDefinition>
 load_ebhlm_risk_model_definition(const nlohmann::json &opt,
                                  const Configuration &config,
-                                 hgps::core::Diagnostics &diagnostics,
+                                 hgps::core::InputIssueReport &diagnostics,
                                  std::string_view source_path) {
     auto expected = load_risk_factor_expected(config, diagnostics);
     if (!expected) {
@@ -46,7 +46,7 @@ load_ebhlm_risk_model_definition(const nlohmann::json &opt,
     if (info.percentage > 0.0 && info.percentage < 1.0) {
         percentage = info.percentage;
     } else {
-        diagnostics.error(hgps::core::DiagnosticCode::invalid_value,
+        diagnostics.error(hgps::core::IssueCode::invalid_value,
                           {.source_path = std::string{source_path},
                            .field_path = "BoundaryPercentage"},
                           fmt::format("Boundary percentage outside range (0, 1): {}",
@@ -57,7 +57,7 @@ load_ebhlm_risk_model_definition(const nlohmann::json &opt,
     std::map<hgps::core::Identifier, hgps::core::Identifier> variables;
     for (const auto &item : info.variables) {
         if (item.name.empty()) {
-            diagnostics.error(hgps::core::DiagnosticCode::invalid_value,
+            diagnostics.error(hgps::core::IssueCode::invalid_value,
                               {.source_path = std::string{source_path},
                                .field_path = "Variables"},
                               "Variable name must not be empty");
@@ -65,7 +65,7 @@ load_ebhlm_risk_model_definition(const nlohmann::json &opt,
         }
 
         if (item.factor.empty()) {
-            diagnostics.error(hgps::core::DiagnosticCode::invalid_value,
+            diagnostics.error(hgps::core::IssueCode::invalid_value,
                               {.source_path = std::string{source_path},
                                .field_path = "Variables"},
                               "Variable factor must not be empty");
@@ -84,7 +84,7 @@ load_ebhlm_risk_model_definition(const nlohmann::json &opt,
     for (const auto &[age_key_str, gender_map] : info.equations) {
         const auto limits = hgps::core::split_string(age_key_str, "-");
         if (limits.size() != 2) {
-            diagnostics.error(hgps::core::DiagnosticCode::invalid_value,
+            diagnostics.error(hgps::core::IssueCode::invalid_value,
                               {.source_path = std::string{source_path},
                                .field_path = "Equations." + age_key_str},
                               fmt::format("Invalid age group '{}'", age_key_str));
@@ -97,7 +97,7 @@ load_ebhlm_risk_model_definition(const nlohmann::json &opt,
             lower = std::stoi(std::string{limits[0]});
             upper = std::stoi(std::string{limits[1]});
         } catch (const std::exception &) {
-            diagnostics.error(hgps::core::DiagnosticCode::invalid_value,
+            diagnostics.error(hgps::core::IssueCode::invalid_value,
                               {.source_path = std::string{source_path},
                                .field_path = "Equations." + age_key_str},
                               fmt::format("Invalid age group '{}'", age_key_str));
@@ -135,7 +135,7 @@ load_ebhlm_risk_model_definition(const nlohmann::json &opt,
                                                  std::move(function));
                 }
             } else {
-                diagnostics.error(hgps::core::DiagnosticCode::invalid_enum_value,
+                diagnostics.error(hgps::core::IssueCode::invalid_enum_value,
                                   {.source_path = std::string{source_path},
                                    .field_path =
                                        join_field_path(join_field_path("Equations", age_key_str),
@@ -153,13 +153,13 @@ load_ebhlm_risk_model_definition(const nlohmann::json &opt,
             std::move(expected), std::move(expected_trend), std::move(trend_steps),
             std::move(equations), std::move(variables), percentage);
     } catch (const std::exception &e) {
-        diagnostics.error(hgps::core::DiagnosticCode::parse_failure,
+        diagnostics.error(hgps::core::IssueCode::parse_failure,
                           {.source_path = std::string{source_path}},
                           e.what());
         return nullptr;
     } catch (...) {
         diagnostics.error(
-            hgps::core::DiagnosticCode::parse_failure,
+            hgps::core::IssueCode::parse_failure,
             {.source_path = std::string{source_path}},
             "Unknown error while constructing EBHLM model definition");
         return nullptr;

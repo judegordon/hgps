@@ -11,7 +11,7 @@ namespace hgps::input {
 
 using json = nlohmann::json;
 
-void check_version(const json &j, hgps::core::Diagnostics &diagnostics,
+void check_version(const json &j, hgps::core::InputIssueReport &diagnostics,
                    std::string_view source_path,
                    std::string_view field_path) {
 
@@ -22,7 +22,7 @@ void check_version(const json &j, hgps::core::Diagnostics &diagnostics,
 
     if (version != 2) {
         diagnostics.error(
-            hgps::core::DiagnosticCode::parse_failure,
+            hgps::core::IssueCode::parse_failure,
             {.source_path = std::string{source_path},
              .field_path = join_field_path(field_path, "version")},
             fmt::format("Unsupported configuration schema version: {}", version));
@@ -30,7 +30,7 @@ void check_version(const json &j, hgps::core::Diagnostics &diagnostics,
 }
 
 void load_input_info(const json &j, Configuration &config,
-                     hgps::core::Diagnostics &diagnostics,
+                     hgps::core::InputIssueReport &diagnostics,
                      std::string_view source_path,
                      std::string_view field_path) {
 
@@ -61,7 +61,7 @@ void load_input_info(const json &j, Configuration &config,
 }
 
 void load_modelling_info(const json &j, Configuration &config,
-                         hgps::core::Diagnostics &diagnostics,
+                         hgps::core::InputIssueReport &diagnostics,
                          std::string_view source_path,
                          std::string_view field_path) {
 
@@ -100,7 +100,7 @@ void load_modelling_info(const json &j, Configuration &config,
             config.ses = ses_json.get<SESInfo>();
         } catch (const std::exception &e) {
             diagnostics.error(
-                hgps::core::DiagnosticCode::parse_failure,
+                hgps::core::IssueCode::parse_failure,
                 {.source_path = std::string{source_path},
                  .field_path = "modelling.ses_model"},
                 e.what());
@@ -113,7 +113,7 @@ void load_modelling_info(const json &j, Configuration &config,
 }
 
 void load_running_info(const json &j, Configuration &config,
-                       hgps::core::Diagnostics &diagnostics,
+                       hgps::core::InputIssueReport &diagnostics,
                        std::string_view source_path,
                        std::string_view field_path) {
 
@@ -150,7 +150,7 @@ void load_running_info(const json &j, Configuration &config,
 
 void load_output_info(const json &j, Configuration &config,
                       const std::optional<std::string> &output_folder,
-                      hgps::core::Diagnostics &diagnostics,
+                      hgps::core::InputIssueReport &diagnostics,
                       std::string_view source_path,
                       std::string_view field_path) {
 
@@ -161,7 +161,7 @@ void load_output_info(const json &j, Configuration &config,
 
     if (output_folder.has_value() != config.output.folder.empty()) {
         diagnostics.error(
-            hgps::core::DiagnosticCode::parse_failure,
+            hgps::core::IssueCode::parse_failure,
             {.source_path = std::string{source_path},
              .field_path = "output.folder"},
             "Specify output folder either via CLI or config, not both");

@@ -18,10 +18,10 @@ std::unique_ptr<hgps::RiskFactorModelDefinition>
 load_risk_model_definition(hgps::RiskFactorModelType model_type,
                            const std::filesystem::path &model_path,
                            const Configuration &config,
-                           hgps::core::Diagnostics &diagnostics);
+                           hgps::core::InputIssueReport &diagnostics);
 
 void register_risk_factor_model_definitions(hgps::CachedRepository &repository,
                                             const Configuration &config,
-                                            hgps::core::Diagnostics &diagnostics);
+                                            hgps::core::InputIssueReport &diagnostics);
 
 } // namespace hgps::input

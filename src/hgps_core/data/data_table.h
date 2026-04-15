@@ -1,12 +1,12 @@
 #pragma once
 
-#include <algorithm>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <ostream>
 #include <unordered_map>
 #include <vector>
+#include <string>
 
 #include "column.h"
 
@@ -35,14 +35,14 @@ class DataTable {
 
     IteratorType cend() const noexcept { return columns_.cend(); }
 
-    std::string to_string() const noexcept;
+    std::string to_string() const;
 
   private:
-    std::unique_ptr<std::mutex> sync_mtx_{std::make_unique<std::mutex>()};
+    mutable std::mutex sync_mtx_{};
     std::vector<std::string> names_{};
     std::unordered_map<std::string, std::size_t> index_{};
     std::vector<std::unique_ptr<DataTableColumn>> columns_{};
-    size_t rows_count_ = 0;
+    std::size_t rows_count_ = 0;
 };
 
 } // namespace hgps::core

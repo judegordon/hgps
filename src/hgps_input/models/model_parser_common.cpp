@@ -46,11 +46,11 @@ int get_model_schema_version(const std::string &model_name) {
 }
 
 nlohmann::json load_json(const std::filesystem::path &filepath,
-                         hgps::core::Diagnostics &diagnostics,
+                         hgps::core::InputIssueReport &diagnostics,
                          std::string_view field_path) {
     std::ifstream file(filepath);
     if (!file.is_open()) {
-        diagnostics.error(hgps::core::DiagnosticCode::missing_file,
+        diagnostics.error(hgps::core::IssueCode::missing_file,
                           {.source_path = filepath.string(),
                            .field_path = std::string{field_path}},
                           "Could not open file");
@@ -60,12 +60,12 @@ nlohmann::json load_json(const std::filesystem::path &filepath,
     try {
         return nlohmann::json::parse(file);
     } catch (const nlohmann::json::parse_error &e) {
-        diagnostics.error(hgps::core::DiagnosticCode::parse_failure,
+        diagnostics.error(hgps::core::IssueCode::parse_failure,
                           {.source_path = filepath.string(),
                            .field_path = std::string{field_path}},
                           e.what());
     } catch (const nlohmann::json::exception &e) {
-        diagnostics.error(hgps::core::DiagnosticCode::parse_failure,
+        diagnostics.error(hgps::core::IssueCode::parse_failure,
                           {.source_path = filepath.string(),
                            .field_path = std::string{field_path}},
                           e.what());
@@ -76,10 +76,10 @@ nlohmann::json load_json(const std::filesystem::path &filepath,
 
 std::optional<std::pair<std::string, nlohmann::json>>
 load_and_validate_model_json(const std::filesystem::path &model_path,
-                             hgps::core::Diagnostics &diagnostics) {
+                             hgps::core::InputIssueReport &diagnostics) {
     std::ifstream ifs{model_path};
     if (!ifs.is_open()) {
-        diagnostics.error(hgps::core::DiagnosticCode::missing_file,
+        diagnostics.error(hgps::core::IssueCode::missing_file,
                           {.source_path = model_path.string()},
                           "Could not open model file");
         return std::nullopt;
@@ -87,7 +87,7 @@ load_and_validate_model_json(const std::filesystem::path &model_path,
 
     const auto file_contents = read_stream_to_string(ifs);
     if (file_contents.empty()) {
-        diagnostics.error(hgps::core::DiagnosticCode::parse_failure,
+        diagnostics.error(hgps::core::IssueCode::parse_failure,
                           {.source_path = model_path.string()},
                           "Model file is empty");
         return std::nullopt;
@@ -97,12 +97,12 @@ load_and_validate_model_json(const std::filesystem::path &model_path,
     try {
         model_json = nlohmann::json::parse(file_contents);
     } catch (const nlohmann::json::parse_error &e) {
-        diagnostics.error(hgps::core::DiagnosticCode::parse_failure,
+        diagnostics.error(hgps::core::IssueCode::parse_failure,
                           {.source_path = model_path.string()},
                           e.what());
         return std::nullopt;
     } catch (const nlohmann::json::exception &e) {
-        diagnostics.error(hgps::core::DiagnosticCode::parse_failure,
+        diagnostics.error(hgps::core::IssueCode::parse_failure,
                           {.source_path = model_path.string()},
                           e.what());
         return std::nullopt;
@@ -116,7 +116,7 @@ load_and_validate_model_json(const std::filesystem::path &model_path,
     model_name = hgps::core::to_lower(model_name);
     const auto schema_version = get_model_schema_version(model_name);
     if (schema_version == 0) {
-        diagnostics.error(hgps::core::DiagnosticCode::invalid_enum_value,
+        diagnostics.error(hgps::core::IssueCode::invalid_enum_value,
                           {.source_path = model_path.string(), .field_path = "ModelName"},
                           fmt::format("Unknown model name '{}'", model_name));
         return std::nullopt;
@@ -127,13 +127,13 @@ load_and_validate_model_json(const std::filesystem::path &model_path,
         validate_json(validation_stream,
                       fmt::format("models/types/{}.json", model_name),
                       schema_version);
-    } catch (const hgps::core::HgpsException &e) {
-        diagnostics.error(hgps::core::DiagnosticCode::schema_violation,
+    } catch (const hgps::core::InternalError &e) {
+        diagnostics.error(hgps::core::IssueCode::schema_violation,
                           {.source_path = model_path.string()},
                           e.what());
         return std::nullopt;
     } catch (const std::exception &e) {
-        diagnostics.error(hgps::core::DiagnosticCode::schema_violation,
+        diagnostics.error(hgps::core::IssueCode::schema_violation,
                           {.source_path = model_path.string()},
                           e.what());
         return std::nullopt;
@@ -144,7 +144,7 @@ load_and_validate_model_json(const std::filesystem::path &model_path,
 
 hgps::core::Income map_income_category(const std::string &key,
                                        int category_count,
-                                       hgps::core::Diagnostics &diagnostics,
+                                       hgps::core::InputIssueReport &diagnostics,
                                        std::string_view source_path,
                                        std::string_view field_path) {
     if (hgps::core::case_insensitive::equals(key, "unknown")) {
@@ -172,7 +172,7 @@ hgps::core::Income map_income_category(const std::string &key,
             return hgps::core::Income::uppermiddle;
         }
     } else {
-        diagnostics.error(hgps::core::DiagnosticCode::invalid_value,
+        diagnostics.error(hgps::core::IssueCode::invalid_value,
                           {.source_path = std::string{source_path},
                            .field_path = std::string{field_path}},
                           fmt::format("Unsupported income category count {}", category_count));
@@ -180,7 +180,7 @@ hgps::core::Income map_income_category(const std::string &key,
     }
 
     diagnostics.error(
-        hgps::core::DiagnosticCode::invalid_enum_value,
+        hgps::core::IssueCode::invalid_enum_value,
         {.source_path = std::string{source_path}, .field_path = std::string{field_path}},
         fmt::format("Income category '{}' is unrecognised for {} category system",
                     key,

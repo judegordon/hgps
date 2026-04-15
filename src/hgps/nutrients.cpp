@@ -32,7 +32,7 @@ std::vector<size_t> get_nutrient_indexes(const std::vector<std::string> &column_
     }
 
     if (nutrients_missing) {
-        throw core::HgpsException{"One or more nutrients were missing from CSV file"};
+        throw core::InternalError{"One or more nutrients were missing from CSV file"};
     }
 
     return nutrient_idx;
