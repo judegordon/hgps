@@ -9,7 +9,6 @@
 #include <fmt/core.h>
 
 #include <algorithm>
-#include <any>
 #include <map>
 #include <optional>
 #include <string>
@@ -203,16 +202,18 @@ load_kevinhall_risk_model_definition(const nlohmann::json &opt,
     weight_quantiles[hgps::core::Gender::male].reserve(weight_quantiles_table_male.num_rows());
 
     try {
+        const auto &female_values =
+            std::get<std::vector<double>>(weight_quantiles_table_female.column(0).values);
         for (std::size_t row = 0; row < weight_quantiles_table_female.num_rows(); ++row) {
-            weight_quantiles[hgps::core::Gender::female].push_back(
-                std::any_cast<double>(weight_quantiles_table_female.column(0).value(row)));
+            weight_quantiles[hgps::core::Gender::female].push_back(female_values.at(row));
         }
 
+        const auto &male_values =
+            std::get<std::vector<double>>(weight_quantiles_table_male.column(0).values);
         for (std::size_t row = 0; row < weight_quantiles_table_male.num_rows(); ++row) {
-            weight_quantiles[hgps::core::Gender::male].push_back(
-                std::any_cast<double>(weight_quantiles_table_male.column(0).value(row)));
+            weight_quantiles[hgps::core::Gender::male].push_back(male_values.at(row));
         }
-    } catch (const std::bad_any_cast &) {
+    } catch (const std::bad_variant_access &) {
         diagnostics.error(hgps::core::IssueCode::wrong_type,
                           {.source_path = std::string{source_path},
                            .field_path = "WeightQuantiles"},
@@ -254,10 +255,11 @@ load_kevinhall_risk_model_definition(const nlohmann::json &opt,
     epa_quantiles.reserve(epa_quantiles_table.num_rows());
 
     try {
+        const auto &epa_values = std::get<std::vector<double>>(epa_quantiles_table.column(0).values);
         for (std::size_t row = 0; row < epa_quantiles_table.num_rows(); ++row) {
-            epa_quantiles.push_back(std::any_cast<double>(epa_quantiles_table.column(0).value(row)));
+            epa_quantiles.push_back(epa_values.at(row));
         }
-    } catch (const std::bad_any_cast &) {
+    } catch (const std::bad_variant_access &) {
         diagnostics.error(hgps::core::IssueCode::wrong_type,
                           {.source_path = std::string{source_path},
                            .field_path = "EnergyPhysicalActivityQuantiles"},

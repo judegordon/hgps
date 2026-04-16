@@ -350,8 +350,7 @@ std::map<std::string, core::UnivariateSummary> Simulation::create_input_data_sum
     for (const auto &entry : context_.mapping()) {
         // HACK: Ignore missing columns.
         if (const auto &column = input_data.column_if_exists(entry.name())) {
-            column->get().accept(visitor);
-            summary.emplace(entry.name(), visitor.get_summary());
+            summary.emplace(entry.name(), visitor.get_summary(column->get()));
         }
     }
 

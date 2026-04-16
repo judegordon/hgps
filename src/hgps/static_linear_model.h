@@ -2,7 +2,15 @@
 
 #include "interfaces.h"
 #include "mapping.h"
+#include <limits>
+#include "hgps_core/types/identifier.h"
 #include "risk_factor_adjustable_model.h"
+#include "hgps_core/types/disease.h"
+#include "hgps_core/types/disease_analysis.h"
+#include "hgps_core/types/mortality.h"
+#include "hgps_core/types/life_expectancy.h"
+#include "hgps_core/types/lms_data.h"
+#include "hgps_core/types/interval.h"
 
 #include <Eigen/Dense>
 #include <unordered_map>

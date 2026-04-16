@@ -1,7 +1,7 @@
 #pragma once
 
-#include "hgps_core/disease.h"
-#include "hgps_core/identifier.h"
+#include "hgps_core/types/disease.h"
+#include "hgps_core/types/identifier.h"
 #include <string>
 #include <unordered_map>
 #include <vector>

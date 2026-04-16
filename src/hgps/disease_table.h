@@ -3,6 +3,8 @@
 #include <string>
 
 #include "hgps_core/forward_type.h"
+#include "hgps_core/types/disease.h"
+
 namespace hgps {
 
 struct MeasureKey final {

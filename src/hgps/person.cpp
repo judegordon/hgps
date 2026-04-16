@@ -1,6 +1,7 @@
 #include "person.h"
 
 #include "hgps_core/diagnostics/internal_error.h"
+using hgps::core::operator""_id;
 
 namespace hgps {
 

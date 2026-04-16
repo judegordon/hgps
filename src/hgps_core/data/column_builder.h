@@ -76,16 +76,15 @@ class DataTableColumnBuilder {
     }
 
     [[nodiscard]] DataTableColumn build() {
-        if (valid_.has_value() && valid_->size() != data_.size()) {
-            throw std::logic_error("Invalid builder state: data and valid bitmap size mismatch.");
-        }
-
-        return DataTableColumn{
-            .name = std::move(name_),
-            .values = std::move(data_),
-            .valid = valid_.has_value() ? std::move(*valid_) : std::vector<bool>{},
-        };
+    if (valid_.has_value() && valid_->size() != data_.size()) {
+        throw std::logic_error("Invalid builder state: data and valid bitmap size mismatch.");
     }
+
+    return DataTableColumn(
+        std::move(name_),
+        DataTableColumnValues{std::move(data_)},
+        valid_.has_value() ? std::move(*valid_) : std::vector<bool>{});
+}
 
   private:
     std::string name_;

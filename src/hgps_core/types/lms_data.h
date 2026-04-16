@@ -1,5 +1,6 @@
 #pragma once
-#include "forward_type.h"
+#include "../forward_type.h"
+#include "utils/concepts.h"
 
 namespace hgps::core {
 

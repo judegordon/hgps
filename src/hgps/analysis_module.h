@@ -12,6 +12,7 @@
 #include <optional>
 
 namespace hgps {
+  using core::operator""_id;
 class AnalysisModule final : public UpdatableModule {
   public:
     AnalysisModule() = delete;

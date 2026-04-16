@@ -6,6 +6,7 @@
 #include <fmt/format.h>
 #include <thread>
 
+
 namespace hgps {
 
 using ElapsedTime = std::chrono::duration<double, std::milli>;

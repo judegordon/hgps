@@ -1,6 +1,7 @@
 #pragma once
 
-#include <hgps_core/types/interval.h>
+#include "hgps_core/types/interval.h"
+#include "hgps_core/types/country.h"
 
 namespace hgps {
 
@@ -19,4 +20,4 @@ class Settings {
     float size_fraction_{};
     core::IntegerInterval age_range_;
 };
-} // namespace hgps
+} // namespace hgps 

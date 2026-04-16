@@ -2,6 +2,16 @@
 #include "runtime_context.h"
 
 #include "hgps_core/diagnostics/internal_error.h"
+#include "hgps_core/types/identifier.h"
+#include "hgps_core/interfaces/datastore.h"
+
+#include "hgps_core/types/disease.h"
+#include "hgps_core/types/disease_analysis.h"
+#include "hgps_core/types/mortality.h"
+#include "hgps_core/types/life_expectancy.h"
+#include "hgps_core/types/lms_data.h"
+#include "hgps_core/types/identifier.h"
+
 
 namespace hgps {
 

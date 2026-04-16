@@ -48,7 +48,7 @@ class UnivariateSummary {
 
     void clear() noexcept;
 
-    void append(double value) noexcept;
+    void append(double value);
 
     void append(const std::optional<double> &option);
 

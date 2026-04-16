@@ -1,7 +1,8 @@
 #pragma once
-
+#include "version.h"
 #include "data/data_source.h"
 #include "config_types.h"
+#include <nlohmann/json.hpp>
 
 
 

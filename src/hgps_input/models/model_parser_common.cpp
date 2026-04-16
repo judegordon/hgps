@@ -128,12 +128,12 @@ load_and_validate_model_json(const std::filesystem::path &model_path,
                       fmt::format("models/types/{}.json", model_name),
                       schema_version);
     } catch (const hgps::core::InternalError &e) {
-        diagnostics.error(hgps::core::IssueCode::schema_violation,
+        diagnostics.error(hgps::core::IssueCode::invalid_value,
                           {.source_path = model_path.string()},
                           e.what());
         return std::nullopt;
     } catch (const std::exception &e) {
-        diagnostics.error(hgps::core::IssueCode::schema_violation,
+        diagnostics.error(hgps::core::IssueCode::invalid_value,
                           {.source_path = model_path.string()},
                           e.what());
         return std::nullopt;

@@ -9,7 +9,6 @@
 
 #include <fmt/core.h>
 
-#include <any>
 #include <map>
 #include <string>
 #include <utility>
@@ -68,28 +67,32 @@ bool load_and_register_region_prevalence(hgps::CachedRepository &repository,
 
     std::vector<std::string> region_columns;
     for (std::size_t col = 0; col < region_table.num_columns(); ++col) {
-        const std::string col_name = region_table.column(col).name();
+        const std::string col_name = region_table.column(col).name;
         if (col_name.starts_with("region")) {
             region_columns.push_back(col_name);
         }
     }
 
     try {
+        const auto &ages = std::get<std::vector<int>>(region_table.column("Age").values);
+        const auto &genders = std::get<std::vector<int>>(region_table.column("Gender").values);
+
         for (std::size_t row = 0; row < region_table.num_rows(); ++row) {
-            const int age = std::any_cast<int>(region_table.column("Age").value(row));
-            const int gender_int = std::any_cast<int>(region_table.column("Gender").value(row));
+            const int age = ages.at(row);
+            const int gender_int = genders.at(row);
             const auto gender =
                 (gender_int == 1) ? hgps::core::Gender::male : hgps::core::Gender::female;
 
             const hgps::core::Identifier age_id{"age_" + std::to_string(age)};
 
             for (const auto &region_col : region_columns) {
-                const auto probability =
-                    std::any_cast<double>(region_table.column(region_col).value(row));
+                const auto &probabilities =
+                    std::get<std::vector<double>>(region_table.column(region_col).values);
+                const auto probability = probabilities.at(row);
                 region_data[age_id][gender][region_col] = probability;
             }
         }
-    } catch (const std::bad_any_cast &) {
+    } catch (const std::bad_variant_access &) {
         diagnostics.error(hgps::core::IssueCode::wrong_type,
                           {.source_path = region_file->name.string(), .field_path = "RegionFile"},
                           "Region file contains values of unexpected type");
@@ -139,18 +142,22 @@ bool load_and_register_ethnicity_prevalence(hgps::CachedRepository &repository,
 
     std::vector<std::string> region_columns;
     for (std::size_t col = 0; col < ethnicity_table.num_columns(); ++col) {
-        const std::string col_name = ethnicity_table.column(col).name();
+        const std::string col_name = ethnicity_table.column(col).name;
         if (col_name.starts_with("region")) {
             region_columns.push_back(col_name);
         }
     }
 
     try {
+        const auto &adults = std::get<std::vector<int>>(ethnicity_table.column("adult").values);
+        const auto &genders = std::get<std::vector<int>>(ethnicity_table.column("gender").values);
+        const auto &ethnicities =
+            std::get<std::vector<int>>(ethnicity_table.column("ethnicity").values);
+
         for (std::size_t row = 0; row < ethnicity_table.num_rows(); ++row) {
-            const int adult = std::any_cast<int>(ethnicity_table.column("adult").value(row));
-            const int gender_int = std::any_cast<int>(ethnicity_table.column("gender").value(row));
-            const int ethnicity_int =
-                std::any_cast<int>(ethnicity_table.column("ethnicity").value(row));
+            const int adult = adults.at(row);
+            const int gender_int = genders.at(row);
+            const int ethnicity_int = ethnicities.at(row);
 
             const auto age_group =
                 (adult == 0) ? hgps::core::Identifier{"Under18"} : hgps::core::Identifier{"Over18"};
@@ -159,12 +166,13 @@ bool load_and_register_ethnicity_prevalence(hgps::CachedRepository &repository,
             const std::string ethnicity_name = std::to_string(ethnicity_int);
 
             for (const auto &region_col : region_columns) {
-                const auto probability =
-                    std::any_cast<double>(ethnicity_table.column(region_col).value(row));
+                const auto &probabilities =
+                    std::get<std::vector<double>>(ethnicity_table.column(region_col).values);
+                const auto probability = probabilities.at(row);
                 ethnicity_data[age_group][gender][region_col][ethnicity_name] = probability;
             }
         }
-    } catch (const std::bad_any_cast &) {
+    } catch (const std::bad_variant_access &) {
         diagnostics.error(hgps::core::IssueCode::wrong_type,
                           {.source_path = ethnicity_file->name.string(),
                            .field_path = "EthnicityFile"},

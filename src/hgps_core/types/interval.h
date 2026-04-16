@@ -3,6 +3,7 @@
 #include "diagnostics/internal_error.h"
 #include "../forward_type.h"
 #include "utils/string_util.h"
+#include "utils/concepts.h"
 
 #include <algorithm>
 #include <fmt/format.h>

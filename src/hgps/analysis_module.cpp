@@ -18,7 +18,9 @@
 #include <unordered_set>
 #include <utility>
 
+
 namespace hgps {
+using core::operator""_id;
 
 inline constexpr double DALY_UNITS = 100'000.0;
 

@@ -11,6 +11,8 @@
 #include "repository.h"
 #include "runtime_context.h"
 
+using hgps::core::operator""_id;
+
 namespace hgps {
 
 class DemographicModule final : public SimulationModule {

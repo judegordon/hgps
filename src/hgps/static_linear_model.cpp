@@ -1,9 +1,9 @@
 #include "static_linear_model.h"
+#include "risk_factor_adjustable_model.h"
+#include "runtime_context.h"
 #include "hgps_core/diagnostics/internal_error.h"
 #include "hgps_input/config/config_types.h"
 #include "population.h"
-#include "risk_factor_adjustable_model.h"
-#include "runtime_context.h"
 
 #include <algorithm>
 #include <cctype>
@@ -14,6 +14,8 @@
 #include <ranges>
 #include <unordered_map>
 #include <utility>
+
+using hgps::core::operator""_id;
 
 namespace { // anonymous namespace
 

@@ -31,7 +31,7 @@ template <class T, class UnaryPredicate>
 auto find_index_of_all(const T& data, UnaryPredicate pred) {
     auto result = std::vector<std::size_t>{};
 
-    if (data.empty()) {
+    if (data.size()== 0) {
         return result;
     }
 

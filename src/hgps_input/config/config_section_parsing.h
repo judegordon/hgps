@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "hgps_core/diagnostics/input_issue.h"
+#include "hgps_core/types/identifier.h"
 
 #include <nlohmann/json.hpp>
 

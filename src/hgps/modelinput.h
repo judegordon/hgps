@@ -1,6 +1,8 @@
 #pragma once
 
-#include <hgps_core/data/datatable.h>
+#include <hgps_core/data/data_table.h>
+#include "hgps_core/types/disease.h"
+#include <hgps_core/types/identifier.h>
 #include <hgps_core/utils/string_util.h>
 #include <map>
 

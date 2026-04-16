@@ -1,6 +1,7 @@
 #pragma once
 
 #include "hgps_core/data/column.h"
+#include "hgps_core/data/column_builder.h"
 #include "hgps_core/data/data_table.h"
 #include "hgps_core/types/identifier.h"
 

@@ -3,14 +3,15 @@
 
 #include <fmt/format.h>
 
+#include <algorithm>
 #include <sstream>
 #include <stdexcept>
-#include <algorithm>
 
 namespace hgps::core {
 
 namespace {
-const char* to_string(DataTableColumnType type) noexcept {
+
+const char* column_type_to_string(DataTableColumnType type) noexcept {
     switch (type) {
     case DataTableColumnType::string:
         return "string";
@@ -23,6 +24,7 @@ const char* to_string(DataTableColumnType type) noexcept {
     }
     return "unknown";
 }
+
 } // namespace
 
 std::size_t DataTable::num_columns() const noexcept { return columns_.size(); }
@@ -32,7 +34,7 @@ std::size_t DataTable::num_rows() const noexcept { return rows_count_; }
 std::vector<std::string> DataTable::names() const {
     std::vector<std::string> result;
     result.reserve(columns_.size());
-    for (const auto& col : columns_) {
+    for (const auto &col : columns_) {
         result.push_back(col.name);
     }
     return result;
@@ -54,11 +56,11 @@ void DataTable::add(DataTableColumn column) {
     columns_.push_back(std::move(column));
 }
 
-const DataTableColumn& DataTable::column(std::size_t index) const {
+const DataTableColumn &DataTable::column(std::size_t index) const {
     return columns_.at(index);
 }
 
-const DataTableColumn& DataTable::column(const std::string& name) const {
+const DataTableColumn &DataTable::column(const std::string &name) const {
     auto found = index_.find(to_lower(name));
     if (found != index_.end()) {
         return columns_.at(found->second);
@@ -68,7 +70,7 @@ const DataTableColumn& DataTable::column(const std::string& name) const {
 }
 
 std::optional<std::reference_wrapper<const DataTableColumn>>
-DataTable::column_if_exists(const std::string& name) const {
+DataTable::column_if_exists(const std::string &name) const {
     auto found = index_.find(to_lower(name));
     if (found != index_.end()) {
         return std::cref(columns_.at(found->second));
@@ -79,23 +81,23 @@ DataTable::column_if_exists(const std::string& name) const {
 std::string DataTable::to_string() const {
     std::ostringstream ss;
     std::size_t longest_column_name = 0;
-    for (const auto& col : columns_) {
+    for (const auto &col : columns_) {
         longest_column_name = std::max(longest_column_name, col.name.length());
     }
 
-    auto pad = longest_column_name + 4;
-    auto width = pad + 28;
+    const auto pad = longest_column_name + 4;
+    const auto width = pad + 28;
 
     ss << fmt::format("\n Table size: {} x {}\n", num_columns(), num_rows());
     ss << fmt::format("|{:-<{}}|\n", '-', width);
     ss << fmt::format("| {:{}} : {:10} : {:>10} |\n", "Column Name", pad, "Data Type", "# Nulls");
     ss << fmt::format("|{:-<{}}|\n", '-', width);
 
-    for (const auto& col : columns_) {
+    for (const auto &col : columns_) {
         ss << fmt::format("| {:{}} : {:10} : {:10} |\n",
                           col.name,
                           pad,
-                          to_string(col.type()),
+                          column_type_to_string(col.type()),
                           col.null_count());
     }
 
@@ -105,7 +107,7 @@ std::string DataTable::to_string() const {
 
 } // namespace hgps::core
 
-std::ostream& operator<<(std::ostream& stream, const hgps::core::DataTable& table) {
+std::ostream &operator<<(std::ostream &stream, const hgps::core::DataTable &table) {
     stream << table.to_string();
     return stream;
 }

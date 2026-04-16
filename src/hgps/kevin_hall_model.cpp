@@ -9,6 +9,8 @@
 #include <iterator>
 #include <utility>
 
+using hgps::core::operator""_id;
+
 namespace { // anonymous namespace
 
 using KevinHallAdjustmentMessage =
