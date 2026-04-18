@@ -1,11 +1,12 @@
 #include "food_labelling_scenario.h"
 
+#include <stdexcept>
+
 namespace hgps {
 inline constexpr int FOP_NO_EFFECT = -2;
 
-FoodLabellingScenario::FoodLabellingScenario(SyncChannel &data_sync,
-                                             FoodLabellingDefinition &&definition)
-    : channel_{data_sync}, definition_{std::move(definition)} {
+FoodLabellingScenario::FoodLabellingScenario(FoodLabellingDefinition &&definition)
+    : definition_{std::move(definition)} {
     if (definition_.impacts.empty()) {
         throw std::invalid_argument("Number of impact levels mismatch, must be greater than 1.");
     }
@@ -15,48 +16,66 @@ FoodLabellingScenario::FoodLabellingScenario(SyncChannel &data_sync,
         if (level.from_age < age) {
             throw std::out_of_range("Impact levels must be non-overlapping and ordered.");
         }
-
-        if (!factor_impact_.contains(level.risk_factor)) {
-            factor_impact_.emplace(level.risk_factor);
-        }
-
         age = level.from_age + 1u;
     }
 }
 
-SyncChannel &FoodLabellingScenario::channel() { return channel_; }
+std::size_t FoodLabellingScenario::make_book_key(
+    std::size_t entity_id, const core::Identifier &risk_factor_key) noexcept {
+    return entity_id ^ (risk_factor_key.hash_code() + 0x9e3779b9 + (entity_id << 6) + (entity_id >> 2));
+}
+
+const PolicyImpact *FoodLabellingScenario::find_active_impact(
+    const core::Identifier &risk_factor_key, unsigned int age) const noexcept {
+    const PolicyImpact *active = nullptr;
+    for (const auto &impact : definition_.impacts) {
+        if (impact.risk_factor != risk_factor_key) {
+            continue;
+        }
+        if (age >= impact.from_age) {
+            active = &impact;
+        } else {
+            break;
+        }
+    }
+    return active;
+}
 
 void FoodLabellingScenario::clear() noexcept { interventions_book_.clear(); }
 
 double FoodLabellingScenario::apply(Random &generator, Person &entity, int time,
                                     const core::Identifier &risk_factor_key, double value) {
-    if (!definition_.active_period.contains(time) || !factor_impact_.contains(risk_factor_key)) {
+    if (!definition_.active_period.contains(time)) {
         return value;
     }
 
-    if (entity.age < definition_.impacts.at(0).from_age) {
+    const auto *impact_def = find_active_impact(risk_factor_key, entity.age);
+    if (impact_def == nullptr) {
         return value;
     }
 
+    const auto book_key = make_book_key(entity.id(), risk_factor_key);
     auto impact = value;
-    auto probability = generator.next_double();
-    auto time_since_start = static_cast<unsigned int>(time - definition_.active_period.start_time);
+    const auto probability = generator.next_double();
+    const auto time_since_start =
+        static_cast<unsigned int>(time - definition_.active_period.start_time);
+
     if (time_since_start < definition_.coverage.cutoff_time) {
-        if (!interventions_book_.contains(entity.id()) ||
-            interventions_book_.at(entity.id()) == FOP_NO_EFFECT) {
+        if (!interventions_book_.contains(book_key) ||
+            interventions_book_.at(book_key) == FOP_NO_EFFECT) {
             if (probability < definition_.coverage.short_term_rate) {
-                impact += calculate_policy_impact(entity);
-                interventions_book_.try_emplace(entity.id(), time);
+                impact += calculate_policy_impact(entity, *impact_def);
+                interventions_book_.insert_or_assign(book_key, time);
             } else {
-                interventions_book_.try_emplace(entity.id(), FOP_NO_EFFECT);
+                interventions_book_.insert_or_assign(book_key, FOP_NO_EFFECT);
             }
         }
-    } else if (!interventions_book_.contains(entity.id())) {
+    } else if (!interventions_book_.contains(book_key)) {
         if (probability < definition_.coverage.long_term_rate) {
-            impact += calculate_policy_impact(entity);
-            interventions_book_.emplace(entity.id(), time);
+            impact += calculate_policy_impact(entity, *impact_def);
+            interventions_book_.emplace(book_key, time);
         } else {
-            interventions_book_.emplace(entity.id(), FOP_NO_EFFECT);
+            interventions_book_.emplace(book_key, FOP_NO_EFFECT);
         }
     }
 
@@ -71,13 +90,15 @@ const std::vector<PolicyImpact> &FoodLabellingScenario::impacts() const noexcept
     return definition_.impacts;
 }
 
-double FoodLabellingScenario::calculate_policy_impact(const Person &entity) const noexcept {
-    auto interventionEffect = this->definition_.impacts.at(0).value;
-    auto currentRiskFactorValue =
+double FoodLabellingScenario::calculate_policy_impact(const Person &entity,
+                                                      const PolicyImpact &impact) const noexcept {
+    const auto current_risk_factor_value =
         entity.get_risk_factor_value(definition_.adjustment_risk_factor.identifier);
-    auto transferCoefficient =
+    const auto transfer_coefficient =
         definition_.transfer_coefficient.get_value(entity.gender, entity.age);
-    double adjustmentFactor = definition_.adjustment_risk_factor.adjustment;
-    return transferCoefficient * interventionEffect * currentRiskFactorValue * adjustmentFactor;
+    const double adjustment_factor = definition_.adjustment_risk_factor.adjustment;
+
+    return transfer_coefficient * impact.value * current_risk_factor_value * adjustment_factor;
 }
+
 } // namespace hgps

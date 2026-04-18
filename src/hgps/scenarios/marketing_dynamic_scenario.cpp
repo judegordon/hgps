@@ -1,13 +1,12 @@
 #include "marketing_dynamic_scenario.h"
+
 namespace hgps {
 
 inline constexpr int MARKETING_NEVER = -1;
-
 inline constexpr int MARKETING_FORMER = -2;
 
-hgps::MarketingDynamicScenario::MarketingDynamicScenario(SyncChannel &data_sync,
-                                                         MarketingDynamicDefinition &&definition)
-    : channel_{data_sync}, definition_{std::move(definition)} {
+MarketingDynamicScenario::MarketingDynamicScenario(MarketingDynamicDefinition &&definition)
+    : definition_{std::move(definition)} {
     if (definition_.impacts.empty()) {
         throw std::invalid_argument("Number of impact levels mismatch, must be greater than 1.");
     }
@@ -25,8 +24,6 @@ hgps::MarketingDynamicScenario::MarketingDynamicScenario(SyncChannel &data_sync,
         age = level.from_age + 1u;
     }
 }
-
-SyncChannel &MarketingDynamicScenario::channel() { return channel_; }
 
 void MarketingDynamicScenario::clear() noexcept { interventions_book_.clear(); }
 
@@ -48,7 +45,6 @@ double MarketingDynamicScenario::apply(Random &generator, Person &entity, int ti
     auto impact = value;
     auto probability = generator.next_double();
     if (!interventions_book_.contains(entity.id())) {
-        // Never intervened
         if (probability < definition_.dynamic.alpha) {
             impact += get_differential_impact(current_impact_index, MARKETING_NEVER);
             interventions_book_.emplace(entity.id(), current_impact_index);
@@ -63,7 +59,7 @@ double MarketingDynamicScenario::apply(Random &generator, Person &entity, int ti
         } else if (probability < definition_.dynamic.beta) {
             impact += get_differential_impact(MARKETING_FORMER, current_policy_status);
             current_policy_status = MARKETING_FORMER;
-        } else { // 1 - beta
+        } else {
             impact += get_differential_impact(current_impact_index, current_policy_status);
             current_policy_status = current_impact_index;
         }
@@ -110,4 +106,5 @@ double MarketingDynamicScenario::get_differential_impact(int current_index,
 
     return current_impact - previous_impact;
 }
+
 } // namespace hgps

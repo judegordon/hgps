@@ -1,11 +1,15 @@
 #pragma once
 
-#include "mtrandom.h"
-#include <functional>
+#include "mt_random.h"
+
+#include <vector>
 
 namespace hgps {
+
 class Random {
   public:
+    Random() : engine_{0U} {}
+
     void seed(unsigned int seed) noexcept;
 
     int next_int();
@@ -31,4 +35,5 @@ class Random {
     double next_uniform_internal(double min_value, double max_value);
     double next_normal_internal(double mean, double standard_deviation);
 };
+
 } // namespace hgps

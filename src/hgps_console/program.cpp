@@ -6,7 +6,7 @@
 #include "hgps/scenarios/baseline_scenario.h"
 #include "hgps/events/event_bus.h"
 #include "hgps/repository/model_input.h"
-#include "hgps/utils/mtrandom.h"
+#include "hgps/utils/mt_random.h"
 #include "hgps/simulation/runner.h"
 #include "hgps/simulation/simulation.h"
 #include "hgps/simulation/simulation_module.h"

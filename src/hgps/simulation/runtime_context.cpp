@@ -4,10 +4,12 @@ namespace hgps {
 
 RuntimeContext::RuntimeContext(std::shared_ptr<const EventAggregator> bus,
                                std::shared_ptr<const ModelInput> inputs,
-                               std::unique_ptr<Scenario> scenario)
+                               std::unique_ptr<Scenario> scenario,
+                               SyncChannel &sync_channel)
     : event_bus_{std::move(bus)},
       inputs_{std::move(inputs)},
       scenario_{std::move(scenario)},
+      sync_channel_{sync_channel},
       population_{0} {}
 
 int RuntimeContext::time_now() const noexcept { return time_now_; }
@@ -29,6 +31,8 @@ const ModelInput &RuntimeContext::inputs() const noexcept { return *inputs_; }
 Scenario &RuntimeContext::scenario() const noexcept { return *scenario_; }
 
 Random &RuntimeContext::random() noexcept { return random_; }
+
+SyncChannel &RuntimeContext::sync_channel() noexcept { return sync_channel_.get(); }
 
 void RuntimeContext::set_current_time(int time_now) noexcept { time_now_ = time_now; }
 

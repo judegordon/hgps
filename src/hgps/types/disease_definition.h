@@ -4,6 +4,8 @@
 #include "data/gender_value.h"
 #include "disease/relative_risk.h"
 
+#include <stdexcept>
+
 namespace hgps {
 
 using ParameterLookup = const std::map<int, DoubleGenderValue>;
@@ -13,8 +15,18 @@ struct DiseaseParameter final {
 
     DiseaseParameter(int data_time, const ParameterLookup &prevalence,
                      const ParameterLookup &survival, const ParameterLookup &deaths)
-        : time_year{data_time}, prevalence_distribution{prevalence}, survival_rate{survival},
-          death_weight{deaths}, max_time_since_onset{prevalence.rbegin()->first + 1} {}
+        : time_year{data_time},
+          prevalence_distribution{prevalence},
+          survival_rate{survival},
+          death_weight{deaths},
+          max_time_since_onset{0} {
+        if (prevalence.empty()) {
+            throw std::invalid_argument(
+                "DiseaseParameter prevalence distribution must not be empty.");
+        }
+
+        max_time_since_onset = prevalence.rbegin()->first + 1;
+    }
 
     int time_year{};
 
@@ -32,14 +44,18 @@ class DiseaseDefinition final {
     DiseaseDefinition(DiseaseTable &&measures_table, RelativeRiskTableMap &&diseases,
                       RelativeRiskLookupMap &&risk_factors,
                       hgps::input::PIFData &&pif_data = hgps::input::PIFData{})
-        : measures_table_{std::move(measures_table)}, relative_risk_diseases_{std::move(diseases)},
-          relative_risk_factors_{std::move(risk_factors)}, pif_data_{std::move(pif_data)} {}
+        : measures_table_{std::move(measures_table)},
+          relative_risk_diseases_{std::move(diseases)},
+          relative_risk_factors_{std::move(risk_factors)},
+          pif_data_{std::move(pif_data)} {}
 
     DiseaseDefinition(DiseaseTable &&measures_table, RelativeRiskTableMap &&diseases,
                       RelativeRiskLookupMap &&risk_factors, DiseaseParameter &&parameter,
                       hgps::input::PIFData &&pif_data = hgps::input::PIFData{})
-        : measures_table_{std::move(measures_table)}, relative_risk_diseases_{std::move(diseases)},
-          relative_risk_factors_{std::move(risk_factors)}, parameters_{std::move(parameter)},
+        : measures_table_{std::move(measures_table)},
+          relative_risk_diseases_{std::move(diseases)},
+          relative_risk_factors_{std::move(risk_factors)},
+          parameters_{std::move(parameter)},
           pif_data_{std::move(pif_data)} {}
 
     const core::DiseaseInfo &identifier() const noexcept { return measures_table_.info(); }
@@ -69,4 +85,5 @@ class DiseaseDefinition final {
     DiseaseParameter parameters_;
     hgps::input::PIFData pif_data_;
 };
+
 } // namespace hgps

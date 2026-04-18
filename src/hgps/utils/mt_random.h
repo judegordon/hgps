@@ -7,13 +7,13 @@ namespace hgps {
 
 class MTRandom32 final : public RandomBitGenerator {
   public:
-    MTRandom32();
+    MTRandom32() = delete;
 
-    explicit MTRandom32(const unsigned int seed);
+    explicit MTRandom32(unsigned int seed);
 
-    void seed(const unsigned int) override;
+    void seed(unsigned int seed) override;
 
-    void discard(const unsigned long long skip) override;
+    void discard(unsigned long long skip) override;
 
     unsigned int next() override;
 
@@ -26,4 +26,5 @@ class MTRandom32 final : public RandomBitGenerator {
   private:
     std::mt19937 engine_;
 };
+
 } // namespace hgps

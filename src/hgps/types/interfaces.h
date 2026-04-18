@@ -5,19 +5,16 @@
 
 #include "data/person.h"
 #include "models/risk_factor_model.h"
-#include "simulation/runtime_context.h"
 
 namespace hgps {
 
+class RuntimeContext;
+
 enum class SimulationModuleType : uint8_t {
     RiskFactor,
-
     SES,
-
     Demographic,
-
     Disease,
-
     Analysis,
 };
 

@@ -2,7 +2,7 @@
 #include "hgps_core/utils/thread_util.h"
 #include "data/converter.h"
 #include "events/info_message.h"
-#include "utils/mtrandom.h"
+#include "utils/mt_random.h"
 #include "models/static_linear_model.h"
 #include "events/sync_message.h"
 
@@ -20,9 +20,12 @@ using NetImmigrationMessage = hgps::SyncDataMessage<hgps::IntegerAgeGenderTable>
 
 namespace hgps {
 
-Simulation::Simulation(SimulationModuleFactory &factory, std::shared_ptr<const EventAggregator> bus,
-                       std::shared_ptr<const ModelInput> inputs, std::unique_ptr<Scenario> scenario)
-    : context_{std::move(bus), std::move(inputs), std::move(scenario)} {
+Simulation::Simulation(SimulationModuleFactory &factory,
+                       std::shared_ptr<const EventAggregator> bus,
+                       std::shared_ptr<const ModelInput> inputs,
+                       std::unique_ptr<Scenario> scenario,
+                       SyncChannel &sync_channel)
+    : context_{std::move(bus), std::move(inputs), std::move(scenario), sync_channel} {
 
     auto ses_base = factory.create(SimulationModuleType::SES, context_.inputs());
     auto dem_base = factory.create(SimulationModuleType::Demographic, context_.inputs());
@@ -140,7 +143,7 @@ void Simulation::update_net_immigration() {
     }
 
     if (context_.scenario().type() == ScenarioType::baseline) {
-        context_.scenario().channel().send(std::make_unique<NetImmigrationMessage>(
+        context_.sync_channel().send(std::make_unique<NetImmigrationMessage>(
             context_.current_run(), context_.time_now(), std::move(net_immigration)));
     }
 }
@@ -225,7 +228,7 @@ hgps::IntegerAgeGenderTable Simulation::get_net_migration() {
         return create_net_migration();
     }
 
-    auto message = context_.scenario().channel().try_receive(context_.sync_timeout_millis());
+    auto message = context_.sync_channel().try_receive(context_.sync_timeout_millis());
     if (message.has_value()) {
         auto &basePtr = message.value();
         auto *messagePrt = dynamic_cast<NetImmigrationMessage *>(basePtr.get());

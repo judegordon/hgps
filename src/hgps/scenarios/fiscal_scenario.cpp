@@ -5,10 +5,9 @@
 #include <stdexcept>
 
 namespace hgps {
-FiscalPolicyScenario::FiscalPolicyScenario(SyncChannel &data_sync,
-                                           FiscalPolicyDefinition &&definition)
-    : channel_{data_sync}, definition_{std::move(definition)} {
 
+FiscalPolicyScenario::FiscalPolicyScenario(FiscalPolicyDefinition &&definition)
+    : definition_{std::move(definition)} {
     if (definition_.impacts.size() != 3) {
         throw std::invalid_argument("Number of impact levels mismatch, must be 3.");
     }
@@ -18,55 +17,57 @@ FiscalPolicyScenario::FiscalPolicyScenario(SyncChannel &data_sync,
         if (level.from_age < age) {
             throw std::out_of_range("Impact levels must be non-overlapping and ordered.");
         }
-
-        if (!factor_impact_.contains(level.risk_factor)) {
-            factor_impact_.emplace(level.risk_factor);
-        }
-
         age = level.from_age + 1u;
     }
 }
 
-SyncChannel &FiscalPolicyScenario::channel() { return channel_; }
+std::size_t FiscalPolicyScenario::make_book_key(
+    std::size_t entity_id, const core::Identifier &risk_factor_key) noexcept {
+    return entity_id ^ (risk_factor_key.hash_code() + 0x9e3779b9 + (entity_id << 6) + (entity_id >> 2));
+}
 
 void FiscalPolicyScenario::clear() noexcept { interventions_book_.clear(); }
 
 double FiscalPolicyScenario::apply([[maybe_unused]] Random &generator, Person &entity, int time,
                                    const core::Identifier &risk_factor_key, double value) {
-    if (!factor_impact_.contains(risk_factor_key) || !definition_.active_period.contains(time)) {
+    if (!definition_.active_period.contains(time)) {
         return value;
     }
 
-    auto age = entity.age;
+    const auto book_key = make_book_key(entity.id(), risk_factor_key);
+    const auto age = entity.age;
     auto &child_effect = definition_.impacts.at(0);
+
     if (age < child_effect.from_age) {
         return value;
     }
 
-    // children
-    auto factor_value = entity.get_risk_factor_value(risk_factor_key);
-    if (child_effect.contains(age)) {
-        if (!interventions_book_.contains(entity.id())) {
-            interventions_book_.emplace(entity.id(), age);
-            return value + (factor_value * child_effect.value);
-        }
+    const auto factor_value = entity.get_risk_factor_value(risk_factor_key);
 
+    if (child_effect.risk_factor != risk_factor_key &&
+        definition_.impacts.at(1).risk_factor != risk_factor_key &&
+        definition_.impacts.at(2).risk_factor != risk_factor_key) {
         return value;
     }
 
-    // adolescents
+    if (child_effect.contains(age)) {
+        if (!interventions_book_.contains(book_key)) {
+            interventions_book_.emplace(book_key, age);
+            return value + (factor_value * child_effect.value);
+        }
+        return value;
+    }
+
     auto &teen_effect = definition_.impacts.at(1);
     if (teen_effect.contains(age)) {
-        // never exposed to the intervention
-        if (!interventions_book_.contains(entity.id())) {
-            interventions_book_.emplace(entity.id(), age);
+        if (!interventions_book_.contains(book_key)) {
+            interventions_book_.emplace(book_key, age);
             return value + (factor_value * teen_effect.value);
         }
 
-        // exposed as a child - IF not needed - assert!
-        if (child_effect.contains(interventions_book_.at(entity.id()))) {
-            interventions_book_.at(entity.id()) = age;
-            auto effect = teen_effect.value - child_effect.value;
+        if (child_effect.contains(interventions_book_.at(book_key))) {
+            interventions_book_.at(book_key) = age;
+            const auto effect = teen_effect.value - child_effect.value;
             return value + (factor_value * effect);
         }
 
@@ -75,17 +76,15 @@ double FiscalPolicyScenario::apply([[maybe_unused]] Random &generator, Person &e
 
     auto &adult_effect = definition_.impacts.at(2);
     if (age >= adult_effect.from_age) {
-        // never exposed to the intervention
-        if (!interventions_book_.contains(entity.id())) {
-            interventions_book_.emplace(entity.id(), age);
+        if (!interventions_book_.contains(book_key)) {
+            interventions_book_.emplace(book_key, age);
             return value + (factor_value * adult_effect.value);
         }
 
-        // adolescent to adult transition - IF not needed
-        if (teen_effect.contains(interventions_book_.at(entity.id()))) {
+        if (teen_effect.contains(interventions_book_.at(book_key))) {
             if (definition_.impact_type == FiscalImpactType::pessimist) {
-                interventions_book_.at(entity.id()) = age;
-                auto effect = adult_effect.value - teen_effect.value;
+                interventions_book_.at(book_key) = age;
+                const auto effect = adult_effect.value - teen_effect.value;
                 return value + (factor_value * effect);
             }
             if (definition_.impact_type == FiscalImpactType::optimist) {
@@ -120,4 +119,5 @@ FiscalImpactType parse_fiscal_impact_type(const std::string &impact_type) {
 
     throw std::logic_error("Unknown fiscal policy impact type: " + impact_type);
 }
+
 } // namespace hgps

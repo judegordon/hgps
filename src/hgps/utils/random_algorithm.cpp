@@ -1,8 +1,8 @@
 #include "random_algorithm.h"
 
 #include <fmt/format.h>
-#include <numbers>
-#include <random>
+#include <cmath>
+#include <limits>
 #include <stdexcept>
 
 namespace hgps {
@@ -19,9 +19,6 @@ int Random::next_int(int min_value, int max_value) {
             "min_value must be non-negative, and less than or equal to max_value.");
     }
 
-    // std::uniform_int_distribution<int> distribution(min_value, max_value);
-    // return distribution(engine_.get());
-
     return next_int_internal(min_value, max_value);
 }
 
@@ -34,20 +31,21 @@ double Random::next_normal(double mean, double standard_deviation) {
         throw std::invalid_argument("The standard deviation parameter must be greater than zero");
     }
 
-    // auto gaussian = std::normal_distribution(mean, standard_deviation);
-    // return gaussian(engine_);
-
     return next_normal_internal(mean, standard_deviation);
 }
 
 int Random::next_empirical_discrete(const std::vector<int> &values, const std::vector<float> &cdf) {
+    if (values.empty() || cdf.empty()) {
+        throw std::invalid_argument("Input vectors must not be empty.");
+    }
+
     if (values.size() != cdf.size()) {
         throw std::invalid_argument(
             fmt::format("input vectors size mismatch: {} vs {}.", values.size(), cdf.size()));
     }
 
-    auto p = next_double();
-    for (size_t i = 0; i < cdf.size(); i++) {
+    const auto p = next_double();
+    for (std::size_t i = 0; i < cdf.size(); ++i) {
         if (p <= cdf[i]) {
             return values[i];
         }
@@ -58,13 +56,17 @@ int Random::next_empirical_discrete(const std::vector<int> &values, const std::v
 
 int Random::next_empirical_discrete(const std::vector<int> &values,
                                     const std::vector<double> &cdf) {
+    if (values.empty() || cdf.empty()) {
+        throw std::invalid_argument("Input vectors must not be empty.");
+    }
+
     if (values.size() != cdf.size()) {
         throw std::invalid_argument(
             fmt::format("input vectors size mismatch: {} vs {}.", values.size(), cdf.size()));
     }
 
-    auto p = next_double();
-    for (size_t i = 0; i < cdf.size(); i++) {
+    const auto p = next_double();
+    for (std::size_t i = 0; i < cdf.size(); ++i) {
         if (p <= cdf[i]) {
             return values[i];
         }
@@ -74,7 +76,8 @@ int Random::next_empirical_discrete(const std::vector<int> &values,
 }
 
 int Random::next_int_internal(int min_value, int max_value) {
-    return min_value + static_cast<int>((max_value - min_value + 1) * next_double());
+    const auto range = static_cast<unsigned int>(max_value - min_value) + 1U;
+    return min_value + static_cast<int>(engine_.next() % range);
 }
 
 double Random::next_uniform_internal(double min_value, double max_value) {
@@ -82,12 +85,15 @@ double Random::next_uniform_internal(double min_value, double max_value) {
 }
 
 double Random::next_normal_internal(double mean, double standard_deviation) {
-    double p, p1, p2;
+    double p = 0.0;
+    double p1 = 0.0;
+    double p2 = 0.0;
+
     do {
         p1 = next_uniform_internal(-1.0, 1.0);
         p2 = next_uniform_internal(-1.0, 1.0);
         p = p1 * p1 + p2 * p2;
-    } while (p >= 1.0);
+    } while (p == 0.0 || p >= 1.0);
 
     return mean + standard_deviation * p1 * std::sqrt(-2.0 * std::log(p) / p);
 }

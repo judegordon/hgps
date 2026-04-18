@@ -3,10 +3,11 @@
 
 namespace hgps {
 
-template <typename TYPE> struct TwoStepValue {
+template <typename TYPE>
+struct TwoStepValue {
     TwoStepValue() = default;
 
-    TwoStepValue(TYPE value) : value_{value}, old_value_{} {}
+    explicit TwoStepValue(TYPE value) : value_{value}, old_value_{} {}
 
     TYPE value() const { return value_; }
 
@@ -21,16 +22,21 @@ template <typename TYPE> struct TwoStepValue {
 
     TYPE operator()() const { return value_; }
 
-    void operator=(TYPE new_value) { set_value(new_value); }
+    TwoStepValue &operator=(TYPE new_value) {
+        set_value(new_value);
+        return *this;
+    }
 
-    TwoStepValue<TYPE> clone() {
-        auto clone = TwoStepValue<TYPE>{old_value()};
-        clone = value();
-        return clone;
+    TwoStepValue clone() const {
+        TwoStepValue copy;
+        copy.value_ = value_;
+        copy.old_value_ = old_value_;
+        return copy;
     }
 
   private:
     TYPE value_{};
     TYPE old_value_{};
 };
+
 } // namespace hgps

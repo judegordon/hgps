@@ -17,7 +17,8 @@ class Simulation : public adevs::Model<int> {
     explicit Simulation(SimulationModuleFactory &factory,
                         std::shared_ptr<const EventAggregator> bus,
                         std::shared_ptr<const ModelInput> inputs,
-                        std::unique_ptr<Scenario> scenario);
+                        std::unique_ptr<Scenario> scenario,
+                        SyncChannel &sync_channel);
 
     ~Simulation() override = default;
 

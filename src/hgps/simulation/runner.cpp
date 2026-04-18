@@ -86,7 +86,10 @@ double Runner::run(Simulation &baseline, const unsigned int trial_runs) {
     }
 
     running_.store(true);
-    const auto reset = make_finally([this]() { running_.store(false); });
+    struct ResetRunningFlag {
+        std::atomic_bool &flag;
+        ~ResetRunningFlag() { flag.store(false); }
+    } reset{running_};
 
     return run_simulation_series(*event_bus_, *seed_generator_, source_, "single_runner",
                                  baseline, nullptr, trial_runs);
@@ -109,7 +112,10 @@ double Runner::run(Simulation &baseline, Simulation &intervention, const unsigne
     }
 
     running_.store(true);
-    const auto reset = make_finally([this]() { running_.store(false); });
+    struct ResetRunningFlag {
+        std::atomic_bool &flag;
+        ~ResetRunningFlag() { flag.store(false); }
+    } reset{running_};
 
     return run_simulation_series(*event_bus_, *seed_generator_, source_, "paired_runner", baseline,
                                  &intervention, trial_runs);

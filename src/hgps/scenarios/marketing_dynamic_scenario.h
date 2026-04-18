@@ -1,8 +1,7 @@
 #pragma once
 #include "intervention_scenario.h"
 
-#include <functional>
-#include <set>
+#include <unordered_map>
 #include <vector>
 
 namespace hgps {
@@ -15,9 +14,7 @@ struct MarketingDynamicDefinition {
         : active_period{period}, impacts{std::move(sorted_impacts)}, dynamic{dynamic} {}
 
     PolicyInterval active_period;
-
     std::vector<PolicyImpact> impacts;
-
     PolicyDynamic dynamic;
 };
 
@@ -25,9 +22,7 @@ class MarketingDynamicScenario final : public DynamicInterventionScenario {
   public:
     MarketingDynamicScenario() = delete;
 
-    MarketingDynamicScenario(SyncChannel &data_sync, MarketingDynamicDefinition &&definition);
-
-    SyncChannel &channel() override;
+    explicit MarketingDynamicScenario(MarketingDynamicDefinition &&definition);
 
     void clear() noexcept override;
 
@@ -41,7 +36,6 @@ class MarketingDynamicScenario final : public DynamicInterventionScenario {
     const PolicyDynamic &dynamic() const noexcept override;
 
   private:
-    std::reference_wrapper<SyncChannel> channel_;
     MarketingDynamicDefinition definition_;
     std::set<core::Identifier> factor_impact_;
     std::unordered_map<std::size_t, int> interventions_book_{};
@@ -49,4 +43,5 @@ class MarketingDynamicScenario final : public DynamicInterventionScenario {
     int get_index_of_impact_by_age(unsigned int age) const;
     double get_differential_impact(int current_index, int previous_index) const;
 };
+
 } // namespace hgps

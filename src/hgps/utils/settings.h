@@ -7,7 +7,7 @@ namespace hgps {
 
 class Settings {
   public:
-    Settings(core::Country country, float size_fraction, const core::IntegerInterval &age_range);
+    Settings(core::Country country, float size_fraction, core::IntegerInterval age_range);
 
     const core::Country &country() const noexcept;
 
@@ -20,4 +20,5 @@ class Settings {
     float size_fraction_{};
     core::IntegerInterval age_range_;
 };
-} // namespace hgps 
+
+} // namespace hgps

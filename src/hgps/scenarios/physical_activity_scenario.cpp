@@ -1,13 +1,12 @@
 #include "physical_activity_scenario.h"
 
 namespace hgps {
-inline constexpr int PA_CHILD_EFFECT = -1;
 
+inline constexpr int PA_CHILD_EFFECT = -1;
 inline constexpr int PA_NO_EFFECT = -2;
 
-PhysicalActivityScenario::PhysicalActivityScenario(SyncChannel &data_sync,
-                                                   PhysicalActivityDefinition &&definition)
-    : channel_{data_sync}, definition_{std::move(definition)} {
+PhysicalActivityScenario::PhysicalActivityScenario(PhysicalActivityDefinition &&definition)
+    : definition_{std::move(definition)} {
     if (definition_.impacts.size() < 2) {
         throw std::invalid_argument("Number of impact levels mismatch, must be greater than 2.");
     }
@@ -25,8 +24,6 @@ PhysicalActivityScenario::PhysicalActivityScenario(SyncChannel &data_sync,
         age = level.from_age + 1u;
     }
 }
-
-SyncChannel &PhysicalActivityScenario::channel() { return channel_; }
 
 void PhysicalActivityScenario::clear() noexcept { interventions_book_.clear(); }
 
@@ -68,4 +65,5 @@ const PolicyInterval &PhysicalActivityScenario::active_period() const noexcept {
 const std::vector<PolicyImpact> &PhysicalActivityScenario::impacts() const noexcept {
     return definition_.impacts;
 }
+
 } // namespace hgps

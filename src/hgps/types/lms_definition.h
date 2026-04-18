@@ -9,9 +9,7 @@ namespace hgps {
 
 struct LmsRecord {
     double lambda{};
-
     double mu{};
-
     double sigma{};
 };
 
@@ -21,8 +19,7 @@ class LmsDefinition {
   public:
     LmsDefinition() = default;
 
-    LmsDefinition(LmsDataset &&dataset) : table_{std::move(dataset)} {
-
+    explicit LmsDefinition(LmsDataset &&dataset) : table_{std::move(dataset)} {
         if (table_.empty()) {
             throw std::invalid_argument("The LMS definition must not be empty.");
         }
@@ -32,9 +29,19 @@ class LmsDefinition {
 
     std::size_t size() const noexcept { return table_.size(); }
 
-    unsigned int min_age() const noexcept { return table_.cbegin()->first; }
+    unsigned int min_age() const {
+        if (table_.empty()) {
+            throw std::logic_error("LMS definition is empty.");
+        }
+        return table_.cbegin()->first;
+    }
 
-    unsigned int max_age() const noexcept { return table_.rbegin()->first; }
+    unsigned int max_age() const {
+        if (table_.empty()) {
+            throw std::logic_error("LMS definition is empty.");
+        }
+        return table_.rbegin()->first;
+    }
 
     bool contains(unsigned int age, core::Gender gender) const noexcept {
         if (table_.contains(age)) {
@@ -51,4 +58,5 @@ class LmsDefinition {
   private:
     LmsDataset table_{};
 };
+
 } // namespace hgps

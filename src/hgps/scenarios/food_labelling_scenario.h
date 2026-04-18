@@ -2,8 +2,6 @@
 #include "data/gender_value.h"
 #include "intervention_scenario.h"
 
-#include <functional>
-#include <set>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -15,7 +13,6 @@ struct AdjustmentFactor {
         : identifier{factor_name}, adjustment{value} {}
 
     core::Identifier identifier;
-
     double adjustment{};
 };
 
@@ -34,9 +31,7 @@ struct PolicyCoverage {
     }
 
     double short_term_rate{};
-
     double long_term_rate{};
-
     unsigned int cutoff_time{};
 };
 
@@ -56,37 +51,22 @@ struct TransferCoefficient {
     }
 
     DoubleGenderValue child;
-
     DoubleGenderValue adult;
-
     unsigned int child_cutoff_age{};
 
     double get_value(core::Gender gender, unsigned int age) const noexcept {
         if (gender == core::Gender::male) {
-            if (age <= child_cutoff_age) {
-                return child.males;
-            }
-
-            return adult.males;
+            return age <= child_cutoff_age ? child.males : adult.males;
         }
-
-        if (age <= child_cutoff_age) {
-            return child.females;
-        }
-
-        return adult.females;
+        return age <= child_cutoff_age ? child.females : adult.females;
     }
 };
 
 struct FoodLabellingDefinition {
     PolicyInterval active_period;
-
     std::vector<PolicyImpact> impacts;
-
     AdjustmentFactor adjustment_risk_factor;
-
     PolicyCoverage coverage;
-
     TransferCoefficient transfer_coefficient;
 };
 
@@ -94,9 +74,7 @@ class FoodLabellingScenario final : public InterventionScenario {
   public:
     FoodLabellingScenario() = delete;
 
-    FoodLabellingScenario(SyncChannel &data_sync, FoodLabellingDefinition &&definition);
-
-    SyncChannel &channel() override;
+    explicit FoodLabellingScenario(FoodLabellingDefinition &&definition);
 
     void clear() noexcept override;
 
@@ -104,15 +82,20 @@ class FoodLabellingScenario final : public InterventionScenario {
                  const core::Identifier &risk_factor_key, double value) override;
 
     const PolicyInterval &active_period() const noexcept override;
-
     const std::vector<PolicyImpact> &impacts() const noexcept override;
 
   private:
-    std::reference_wrapper<SyncChannel> channel_;
-    FoodLabellingDefinition definition_;
-    std::set<core::Identifier> factor_impact_;
-    std::unordered_map<std::size_t, int> interventions_book_{};
+    static std::size_t make_book_key(std::size_t entity_id,
+                                     const core::Identifier &risk_factor_key) noexcept;
 
-    double calculate_policy_impact(const Person &entity) const noexcept;
+    const PolicyImpact *find_active_impact(const core::Identifier &risk_factor_key,
+                                           unsigned int age) const noexcept;
+
+    double calculate_policy_impact(const Person &entity,
+                                   const PolicyImpact &impact) const noexcept;
+
+    FoodLabellingDefinition definition_;
+    std::unordered_map<std::size_t, int> interventions_book_{};
 };
+
 } // namespace hgps

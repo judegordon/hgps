@@ -1,10 +1,9 @@
 #include "marketing_scenario.h"
 
 namespace hgps {
-MarketingPolicyScenario::MarketingPolicyScenario(SyncChannel &data_sync,
-                                                 MarketingPolicyDefinition &&definition)
-    : channel_{data_sync}, definition_{std::move(definition)} {
 
+MarketingPolicyScenario::MarketingPolicyScenario(MarketingPolicyDefinition &&definition)
+    : definition_{std::move(definition)} {
     if (definition_.impacts.size() != 3) {
         throw std::invalid_argument("Number of impact levels mismatch, must be 3.");
     }
@@ -23,8 +22,6 @@ MarketingPolicyScenario::MarketingPolicyScenario(SyncChannel &data_sync,
     }
 }
 
-SyncChannel &MarketingPolicyScenario::channel() { return channel_; }
-
 void MarketingPolicyScenario::clear() noexcept { interventions_book_.clear(); }
 
 double MarketingPolicyScenario::apply([[maybe_unused]] Random &generator, Person &entity, int time,
@@ -39,7 +36,6 @@ double MarketingPolicyScenario::apply([[maybe_unused]] Random &generator, Person
         return value;
     }
 
-    // children
     if (child_effect.contains(age)) {
         if (!interventions_book_.contains(entity.id())) {
             interventions_book_.emplace(entity.id(), age);
@@ -49,16 +45,13 @@ double MarketingPolicyScenario::apply([[maybe_unused]] Random &generator, Person
         return value;
     }
 
-    // adolescents
     auto &teen_effect = definition_.impacts.at(1);
     if (teen_effect.contains(age)) {
-        // never exposed to the intervention
         if (!interventions_book_.contains(entity.id())) {
             interventions_book_.emplace(entity.id(), age);
             return value + teen_effect.value;
         }
 
-        // exposed as a child - IF not needed
         if (child_effect.contains(interventions_book_.at(entity.id()))) {
             interventions_book_.at(entity.id()) = age;
             auto effect = teen_effect.value - child_effect.value;
@@ -68,13 +61,11 @@ double MarketingPolicyScenario::apply([[maybe_unused]] Random &generator, Person
 
     auto &adult_effect = definition_.impacts.at(2);
     if (age >= adult_effect.from_age) {
-        // never exposed to the intervention
         if (!interventions_book_.contains(entity.id())) {
             interventions_book_.emplace(entity.id(), age);
             return value + adult_effect.value;
         }
 
-        // adolescent to adult transition - IF not needed
         if (teen_effect.contains(interventions_book_.at(entity.id()))) {
             interventions_book_.at(entity.id()) = age;
             auto effect = adult_effect.value - teen_effect.value;
@@ -92,4 +83,5 @@ const PolicyInterval &MarketingPolicyScenario::active_period() const noexcept {
 const std::vector<PolicyImpact> &MarketingPolicyScenario::impacts() const noexcept {
     return definition_.impacts;
 }
+
 } // namespace hgps

@@ -226,7 +226,7 @@ KevinHallAdjustmentTable KevinHallModel::receive_weight_adjustments(RuntimeConte
     }
 
     // Intervention scenario: receive adjustments from baseline scenario.
-    auto message = context.scenario().channel().try_receive(context.sync_timeout_millis());
+    auto message = context.sync_channel().try_receive(context.sync_timeout_millis());
     if (!message.has_value()) {
         throw core::InternalError(
             "Simulation out of sync, receive Kevin Hall adjustments message has timed out");
@@ -247,7 +247,7 @@ void KevinHallModel::send_weight_adjustments(RuntimeContext &context,
 
     // Baseline scenario: send adjustments.
     if (context.scenario().type() == ScenarioType::baseline) {
-        context.scenario().channel().send(std::make_unique<KevinHallAdjustmentMessage>(
+        context.sync_channel().send(std::make_unique<KevinHallAdjustmentMessage>(
             context.current_run(), context.time_now(), std::move(adjustments)));
     }
 }

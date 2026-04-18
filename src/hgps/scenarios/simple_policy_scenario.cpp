@@ -3,15 +3,12 @@
 
 namespace hgps {
 
-SimplePolicyScenario::SimplePolicyScenario(SyncChannel &data_sync,
-                                           SimplePolicyDefinition &&definition)
-    : channel_{data_sync}, definition_{std::move(definition)} {
+SimplePolicyScenario::SimplePolicyScenario(SimplePolicyDefinition &&definition)
+    : definition_{std::move(definition)} {
     for (const auto &factor : definition_.impacts) {
         factor_impact_.emplace(factor.risk_factor, factor);
     }
 }
-
-SyncChannel &SimplePolicyScenario::channel() { return channel_; }
 
 void SimplePolicyScenario::clear() noexcept {}
 
@@ -28,8 +25,10 @@ const std::vector<PolicyImpact> &SimplePolicyScenario::impacts() const noexcept 
 }
 
 double SimplePolicyScenario::apply([[maybe_unused]] Random &generator,
-                                   [[maybe_unused]] Person &entity, int time,
-                                   const core::Identifier &risk_factor_key, double value) {
+                                   [[maybe_unused]] Person &entity,
+                                   int time,
+                                   const core::Identifier &risk_factor_key,
+                                   double value) {
     auto result = value;
     if (definition_.active_period.contains(time) && factor_impact_.contains(risk_factor_key)) {
         auto impact = factor_impact_.at(risk_factor_key).value;
@@ -44,4 +43,5 @@ double SimplePolicyScenario::apply([[maybe_unused]] Random &generator,
 
     return result;
 }
+
 } // namespace hgps

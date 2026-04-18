@@ -276,10 +276,10 @@ void DemographicModule::update_residual_mortality(RuntimeContext &context,
         auto residual_mortality = calculate_residual_mortality(context, disease_host);
         residual_death_rates_ = residual_mortality;
 
-        context.scenario().channel().send(std::make_unique<ResidualMortalityMessage>(
+        context.sync_channel().send(std::make_unique<ResidualMortalityMessage>(
             context.current_run(), context.time_now(), std::move(residual_mortality)));
     } else {
-        auto message = context.scenario().channel().try_receive(context.sync_timeout_millis());
+        auto message = context.sync_channel().try_receive(context.sync_timeout_millis());
         if (message.has_value()) {
             auto &basePtr = message.value();
             auto *messagePrt = dynamic_cast<ResidualMortalityMessage *>(basePtr.get());

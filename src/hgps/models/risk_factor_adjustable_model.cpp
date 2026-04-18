@@ -177,7 +177,7 @@ void RiskFactorAdjustableModel::adjust_risk_factors(RuntimeContext &context,
 
     // Intervention scenario: receive adjustments from baseline scenario.
     else {
-        auto message = context.scenario().channel().try_receive(context.sync_timeout_millis());
+        auto message = context.sync_channel().try_receive(context.sync_timeout_millis());
         if (!message.has_value()) {
             std::cout << "\n[SYNC] Intervention: Message not received, timeout occurred!";
             throw core::InternalError(
@@ -281,7 +281,7 @@ void RiskFactorAdjustableModel::adjust_risk_factors(RuntimeContext &context,
 
     // Baseline scenario: send adjustments to intervention scenario.
     if (context.scenario().type() == ScenarioType::baseline) {
-        context.scenario().channel().send(std::make_unique<RiskFactorAdjustmentMessage>(
+        context.sync_channel().send(std::make_unique<RiskFactorAdjustmentMessage>(
             context.current_run(), context.time_now(), std::move(adjustments)));
     }
     // Print which risk factors are being adjusted to their factors mean
