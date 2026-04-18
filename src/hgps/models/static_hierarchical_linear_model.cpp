@@ -30,11 +30,11 @@ void StaticHierarchicalLinearModel::generate_risk_factors(RuntimeContext &contex
     std::vector<MappingEntry> level_factors;
     std::unordered_map<int, std::vector<MappingEntry>> level_factors_cache;
     for (auto &entity : context.population()) {
-        for (auto level = 1; level <= context.mapping().max_level(); level++) {
+        for (auto level = 1; level <= context.inputs().risk_mapping().max_level(); level++) {
             if (level_factors_cache.contains(level)) {
                 level_factors = level_factors_cache.at(level);
             } else {
-                level_factors = context.mapping().at_level(level);
+                level_factors = context.inputs().risk_mapping().at_level(level);
                 level_factors_cache.emplace(level, level_factors);
             }
 
@@ -52,11 +52,11 @@ void StaticHierarchicalLinearModel::update_risk_factors(RuntimeContext &context)
             continue;
         }
 
-        for (auto level = 1; level <= context.mapping().max_level(); level++) {
+        for (auto level = 1; level <= context.inputs().risk_mapping().max_level(); level++) {
             if (level_factors_cache.contains(level)) {
                 level_factors = level_factors_cache.at(level);
             } else {
-                level_factors = context.mapping().at_level(level);
+                level_factors = context.inputs().risk_mapping().at_level(level);
                 level_factors_cache.emplace(level, level_factors);
             }
 
@@ -97,7 +97,7 @@ void StaticHierarchicalLinearModel::generate_for_entity(RuntimeContext &context,
     // The Deterministic Risk Factors
     auto determ_risk_factors = std::map<core::Identifier, double>();
     determ_risk_factors.emplace(InterceptKey, entity.get_risk_factor_value(InterceptKey));
-    for (const auto &item : context.mapping()) {
+    for (const auto &item : context.inputs().risk_mapping()) {
         if (item.level() < level) {
             determ_risk_factors.emplace(item.key(), entity.get_risk_factor_value(item.key()));
         }

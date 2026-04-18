@@ -8,7 +8,7 @@
 
 #include "hgps_input/config/config_types.h"
 #include "mapping.h"
-#include "settings.h"
+#include "utils/settings.h"
 
 #include <optional>
 
@@ -31,7 +31,7 @@ struct RunInfo {
 };
 
 struct SESDefinition {
-    std::string fuction_name;
+    std::string function_name;
 
     std::vector<double> parameters;
 };

@@ -3,140 +3,87 @@ find_package(crossguid CONFIG REQUIRED)
 find_package(OpenSSL CONFIG REQUIRED)
 find_package(platform_folders CONFIG REQUIRED)
 
-add_library(hgps STATIC "")
+add_library(hgps STATIC)
 
-configure_file("version.h.in" "version.h" ESCAPE_QUOTES)
+configure_file(version.h.in version.h ESCAPE_QUOTES)
 
 target_sources(
     hgps
-    PRIVATE "analysis_module.cpp"
-            "analysis_module.h"
-            "baseline_scenario.cpp"
-            "baseline_scenario.h"
-            "converter.cpp"
-            "converter.h"
-            "data_series.cpp"
-            "data_series.h"
-            "default_cancer_model.cpp"
-            "default_cancer_model.h"
-            "default_disease_model.cpp"
-            "default_disease_model.h"
-            "demographic.cpp"
-            "demographic.h"
-            "disease.cpp"
-            "disease.h"
-            "disease_table.cpp"
-            "disease_table.h"
-            "dynamic_hierarchical_linear_model.cpp"
-            "dynamic_hierarchical_linear_model.h"
-            "kevin_hall_model.cpp"
-            "kevin_hall_model.h"
-            "error_message.cpp"
-            "error_message.h"
-            "event_bus.cpp"
-            "event_bus.h"
-            "event_subscriber.cpp"
-            "fiscal_scenario.cpp"
-            "fiscal_scenario.h"
-            "food_labelling_scenario.cpp"
-            "food_labelling_scenario.h"
-            "static_linear_model.cpp"
-            "static_linear_model.h"
-            "static_hierarchical_linear_model.cpp"
-            "static_hierarchical_linear_model.h"
-            "individual_tracking_message.cpp"
-            "individual_tracking_message.h"
-            "info_message.cpp"
-            "info_message.h"
-            "life_table.cpp"
-            "life_table.h"
-            "lms_model.cpp"
-            "lms_model.h"
-            "lms_definition.h"
-            "mapping.cpp"
-            "mapping.h"
-            "marketing_dynamic_scenario.cpp"
-            "marketing_dynamic_scenario.h"
-            "marketing_scenario.cpp"
-            "marketing_scenario.h"
-            "model_result.cpp"
-            "model_result.h"
-            "modelinput.cpp"
-            "modelinput.h"
-            "runner.cpp"
-            "runner.h"
-            "modulefactory.cpp"
-            "modulefactory.h"
-            "mtrandom.cpp"
-            "mtrandom.h"
-            "nutrients.h"
-            "nutrients.cpp"
-            "person.cpp"
-            "person.h"
-            "population.cpp"
-            "population.h"
-            "program_dirs.cpp"
-            "program_dirs.h"
-            "physical_activity_scenario.cpp"
-            "physical_activity_scenario.h"
-            "random_algorithm.cpp"
-            "random_algorithm.h"
-            "relative_risk.cpp"
-            "relative_risk.h"
-            "repository.cpp"
-            "repository.h"
-            "result_message.cpp"
-            "result_message.h"
-            "riskfactor.cpp"
-            "riskfactor.h"
-            "risk_factor_model.h"
-            "risk_factor_adjustable_model.h"
-            "risk_factor_adjustable_model.cpp"
-            "runner_message.cpp"
-            "runner_message.h"
-            "runtime_context.cpp"
-            "runtime_context.h"
-            "runtime_metric.cpp"
-            "runtime_metric.h"
-            "ses_noise_module.cpp"
-            "ses_noise_module.h"
-            "settings.cpp"
-            "settings.h"
-            "sha256.cpp"
-            "sha256.h"
-            "simple_policy_scenario.cpp"
-            "simple_policy_scenario.h"
-            "simulation.cpp"
-            "simulation.h"
-            "simulation_module.cpp"
-            "simulation_module.h"
-            "univariate_visitor.cpp"
-            "univariate_visitor.h"
-            "analysis_definition.h"
-            "api.h"
-            "channel.h"
-            "disease_definition.h"
-            "disease_registry.h"
-            "event_aggregator.h"
-            "event_message.h"
-            "event_subscriber.h"
-            "event_visitor.h"
-            "finally.h"
-            "gender_table.h"
-            "gender_value.h"
-            "interfaces.h"
-            "intervention_scenario.h"
-            "map2d.h"
-            "monotonic_vector.h"
-            "randombit_generator.h"
-            "scenario.h"
-            "sync_message.h"
-            "two_step_value.h"
-            "version.h"
-            "weight_category.h"
-            "weight_model.cpp"
-            "weight_model.h")
+    PRIVATE
+        simulation/analysis_module.cpp
+        simulation/model_result.cpp
+        simulation/modulefactory.cpp
+        simulation/runner.cpp
+        simulation/runtime_context.cpp
+        simulation/runtime_metric.cpp
+        simulation/simulation.cpp
+        simulation/simulation_module.cpp
 
-target_link_libraries(hgps PRIVATE hgps_core fmt::fmt crossguid OpenSSL::Crypto
-                                        sago::platform_folders)
-target_include_directories(hgps PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+        scenarios/baseline_scenario.cpp
+        scenarios/fiscal_scenario.cpp
+        scenarios/food_labelling_scenario.cpp
+        scenarios/marketing_dynamic_scenario.cpp
+        scenarios/marketing_scenario.cpp
+        scenarios/physical_activity_scenario.cpp
+        scenarios/simple_policy_scenario.cpp
+
+        models/default_cancer_model.cpp
+        models/default_disease_model.cpp
+        models/dynamic_hierarchical_linear_model.cpp
+        models/kevin_hall_model.cpp
+        models/lms_model.cpp
+        models/risk_factor_adjustable_model.cpp
+        models/ses_noise_module.cpp
+        models/static_hierarchical_linear_model.cpp
+        models/static_linear_model.cpp
+        models/univariate_visitor.cpp
+        models/weight_model.cpp
+
+        disease/disease.cpp
+        disease/disease_table.cpp
+        disease/life_table.cpp
+        disease/relative_risk.cpp
+
+        repository/converter.cpp
+        repository/data_series.cpp
+        repository/mapping.cpp
+        repository/modelinput.cpp
+        repository/repository.cpp
+
+        population/demographic.cpp
+        population/person.cpp
+        population/population.cpp
+        population/riskfactor.cpp
+        population/nutrients.cpp
+
+        events/error_message.cpp
+        events/event_bus.cpp
+        events/event_subscriber.cpp
+        events/individual_tracking_message.cpp
+        events/info_message.cpp
+        events/result_message.cpp
+        events/runner_message.cpp
+
+        utils/mtrandom.cpp
+        utils/program_dirs.cpp
+        utils/random_algorithm.cpp
+        utils/settings.cpp
+        utils/sha256.cpp
+)
+
+target_link_libraries(
+    hgps
+    PRIVATE
+        hgps_core
+        fmt::fmt
+        crossguid
+        OpenSSL::Crypto
+        sago::platform_folders
+)
+
+target_include_directories(
+    hgps
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_BINARY_DIR}
+)

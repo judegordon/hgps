@@ -2,7 +2,7 @@
 
 #include "risk_factor_adjustable_model.h"
 
-#include "sync_message.h"
+#include "events/sync_message.h"
 #include <fmt/core.h>
 
 #include <algorithm>
@@ -310,7 +310,7 @@ RiskFactorSexAgeTable
 RiskFactorAdjustableModel::calculate_adjustments(RuntimeContext &context,
                                                  const std::vector<core::Identifier> &factors,
                                                  OptionalRanges ranges, bool apply_trend) const {
-    auto age_range = context.age_range();
+    auto age_range = context.inputs().settings().age_range();
     auto age_count = age_range.upper() + 1;
 
     // Compute simulated means.

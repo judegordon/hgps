@@ -2,8 +2,8 @@
 
 #include "hgps_core/types/identifier.h"
 
-#include "mapping.h"
-#include "random_algorithm.h"
+#include "data/mapping.h"
+#include "utils/random_algorithm.h"
 #include "risk_factor_adjustable_model.h"
 
 namespace hgps {

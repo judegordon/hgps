@@ -3,9 +3,9 @@
 #include "hgps_core/forward_type.h"
 #include "hgps_core/types/identifier.h"
 
-#include "person.h"
-#include "risk_factor_model.h"
-#include "runtime_context.h"
+#include "data/person.h"
+#include "models/risk_factor_model.h"
+#include "simulation/runtime_context.h"
 
 namespace hgps {
 

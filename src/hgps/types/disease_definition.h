@@ -1,8 +1,8 @@
 #pragma once
 #include "hgps_input/data/pif_data.h"
-#include "disease_table.h"
-#include "gender_value.h"
-#include "relative_risk.h"
+#include "disease/disease_table.h"
+#include "data/gender_value.h"
+#include "disease/relative_risk.h"
 
 namespace hgps {
 

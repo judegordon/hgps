@@ -1,9 +1,9 @@
 #pragma once
 
-#include "interfaces.h"
-#include "modelinput.h"
-#include "repository.h"
-#include "runtime_context.h"
+#include "types/interfaces.h"
+#include "data/model_input.h"
+#include "data/repository.h"
+#include "simulation/runtime_context.h"
 
 namespace hgps {
 

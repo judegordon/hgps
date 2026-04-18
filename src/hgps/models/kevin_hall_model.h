@@ -2,9 +2,9 @@
 
 #include "hgps_core/diagnostics/internal_error.h"
 
-#include "interfaces.h"
-#include "map2d.h"
-#include "mapping.h"
+#include "types/interfaces.h"
+#include "utils/map2d.h"
+#include "data/mapping.h"
 #include "risk_factor_adjustable_model.h"
 
 #include <optional>

@@ -1,6 +1,4 @@
 #pragma once
-
-// cmake auto generated file to set the version number of our executable
 #define PROJECT_NAME "@PROJECT_NAME@"
 #define PROJECT_VERSION "@PROJECT_VERSION@"
 

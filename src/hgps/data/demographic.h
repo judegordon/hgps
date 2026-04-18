@@ -2,14 +2,14 @@
 
 #include "hgps_core/forward_type.h"
 #include "hgps_core/types/identifier.h"
-#include "disease.h"
+#include "disease/disease.h"
 #include "gender_table.h"
 #include "gender_value.h"
-#include "interfaces.h"
-#include "life_table.h"
-#include "modelinput.h"
+#include "types/interfaces.h"
+#include "disease/life_table.h"
+#include "models/model_input.h"
 #include "repository.h"
-#include "runtime_context.h"
+#include "simulation/runtime_context.h"
 
 using hgps::core::operator""_id;
 

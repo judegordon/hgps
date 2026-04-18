@@ -1,9 +1,9 @@
 #pragma once
 #include "hgps_core/types/identifier.h"
-#include "channel.h"
-#include "person.h"
-#include "random_algorithm.h"
-#include "sync_message.h"
+#include "events/channel.h"
+#include "data/person.h"
+#include "utils/random_algorithm.h"
+#include "events/sync_message.h"
 
 #include <memory>
 #include <string>

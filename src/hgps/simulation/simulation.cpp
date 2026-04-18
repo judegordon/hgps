@@ -1,16 +1,13 @@
 #include "simulation.h"
 #include "hgps_core/utils/thread_util.h"
-#include "hgps_core/types/univariate_summary.h"
-#include "converter.h"
-#include "info_message.h"
-#include "mtrandom.h"
-#include "static_linear_model.h"
-#include "sync_message.h"
-#include "univariate_visitor.h"
+#include "data/converter.h"
+#include "events/info_message.h"
+#include "utils/mtrandom.h"
+#include "models/static_linear_model.h"
+#include "events/sync_message.h"
 
 #include <algorithm>
 #include <fmt/format.h>
-#include <iostream>
 #include <memory>
 #include <oneapi/tbb/parallel_for_each.h>
 #include <stdexcept>
@@ -27,7 +24,6 @@ Simulation::Simulation(SimulationModuleFactory &factory, std::shared_ptr<const E
                        std::shared_ptr<const ModelInput> inputs, std::unique_ptr<Scenario> scenario)
     : context_{std::move(bus), std::move(inputs), std::move(scenario)} {
 
-    // Create required modules, should change to shared_ptr
     auto ses_base = factory.create(SimulationModuleType::SES, context_.inputs());
     auto dem_base = factory.create(SimulationModuleType::Demographic, context_.inputs());
     auto risk_base = factory.create(SimulationModuleType::RiskFactor, context_.inputs());
@@ -57,26 +53,6 @@ adevs::Time Simulation::init(adevs::SimEnv<int> *env) {
 
     initialise_population();
 
-    // MAHIMA: Same-person ID tracking verification – same index has same ID in baseline and
-    // intervention
-    {
-        const auto &pop = context_.population();
-        const auto n = pop.initial_size();
-        std::string sample;
-        for (std::size_t idx : {0u, 1u, 2u}) {
-            if (idx < n) {
-                sample += fmt::format(" ({},{})", idx, pop[idx].id());
-            }
-        }
-        if (n > 100u) {
-            sample += fmt::format(" (100,{})", pop[100].id());
-        } else if (n > 3u) {
-            sample += fmt::format(" ({},{})", n - 1, pop[n - 1].id());
-        }
-        std::cout << "MAHIMA: Same-person ID tracking | scenario=" << context_.identifier()
-                  << " | sample (index,id):" << sample << "\n";
-    }
-
     auto stop = std::chrono::steady_clock::now();
     auto elapsed = std::chrono::duration<double, std::milli>(stop - start);
 
@@ -94,7 +70,6 @@ adevs::Time Simulation::update(adevs::SimEnv<int> *env) {
         auto start = std::chrono::steady_clock::now();
         context_.metrics().reset();
 
-        // Now move world clock to time t + 1
         auto world_time = env->now() + adevs::Time(1, 0);
         auto time_year = world_time.real;
         context_.set_current_time(time_year);
@@ -108,31 +83,24 @@ adevs::Time Simulation::update(adevs::SimEnv<int> *env) {
         context_.publish(std::make_unique<InfoEventMessage>(
             name(), ModelAction::update, context_.current_run(), context_.time_now(), message));
 
-        // Schedule next event time
         return world_time;
     }
 
-    // We have reached the end, remove the model and return infinite time for next event
     env->remove(this);
     return adevs_inf<adevs::Time>();
 }
 
 adevs::Time Simulation::update(adevs::SimEnv<int> * /*env*/, std::vector<int> & /*x*/) {
-    // This method is never called because nobody sends messages.
     return adevs_inf<adevs::Time>();
 }
 
 void Simulation::fini(adevs::Time clock) {
-    // risk_factor_->update_population(context_);
     auto message = fmt::format("[{:4},{}] clear up resources.", clock.real, clock.logical);
     context_.publish(std::make_unique<InfoEventMessage>(
         name(), ModelAction::stop, context_.current_run(), context_.time_now(), message));
 }
 
 void Simulation::initialise_population() {
-    /* Note: order is very important */
-
-    // Create virtual population
     const auto &inputs = context_.inputs();
 
     auto model_start_year = inputs.start_time();
@@ -142,50 +110,25 @@ void Simulation::initialise_population() {
 
     context_.reset_population(virtual_pop_size);
 
-    // Gender - Age, must be first
     demographic_->initialise_population(context_);
-
-    // Social economics status
     ses_->initialise_population(context_);
-
-    // Generate risk factors;
     risk_factor_->initialise_population(context_);
-
-    // Initialise diseases
     disease_->initialise_population(context_);
-
-    // Initialise analysis
     analysis_->initialise_population(context_);
-
-    print_initial_population_statistics();
 }
 
 void Simulation::update_population() {
-    /* Note: order is very important */
-
-    // update basic information: demographics + diseases
     demographic_->update_population(context_, *disease_);
-
-    // Calculate the net immigration by gender and age, update the population accordingly
     update_net_immigration();
-
-    // update population socio-economic status
     ses_->update_population(context_);
-
-    // Update population risk factors
     risk_factor_->update_population(context_);
-
-    // Update diseases status: remission and incidence
     disease_->update_population(context_);
-
-    // Publish results to data logger
     analysis_->update_population(context_);
 }
 
 void Simulation::update_net_immigration() {
     auto net_immigration = get_net_migration();
 
-    // Update population based on net immigration
     auto start_age = context_.age_range().lower();
     auto end_age = context_.age_range().upper();
     for (int age = start_age; age <= end_age; age++) {
@@ -250,7 +193,6 @@ void Simulation::apply_net_migration(int net_value, unsigned int age, const core
         });
 
         if (!similar_indices.empty()) {
-            // Needed for repeatability in random selection
             std::sort(similar_indices.begin(), similar_indices.end());
 
             for (auto trial = 0; trial < net_value; trial++) {
@@ -283,7 +225,6 @@ hgps::IntegerAgeGenderTable Simulation::get_net_migration() {
         return create_net_migration();
     }
 
-    // Receive message with timeout
     auto message = context_.scenario().channel().try_receive(context_.sync_timeout_millis());
     if (message.has_value()) {
         auto &basePtr = message.value();
@@ -295,6 +236,7 @@ hgps::IntegerAgeGenderTable Simulation::get_net_migration() {
         throw std::runtime_error(
             "Simulation out of sync, failed to receive a net immigration message");
     }
+
     throw std::runtime_error(fmt::format(
         "Simulation out of sync, receive net immigration message has timed out after {} ms.",
         context_.sync_timeout_millis()));
@@ -318,7 +260,6 @@ hgps::IntegerAgeGenderTable Simulation::create_net_migration() {
         net_emigration.at(age, core::Gender::female) = net_value;
     }
 
-    // Update statistics
     return net_emigration;
 }
 
@@ -340,93 +281,6 @@ Person Simulation::partial_clone_entity(const Person &source) noexcept {
     }
 
     return clone;
-}
-
-std::map<std::string, core::UnivariateSummary> Simulation::create_input_data_summary() const {
-    auto visitor = UnivariateVisitor();
-    auto summary = std::map<std::string, core::UnivariateSummary>();
-    const auto &input_data = context_.inputs().data();
-
-    for (const auto &entry : context_.mapping()) {
-        // HACK: Ignore missing columns.
-        if (const auto &column = input_data.column_if_exists(entry.name())) {
-            summary.emplace(entry.name(), visitor.get_summary(column->get()));
-        }
-    }
-
-    return summary;
-}
-
-void hgps::Simulation::print_initial_population_statistics() {
-    auto verbosity = context_.inputs().run().verbosity;
-    if (context_.current_run() > 1 && verbosity == core::VerboseMode::none) {
-        return;
-    }
-
-    auto original_future = core::run_async(&Simulation::create_input_data_summary, this);
-    std::string population = "Population";
-    std::size_t longestColumnName = population.length();
-    auto sim_summary = std::map<std::string, core::UnivariateSummary>();
-    for (const auto &entry : context_.mapping()) {
-        longestColumnName = std::max(longestColumnName, entry.name().length());
-        sim_summary.emplace(entry.name(), core::UnivariateSummary(entry.name()));
-    }
-
-    for (const auto &entity : context_.population()) {
-        for (const auto &entry : context_.mapping()) {
-            // Special handling for income_category - it's stored as person.income (enum), not in
-            // risk_factors
-            if (entry.key().to_string() == "income_category") {
-                if (entity.income != core::Income::unknown) {
-                    sim_summary[entry.name()].append(entity.income_to_value());
-                }
-                continue;
-            }
-
-            try {
-                sim_summary[entry.name()].append(entity.get_risk_factor_value(entry.key()));
-            } catch (const std::exception &) {
-                // NOLINTNEXTLINE(bugprone-empty-catch) factor not present – skip
-            }
-        }
-    }
-
-    auto pad = longestColumnName + 2;
-    auto width = pad + 70;
-    auto orig_pop = context_.inputs().data().num_rows();
-    auto sim_pop = context_.population().size();
-
-    std::stringstream ss;
-    ss << fmt::format("\n Initial Virtual Population Summary: {}\n", context_.identifier());
-    ss << fmt::format("|{:-<{}}|\n", '-', width);
-    ss << fmt::format("| {:{}} : {:>14} : {:>14} : {:>14} : {:>14} |\n", "Variable", pad,
-                      "Mean (Real)", "Mean (Sim)", "StdDev (Real)", "StdDev (Sim)");
-    ss << fmt::format("|{:-<{}}|\n", '-', width);
-
-    // Population row: show counts as Mean (Real/Sim) and 0 as StdDev so column headers match
-    ss << fmt::format("| {:{}} : {:14.0f} : {:14.0f} : {:14.0f} : {:14.0f} |\n", population, pad,
-                      static_cast<double>(orig_pop), static_cast<double>(sim_pop), 0.0, 0.0);
-
-    auto orig_summary = original_future.get();
-    for (const auto &entry : context_.mapping()) {
-        const auto &col = entry.name();
-        // Real (input CSV) may lack this column (e.g. India has Carbohydrate not FoodCarbohydrate);
-        // avoid showing 0/NaN for missing columns by printing "n/a" when not in input data.
-        const auto it = orig_summary.find(col);
-        const bool has_real = (it != orig_summary.end() && !it->second.is_empty());
-        if (has_real) {
-            ss << fmt::format("| {:{}} : {:14.4f} : {:14.5f} : {:14.5f} : {:14.5f} |\n", col, pad,
-                              it->second.average(), sim_summary[col].average(),
-                              it->second.std_deviation(), sim_summary[col].std_deviation());
-        } else {
-            ss << fmt::format("| {:{}} : {:>14} : {:14.5f} : {:>14} : {:14.5f} |\n", col, pad,
-                              "n/a", sim_summary[col].average(), "n/a",
-                              sim_summary[col].std_deviation());
-        }
-    }
-
-    ss << fmt::format("|{:_<{}}|\n\n", '_', width);
-    std::cout << ss.str();
 }
 
 } // namespace hgps

@@ -1,7 +1,7 @@
 #include "default_cancer_model.h"
 #include "hgps_input/data/pif_data.h"
-#include "person.h"
-#include "runtime_context.h"
+#include "data/person.h"
+#include "simulation/runtime_context.h"
 
 #include <fmt/color.h>
 #include <iostream>
@@ -53,7 +53,7 @@ void DefaultCancerModel::initialise_disease_status(RuntimeContext &context) {
 }
 
 void DefaultCancerModel::initialise_average_relative_risk(RuntimeContext &context) {
-    const auto &age_range = context.age_range();
+    const auto &age_range = context.inputs().settings().age_range();
     auto sum = create_age_gender_table<double>(age_range);
     auto count = create_age_gender_table<double>(age_range);
     auto &pop = context.population();
@@ -118,7 +118,7 @@ double DefaultCancerModel::get_excess_mortality(const Person &person) const noex
 }
 
 DoubleAgeGenderTable DefaultCancerModel::calculate_average_relative_risk(RuntimeContext &context) {
-    const auto &age_range = context.age_range();
+    const auto &age_range = context.inputs().settings().age_range();
     auto sum = create_age_gender_table<double>(age_range);
     auto count = create_age_gender_table<double>(age_range);
     auto &pop = context.population();

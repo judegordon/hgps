@@ -1,8 +1,8 @@
 #pragma once
 #include "hgps_core/data/array2d.h"
 #include "hgps_core/types/identifier.h"
-#include "gender_table.h"
-#include "monotonic_vector.h"
+#include "data/gender_table.h"
+#include "utils/monotonic_vector.h"
 #include <map>
 
 namespace hgps {

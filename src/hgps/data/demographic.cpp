@@ -1,7 +1,7 @@
 #include "demographic.h"
 #include "hgps_core/utils/thread_util.h"
 #include "converter.h"
-#include "sync_message.h"
+#include "events/sync_message.h"
 #include <algorithm>
 #include <cassert>
 #include <climits>
@@ -395,7 +395,7 @@ double DemographicModule::calculate_excess_mortality_product(const Person &entit
 
 int DemographicModule::update_age_and_death_events(RuntimeContext &context,
                                                    const DiseaseModule &disease_host) {
-    auto max_age = static_cast<unsigned int>(context.age_range().upper());
+    auto max_age = static_cast<unsigned int>(context.inputs().settings().age_range().upper());
     auto number_of_deaths = 0;
     for (auto &entity : context.population()) {
         if (!entity.is_active()) {

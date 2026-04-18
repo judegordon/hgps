@@ -1,5 +1,5 @@
 #pragma once
-#include "gender_value.h"
+#include "data/gender_value.h"
 #include "intervention_scenario.h"
 
 #include <functional>

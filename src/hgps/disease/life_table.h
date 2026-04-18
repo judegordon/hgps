@@ -1,6 +1,6 @@
 #pragma once
 #include "hgps_core/types/interval.h"
-#include "gender_value.h"
+#include "data/gender_value.h"
 
 #include <map>
 

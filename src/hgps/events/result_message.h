@@ -1,6 +1,6 @@
 #pragma once
 #include "event_message.h"
-#include "model_result.h"
+#include "simulation/model_result.h"
 
 namespace hgps {
 

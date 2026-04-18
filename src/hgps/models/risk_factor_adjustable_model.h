@@ -3,9 +3,9 @@
 #include "hgps_core/forward_type.h"
 #include "hgps_core/types/identifier.h"
 
-#include "map2d.h"
+#include "utils/map2d.h"
 #include "risk_factor_model.h"
-#include "runtime_context.h"
+#include "simulation/runtime_context.h"
 
 #include <functional>
 #include <optional>

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "interfaces.h"
-#include "mapping.h"
+#include "types/interfaces.h"
+#include "data/mapping.h"
 #include <limits>
 #include "hgps_core/types/identifier.h"
 #include "risk_factor_adjustable_model.h"

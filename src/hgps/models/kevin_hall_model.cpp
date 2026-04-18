@@ -1,8 +1,8 @@
 #include "hgps_core/diagnostics/internal_error.h"
 
 #include "kevin_hall_model.h"
-#include "runtime_context.h"
-#include "sync_message.h"
+#include "simulation/runtime_context.h"
+#include "events/sync_message.h"
 
 #include <algorithm>
 #include <iostream>
@@ -115,7 +115,7 @@ void KevinHallModel::update_newborns(RuntimeContext &context) const {
 
     // NOTE: FOR REFACTORING: Then, this whole method can be replaced with a generalised
     // initialise method, which accepts an age range, and both the `generate_risk_factors`
-    // (on `context.age_range()`) and `update_risk_factors` (on `IntegerInterval{0, 0}`)
+    // (on `context.inputs().settings().age_range()`) and `update_risk_factors` (on `IntegerInterval{0, 0}`)
     // can call this new method.
 
     // Adjust newborn weight to match expected.

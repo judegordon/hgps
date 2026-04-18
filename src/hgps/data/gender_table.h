@@ -5,7 +5,7 @@
 #include "hgps_core/data/array2d.h"
 #include "hgps_core/forward_type.h"
 #include "hgps_core/types/interval.h"
-#include "monotonic_vector.h"
+#include "utils/monotonic_vector.h"
 
 namespace hgps {
 

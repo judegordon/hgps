@@ -1,6 +1,6 @@
 #pragma once
-#include "data_series.h"
-#include "gender_value.h"
+#include "data/data_series.h"
+#include "data/gender_value.h"
 
 #include <map>
 #include <optional>
@@ -10,9 +10,7 @@
 namespace hgps {
 
 struct ResultByGender {
-
     double male{};
-
     double female{};
 };
 
@@ -34,35 +32,24 @@ struct ResultByIncomeGender {
 
 struct DALYsIndicator {
     double years_of_life_lost{};
-
     double years_lived_with_disability{};
-
     double disability_adjusted_life_years{};
 };
 
 struct ModelResult {
     ModelResult() = delete;
-
-    ModelResult(const unsigned int sample_size);
+    explicit ModelResult(unsigned int sample_size);
 
     int population_size{};
-
     IntegerGenderValue number_alive{};
-
     int number_dead{};
-
     int number_emigrated{};
-
     ResultByGender average_age{};
-
     DALYsIndicator indicators{};
 
-    std::map<std::string, ResultByGender> risk_ractor_average{};
-
+    std::map<std::string, ResultByGender> risk_factor_average{};
     std::map<std::string, ResultByGender> disease_prevalence{};
-
     std::map<unsigned int, ResultByGender> comorbidity{};
-
     std::map<std::string, double> metrics{};
 
     DataSeries series;
@@ -72,11 +59,7 @@ struct ModelResult {
     std::optional<std::map<std::string, ResultByIncomeGender>> disease_prevalence_by_income{};
     std::optional<std::map<unsigned int, ResultByIncomeGender>> comorbidity_by_income{};
 
-    std::string to_string() const noexcept;
-
     int number_of_recyclable() const noexcept;
-
-  private:
-    std::size_t caluclate_min_padding() const noexcept;
 };
+
 } // namespace hgps

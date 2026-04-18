@@ -2,11 +2,11 @@
 
 #include "hgps_core/interfaces/datastore.h"
 
-#include "disease_definition.h"
-#include "interfaces.h"
-#include "lms_definition.h"
-#include "modelinput.h"
-#include "risk_factor_adjustable_model.h"
+#include "types/disease_definition.h"
+#include "types/interfaces.h"
+#include "types/lms_definition.h"
+#include "model_input.h"
+#include "models/risk_factor_adjustable_model.h"
 #include <functional>
 #include <memory>
 #include <mutex>

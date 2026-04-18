@@ -1,7 +1,7 @@
 #pragma once
 
-#include "default_cancer_model.h"
-#include "default_disease_model.h"
+#include "models/default_cancer_model.h"
+#include "models/default_disease_model.h"
 
 namespace hgps {
 namespace detail {

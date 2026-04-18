@@ -1,8 +1,8 @@
 #pragma once
 
-#include "disease_definition.h"
-#include "gender_table.h"
-#include "interfaces.h"
+#include "types/disease_definition.h"
+#include "data/gender_table.h"
+#include "types/interfaces.h"
 #include "weight_model.h"
 
 namespace hgps {

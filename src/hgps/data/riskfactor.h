@@ -1,6 +1,6 @@
 #pragma once
 
-#include "modelinput.h"
+#include "model_input.h"
 #include "repository.h"
 
 namespace hgps {

@@ -1,7 +1,7 @@
 #include "converter.h"
 
 #include "hgps_core/utils/string_util.h"
-#include "default_cancer_model.h"
+#include "models/default_cancer_model.h"
 #include <fmt/format.h>
 
 namespace hgps::detail {

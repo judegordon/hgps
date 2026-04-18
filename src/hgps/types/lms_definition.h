@@ -1,6 +1,6 @@
 #pragma once
 #include "hgps_core/forward_type.h"
-#include "weight_category.h"
+#include "data/weight_category.h"
 
 #include <map>
 #include <stdexcept>

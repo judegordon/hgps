@@ -1,9 +1,9 @@
 #include "static_linear_model.h"
 #include "risk_factor_adjustable_model.h"
-#include "runtime_context.h"
+#include "simulation/runtime_context.h"
 #include "hgps_core/diagnostics/internal_error.h"
 #include "hgps_input/config/config_types.h"
-#include "population.h"
+#include "data/population.h"
 
 #include <algorithm>
 #include <cctype>
@@ -373,7 +373,7 @@ void StaticLinearModel::generate_risk_factors(RuntimeContext &context) {
         const core::Identifier income_id("income");
         double income_min = std::numeric_limits<double>::max();
         double income_max = std::numeric_limits<double>::lowest();
-        const auto age_range = context.age_range();
+        const auto age_range = context.inputs().settings().age_range();
         for (int age = age_range.lower(); age <= age_range.upper(); age++) {
             for (auto sex : {core::Gender::male, core::Gender::female}) {
                 try {
@@ -542,7 +542,7 @@ void StaticLinearModel::generate_risk_factors(RuntimeContext &context) {
             const core::Identifier income_id("income");
             double income_min = std::numeric_limits<double>::max();
             double income_max = std::numeric_limits<double>::lowest();
-            const auto age_range = context.age_range();
+            const auto age_range = context.inputs().settings().age_range();
             for (int age = age_range.lower(); age <= age_range.upper(); age++) {
                 for (auto sex : {core::Gender::male, core::Gender::female}) {
                     try {
@@ -634,7 +634,7 @@ void StaticLinearModel::update_risk_factors(RuntimeContext &context) {
         const core::Identifier income_id("income");
         double income_min = std::numeric_limits<double>::max();
         double income_max = std::numeric_limits<double>::lowest();
-        const auto age_range = context.age_range();
+        const auto age_range = context.inputs().settings().age_range();
         for (int age = age_range.lower(); age <= age_range.upper(); age++) {
             for (auto sex : {core::Gender::male, core::Gender::female}) {
                 try {
@@ -753,7 +753,7 @@ void StaticLinearModel::update_risk_factors(RuntimeContext &context) {
             const core::Identifier income_id("income");
             double income_min = std::numeric_limits<double>::max();
             double income_max = std::numeric_limits<double>::lowest();
-            const auto age_range = context.age_range();
+            const auto age_range = context.inputs().settings().age_range();
             for (int age = age_range.lower(); age <= age_range.upper(); age++) {
                 for (auto sex : {core::Gender::male, core::Gender::female}) {
                     try {

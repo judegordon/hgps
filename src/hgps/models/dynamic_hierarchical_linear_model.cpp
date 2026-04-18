@@ -1,5 +1,5 @@
 #include "dynamic_hierarchical_linear_model.h"
-#include "runtime_context.h"
+#include "simulation/runtime_context.h"
 
 #include "hgps_core/diagnostics/internal_error.h"
 
@@ -44,7 +44,7 @@ void DynamicHierarchicalLinearModel::update_risk_factors(RuntimeContext &context
             continue;
         }
 
-        auto current_risk_factors = get_current_risk_factors(context.mapping(), entity);
+        auto current_risk_factors = get_current_risk_factors(context.inputs().risk_mapping(), entity);
 
         // Model calibrated on previous year's age
         auto model_age = static_cast<int>(entity.age - 1);
@@ -90,8 +90,8 @@ void DynamicHierarchicalLinearModel::update_risk_factors_exposure(
     const std::map<core::Identifier, double> &current_risk_factors,
     const std::map<core::Identifier, FactorDynamicEquation> &equations) {
     auto delta_comp_factors = std::unordered_map<core::Identifier, double>();
-    for (auto level = 1; level <= context.mapping().max_level(); level++) {
-        auto level_factors = context.mapping().at_level(level);
+    for (auto level = 1; level <= context.inputs().risk_mapping().max_level(); level++) {
+        auto level_factors = context.inputs().risk_mapping().at_level(level);
         for (const auto &factor : level_factors) {
             const auto &factor_equation = equations.at(factor.key());
 

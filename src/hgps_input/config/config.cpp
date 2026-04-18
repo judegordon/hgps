@@ -12,7 +12,7 @@
 #include "hgps/intervention_scenario.h"
 #include "hgps/marketing_dynamic_scenario.h"
 #include "hgps/marketing_scenario.h"
-#include "hgps/modelinput.h"
+#include "hgps/model_input.h"
 #include "hgps/physical_activity_scenario.h"
 #include "hgps/scenario.h"
 #include "hgps/simple_policy_scenario.h"

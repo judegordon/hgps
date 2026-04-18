@@ -1,6 +1,6 @@
 #pragma once
 #include "hgps_core/types/identifier.h"
-#include "gender_table.h"
+#include "data/gender_table.h"
 
 #include <map>
 #include <string>

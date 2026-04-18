@@ -1,7 +1,7 @@
 #include "disease.h"
 #include "disease_registry.h"
-#include "lms_model.h"
-#include "weight_model.h"
+#include "models/lms_model.h"
+#include "models/weight_model.h"
 
 #include <oneapi/tbb/parallel_for_each.h>
 

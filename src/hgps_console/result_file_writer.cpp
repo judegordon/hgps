@@ -212,7 +212,7 @@ std::string ResultFileWriter::to_json_string(const hgps::ResultEventMessage &mes
          }},
     };
 
-    for (const auto &factor : message.content.risk_ractor_average) {
+    for (const auto &factor : message.content.risk_factor_average) {
         msg["risk_factors_average"][factor.first] = {{"male", factor.second.male},
                                                      {"female", factor.second.female}};
     }

@@ -4,7 +4,7 @@
 #include <memory>
 #include <string>
 
-#include "runtime_context.h"
+#include "simulation/runtime_context.h"
 
 namespace hgps {
 
