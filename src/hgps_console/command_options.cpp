@@ -4,6 +4,8 @@
 #include <fmt/color.h>
 
 #include <iostream>
+#include <stdexcept>
+#include <string>
 
 namespace hgps {
 
@@ -14,16 +16,20 @@ cxxopts::Options create_options() {
     options.add_options()
         ("f,file", "Path to configuration file, folder or URL (deprecated).",
             cxxopts::value<std::string>())
-        ("c,config", "Path to configuration file, folder or URL.", cxxopts::value<std::string>())
-        ("s,storage", "Path to root folder of the data storage.", cxxopts::value<std::string>())
-        ("j,jobid", "The batch execution job identifier.", cxxopts::value<int>())
-        ("dry-run",  "Check the input files without running a simulation",
-            cxxopts::value<bool>()->default_value("false"))
-        ("o,output", "Path to output folder", cxxopts::value<std::string>())
+        ("c,config", "Path to configuration file, folder or URL.",
+            cxxopts::value<std::string>())
+        ("s,storage", "Path to root folder of the data storage.",
+            cxxopts::value<std::string>())
+        ("j,jobid", "The batch execution job identifier.",
+            cxxopts::value<int>())
+        ("dry-run", "Check the input files without running a simulation",
+            cxxopts::value<bool>()->default_value("false")->implicit_value("true"))
+        ("o,output", "Path to output folder",
+            cxxopts::value<std::string>())
         ("T,threads", "The maximum number of threads to create (0: no limit, default).",
-            cxxopts::value<size_t>())
+            cxxopts::value<std::size_t>())
         ("verbose", "Print more information about progress",
-            cxxopts::value<bool>()->default_value("false"))
+            cxxopts::value<bool>()->default_value("false")->implicit_value("true"))
         ("help", "Help for this application.")
         ("version", "Print the application version number.");
     // clang-format on
@@ -32,10 +38,8 @@ cxxopts::Options create_options() {
 }
 
 std::optional<CommandOptions> parse_arguments(cxxopts::Options &options, int argc, char **argv) {
-    namespace fs = std::filesystem;
-
     CommandOptions cmd;
-    auto result = options.parse(argc, argv);
+    const auto result = options.parse(argc, argv);
 
     if (result.count("help")) {
         std::cout << options.help() << '\n';
@@ -47,19 +51,27 @@ std::optional<CommandOptions> parse_arguments(cxxopts::Options &options, int arg
         return std::nullopt;
     }
 
-    cmd.verbose = result["verbose"].as<bool>();
-    if (cmd.verbose) {
-        fmt::print(fg(fmt::color::dark_salmon), "Verbose output enabled\n");
+    if (result.count("file") && result.count("config")) {
+        throw std::runtime_error("Specify only one of --config or --file.");
     }
 
     if (result.count("file")) {
         fmt::print(fg(fmt::color::dark_salmon),
                    "The -f/--file option is deprecated. Use -c/--config instead.\n");
         cmd.config_source = result["file"].as<std::string>();
-    }
-    if (result.count("config")) {
+    } else if (result.count("config")) {
         cmd.config_source = result["config"].as<std::string>();
     }
+
+    if (cmd.config_source.empty()) {
+        throw std::runtime_error("Missing required configuration source. Use --config.");
+    }
+
+    cmd.verbose = result["verbose"].as<bool>();
+    if (cmd.verbose) {
+        fmt::print(fg(fmt::color::dark_salmon), "Verbose output enabled\n");
+    }
+
     fmt::print("Configuration source: {}\n", cmd.config_source);
 
     if (result.count("storage")) {
@@ -74,8 +86,8 @@ std::optional<CommandOptions> parse_arguments(cxxopts::Options &options, int arg
         cmd.data_source = hgps::input::DataSource(std::move(source));
     }
 
-    if (result.count("dry-run")) {
-        cmd.dry_run = true;
+    cmd.dry_run = result["dry-run"].as<bool>();
+    if (cmd.dry_run) {
         fmt::print(fmt::fg(fmt::color::yellow), "Performing dry run.\n");
     }
 
@@ -92,9 +104,10 @@ std::optional<CommandOptions> parse_arguments(cxxopts::Options &options, int arg
     }
 
     if (result.count("threads")) {
-        cmd.num_threads = result["threads"].as<size_t>();
+        cmd.num_threads = result["threads"].as<std::size_t>();
     }
 
     return cmd;
 }
+
 } // namespace hgps

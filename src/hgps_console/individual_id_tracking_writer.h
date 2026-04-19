@@ -1,3 +1,4 @@
+// individual_id_tracking_writer.h
 #pragma once
 
 #include "hgps/events/individual_tracking_message.h"
@@ -17,23 +18,23 @@ class IndividualIDTrackingWriter {
 
     IndividualIDTrackingWriter(const IndividualIDTrackingWriter &) = delete;
     IndividualIDTrackingWriter &operator=(const IndividualIDTrackingWriter &) = delete;
-    IndividualIDTrackingWriter(IndividualIDTrackingWriter &&) = default;
-    IndividualIDTrackingWriter &operator=(IndividualIDTrackingWriter &&) = default;
+    IndividualIDTrackingWriter(IndividualIDTrackingWriter &&) = delete;
+    IndividualIDTrackingWriter &operator=(IndividualIDTrackingWriter &&) = delete;
 
     void write(const IndividualTrackingEventMessage &message);
 
   private:
     static std::filesystem::path make_tracking_path(const std::filesystem::path &base_result_path);
     void write_header(const IndividualTrackingEventMessage &message);
+    void validate_columns(const IndividualTrackingEventMessage &message) const;
     void write_row(unsigned int run, int time, const std::string &scenario,
-                   const IndividualTrackingRow &row,
-                   const std::vector<std::string> &risk_factor_columns);
+                   const IndividualTrackingRow &row);
 
     std::ofstream stream_;
     std::mutex mutex_;
     bool header_written_{false};
     std::vector<std::string> risk_factor_columns_;
-    unsigned int write_count_{0}; // MAHIMA: for periodic flush (every 5 writes)
+    unsigned int write_count_{0};
 };
 
 } // namespace hgps
