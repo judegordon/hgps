@@ -1,36 +1,32 @@
 #pragma once
 #include "event_message.h"
 
+#include <string>
+
 namespace hgps {
 
 enum class RunnerAction {
     start,
-
     run_begin,
-
     cancelled,
-
     run_end,
-
     finish
 };
 
 struct RunnerEventMessage final : public EventMessage {
-
     RunnerEventMessage() = delete;
 
-    RunnerEventMessage(std::string sender, RunnerAction run_action) noexcept;
+    RunnerEventMessage(std::string sender, RunnerAction run_action);
 
-    RunnerEventMessage(std::string sender, RunnerAction run_action, double elapsed) noexcept;
+    RunnerEventMessage(std::string sender, RunnerAction run_action, double elapsed);
 
-    RunnerEventMessage(std::string sender, RunnerAction run_action, unsigned int run) noexcept;
+    RunnerEventMessage(std::string sender, RunnerAction run_action, unsigned int run);
 
     RunnerEventMessage(std::string sender, RunnerAction run_action, unsigned int run,
-                       double elapsed) noexcept;
+                       double elapsed);
 
-    RunnerAction action{};
-
-    double elapsed_ms{};
+    const RunnerAction action{};
+    const double elapsed_ms{};
 
     int id() const noexcept override;
 
@@ -38,4 +34,5 @@ struct RunnerEventMessage final : public EventMessage {
 
     void accept(EventMessageVisitor &visitor) const override;
 };
+
 } // namespace hgps

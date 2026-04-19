@@ -1,20 +1,28 @@
 #include "model_input.h"
 
-#include <optional>
+#include <stdexcept>
 #include <utility>
 
 namespace hgps {
 
 ModelInput::ModelInput(
-    core::DataTable &data, Settings settings, const RunInfo &run_info, SESDefinition ses_info,
+    core::DataTable &data, Settings settings, RunInfo run_info, SESDefinition ses_info,
     HierarchicalMapping risk_mapping, std::vector<core::DiseaseInfo> diseases,
     hgps::input::ProjectRequirements project_requirements, hgps::input::PIFInfo pif_info,
     std::optional<hgps::input::IndividualIdTrackingConfig> individual_id_tracking_config)
-    : input_data_{data}, settings_{std::move(settings)}, run_info_{run_info},
+    : input_data_{data}, settings_{std::move(settings)}, run_info_{std::move(run_info)},
       ses_definition_{std::move(ses_info)}, risk_mapping_{std::move(risk_mapping)},
       diseases_{std::move(diseases)}, project_requirements_{std::move(project_requirements)},
       pif_info_{std::move(pif_info)},
-      individual_id_tracking_config_{std::move(individual_id_tracking_config)} {}
+      individual_id_tracking_config_{std::move(individual_id_tracking_config)} {
+    if (run_info_.start_time > run_info_.stop_time) {
+        throw std::invalid_argument("ModelInput start_time cannot be greater than stop_time.");
+    }
+
+    if (run_info_.sync_timeout_ms == 0) {
+        throw std::invalid_argument("ModelInput sync_timeout_ms must be greater than zero.");
+    }
+}
 
 const Settings &ModelInput::settings() const noexcept { return settings_; }
 
@@ -37,8 +45,7 @@ const HierarchicalMapping &ModelInput::risk_mapping() const noexcept { return ri
 const std::vector<core::DiseaseInfo> &ModelInput::diseases() const noexcept { return diseases_; }
 
 bool ModelInput::enable_income_analysis() const noexcept {
-    // Return income analysis flag - forces recompilation
-    return enable_income_analysis_;
+    return true;
 }
 
 const hgps::input::PIFInfo &ModelInput::population_impact_fraction() const noexcept {

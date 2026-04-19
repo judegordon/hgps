@@ -1,23 +1,23 @@
 #pragma once
 
+#include <utility>
+
 namespace hgps {
 
 class SyncMessage {
   public:
-    explicit SyncMessage(const int run, const int time) : run_{run}, time_{time} {}
+    explicit SyncMessage(int run, int time) : run_{run}, time_{time} {}
 
     SyncMessage(const SyncMessage &) = delete;
     SyncMessage &operator=(const SyncMessage &) = delete;
+    SyncMessage(SyncMessage &&) = delete;
+    SyncMessage &operator=(SyncMessage &&) = delete;
+
     virtual ~SyncMessage() = default;
 
     int run() const noexcept { return run_; }
 
     int time() const noexcept { return time_; }
-
-  protected:
-    SyncMessage(SyncMessage &&other) = default;
-
-    SyncMessage &operator=(SyncMessage &&other) = default;
 
   private:
     int run_;
@@ -26,7 +26,7 @@ class SyncMessage {
 
 template <typename PayloadType> class SyncDataMessage final : public SyncMessage {
   public:
-    explicit SyncDataMessage(const int run, const int time, PayloadType &&data)
+    explicit SyncDataMessage(int run, int time, PayloadType &&data)
         : SyncMessage(run, time), data_{std::move(data)} {}
 
     const PayloadType &data() const noexcept { return data_; }
@@ -34,4 +34,5 @@ template <typename PayloadType> class SyncDataMessage final : public SyncMessage
   private:
     PayloadType data_;
 };
+
 } // namespace hgps

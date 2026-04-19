@@ -1,26 +1,21 @@
 #pragma once
 
-#include "hgps_core/types/identifier.h"
-
 #include "data/mapping.h"
-#include "utils/random_algorithm.h"
+#include "hgps_core/types/identifier.h"
 #include "risk_factor_adjustable_model.h"
+#include "utils/random_algorithm.h"
 
 namespace hgps {
 
 struct FactorDynamicEquation {
     std::string name;
-
     std::map<core::Identifier, double> coefficients{};
-
     double residuals_standard_deviation{};
 };
 
 struct AgeGroupGenderEquation {
     core::IntegerInterval age_group;
-
     std::map<core::Identifier, FactorDynamicEquation> male{};
-
     std::map<core::Identifier, FactorDynamicEquation> female{};
 };
 
@@ -32,11 +27,11 @@ class DynamicHierarchicalLinearModel final : public RiskFactorAdjustableModel {
         std::shared_ptr<std::unordered_map<core::Identifier, int>> trend_steps,
         const std::map<core::IntegerInterval, AgeGroupGenderEquation> &equations,
         const std::map<core::Identifier, core::Identifier> &variables,
-        const double boundary_percentage);
+        double boundary_percentage);
 
     RiskFactorModelType type() const noexcept override;
 
-    std::string name() const noexcept override;
+    std::string name() const override;
 
     void generate_risk_factors(RuntimeContext &context) override;
 
@@ -55,7 +50,7 @@ class DynamicHierarchicalLinearModel final : public RiskFactorAdjustableModel {
         const std::map<core::Identifier, FactorDynamicEquation> &equations);
 
     static std::map<core::Identifier, double>
-    get_current_risk_factors(const HierarchicalMapping &mapping, Person &entity);
+    get_current_risk_factors(const HierarchicalMapping &mapping, const Person &entity);
 
     double sample_normal_with_boundary(Random &random, double mean, double standard_deviation,
                                        double boundary) const;
@@ -69,7 +64,7 @@ class DynamicHierarchicalLinearModelDefinition : public RiskFactorAdjustableMode
         std::unique_ptr<std::unordered_map<core::Identifier, int>> trend_steps,
         std::map<core::IntegerInterval, AgeGroupGenderEquation> equations,
         std::map<core::Identifier, core::Identifier> variables,
-        const double boundary_percentage = 0.05);
+        double boundary_percentage = 0.05);
 
     std::unique_ptr<RiskFactorModel> create_model() const override;
 

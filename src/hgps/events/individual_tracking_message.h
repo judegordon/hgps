@@ -2,6 +2,7 @@
 
 #include "event_message.h"
 
+#include <cstddef>
 #include <map>
 #include <string>
 #include <vector>
@@ -25,9 +26,9 @@ struct IndividualTrackingEventMessage final : public EventMessage {
                                    std::string scenario_name,
                                    std::vector<IndividualTrackingRow> rows);
 
-    int model_time{};
-    std::string scenario_name{};
-    std::vector<IndividualTrackingRow> rows{};
+    const int model_time{};
+    const std::string scenario_name{};
+    const std::vector<IndividualTrackingRow> rows{};
 
     int id() const noexcept override;
     std::string to_string() const override;

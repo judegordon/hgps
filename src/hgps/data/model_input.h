@@ -1,38 +1,31 @@
 #pragma once
 
+#include <optional>
+#include <utility>
+#include <vector>
+
 #include <hgps_core/data/data_table.h>
 #include "hgps_core/types/disease.h"
 #include <hgps_core/types/identifier.h>
-#include <hgps_core/utils/string_util.h>
-#include <map>
 
 #include "hgps_input/config/config_types.h"
 #include "mapping.h"
 #include "utils/settings.h"
 
-#include <optional>
-
 namespace hgps {
 
 struct RunInfo {
     unsigned int start_time{};
-
     unsigned int stop_time{};
-
     unsigned int sync_timeout_ms{};
-
     std::optional<unsigned int> seed{};
-
     core::VerboseMode verbosity{};
-
     unsigned int comorbidities{};
-
     unsigned int policy_start_year{0};
 };
 
 struct SESDefinition {
     std::string function_name;
-
     std::vector<double> parameters;
 };
 
@@ -40,9 +33,8 @@ class ModelInput {
   public:
     ModelInput() = delete;
 
-    ModelInput(core::DataTable &data, Settings settings, const RunInfo &run_info,
-               SESDefinition ses_info, HierarchicalMapping risk_mapping,
-               std::vector<core::DiseaseInfo> diseases,
+    ModelInput(core::DataTable &data, Settings settings, RunInfo run_info, SESDefinition ses_info,
+               HierarchicalMapping risk_mapping, std::vector<core::DiseaseInfo> diseases,
                hgps::input::ProjectRequirements project_requirements,
                hgps::input::PIFInfo pif_info = hgps::input::PIFInfo{},
                std::optional<hgps::input::IndividualIdTrackingConfig>
@@ -85,9 +77,8 @@ class ModelInput {
     HierarchicalMapping risk_mapping_;
     std::vector<core::DiseaseInfo> diseases_;
     hgps::input::ProjectRequirements project_requirements_{};
-    bool enable_income_analysis_{
-        true}; // This is to set if results be categorised by income or not. Set to TRUE for now.
     hgps::input::PIFInfo pif_info_;
     std::optional<hgps::input::IndividualIdTrackingConfig> individual_id_tracking_config_{};
 };
+
 } // namespace hgps

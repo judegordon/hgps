@@ -1,27 +1,25 @@
 #pragma once
 
 #include "event_visitor.h"
+
 #include <cstdint>
 #include <string>
+#include <utility>
 
 namespace hgps {
 
 enum struct EventType : uint8_t {
     runner,
-
     info,
-
     result,
-
     individual_tracking,
-
     error
 };
 
 struct EventMessage {
     EventMessage() = delete;
 
-    EventMessage(std::string sender, unsigned int run)
+    explicit EventMessage(std::string sender, unsigned int run)
         : source{std::move(sender)}, run_number{run} {}
 
     EventMessage(const EventMessage &) = delete;
@@ -32,7 +30,6 @@ struct EventMessage {
     virtual ~EventMessage() = default;
 
     const std::string source;
-
     const unsigned int run_number{};
 
     virtual int id() const noexcept = 0;
@@ -41,4 +38,5 @@ struct EventMessage {
 
     virtual void accept(EventMessageVisitor &visitor) const = 0;
 };
+
 } // namespace hgps

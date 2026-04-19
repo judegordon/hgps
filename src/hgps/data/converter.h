@@ -1,13 +1,13 @@
 #pragma once
 
-#include "analysis_definition.h"
-#include "disease_definition.h"
-#include "disease_table.h"
-#include "gender_table.h"
-#include "life_table.h"
-#include "lms_definition.h"
-#include "model_input.h"
-#include "relative_risk.h"
+#include "analysis/analysis_definition.h"
+#include "types/disease_definition.h"
+#include "disease/disease_table.h"
+#include "data/gender_table.h"
+#include "disease/life_table.h"
+#include "types/lms_definition.h"
+#include "data/model_input.h"
+#include "disease/relative_risk.h"
 
 #include "hgps_core/interfaces/datastore.h"
 

@@ -1,10 +1,11 @@
 #pragma once
 
 #include "event_subscriber.h"
+
 #include <functional>
 #include <memory>
-#include <mutex>
 #include <shared_mutex>
+#include <string>
 #include <unordered_map>
 
 namespace hgps {
@@ -21,33 +22,17 @@ class DefaultEventBus final : public EventAggregator {
 
     bool unsubscribe(const EventSubscriber &subscriber) override;
 
-    [[nodiscard]] std::size_t count();
+    [[nodiscard]] std::size_t count() const;
 
     void clear() noexcept;
 
   private:
     using mutex_type = std::shared_mutex;
+
     mutable mutex_type subscribe_mutex_;
     std::unordered_multimap<int, std::string> registry_;
     std::unordered_map<std::string, std::function<void(std::shared_ptr<EventMessage>)>>
         subscribers_;
-
-    template <typename Callable> void shared_access(const Callable &callable) const {
-        try {
-            std::shared_lock<mutex_type> lock(subscribe_mutex_);
-            callable();
-        } catch (std::system_error &) {
-            // do nothing
-        }
-    }
-
-    template <typename Callable> void exclusive_access(const Callable &callable) const {
-        try {
-            std::unique_lock<mutex_type> lock(subscribe_mutex_);
-            callable();
-        } catch (std::system_error &) {
-            // do nothing
-        }
-    }
 };
+
 } // namespace hgps

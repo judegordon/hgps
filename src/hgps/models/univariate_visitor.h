@@ -7,7 +7,7 @@ namespace hgps {
 
 class UnivariateVisitor {
   public:
-    core::UnivariateSummary get_summary(const core::DataTableColumn& column) const;
+    core::UnivariateSummary get_summary(const core::DataTableColumn &column) const;
 };
 
 } // namespace hgps

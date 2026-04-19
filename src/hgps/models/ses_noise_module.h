@@ -1,8 +1,8 @@
 #pragma once
 
-#include "types/interfaces.h"
 #include "data/model_input.h"
 #include "data/repository.h"
+#include "types/interfaces.h"
 
 namespace hgps {
 
@@ -10,7 +10,7 @@ class SESNoiseModule final : public UpdatableModule {
   public:
     SESNoiseModule();
 
-    SESNoiseModule(const std::vector<double> &parameters);
+    explicit SESNoiseModule(const std::vector<double> &parameters);
 
     SESNoiseModule(std::string function, const std::vector<double> &parameters);
 
@@ -30,4 +30,5 @@ class SESNoiseModule final : public UpdatableModule {
 
 std::unique_ptr<SESNoiseModule> build_ses_noise_module(Repository &repository,
                                                        const ModelInput &config);
+
 } // namespace hgps

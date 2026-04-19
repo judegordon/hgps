@@ -1,73 +1,89 @@
 #include "event_bus.h"
+
 #include "hgps_core/utils/thread_util.h"
+
 #include <crossguid/guid.hpp>
+
+#include <future>
+#include <memory>
+#include <shared_mutex>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace hgps {
 
 std::unique_ptr<EventSubscriber>
 DefaultEventBus::subscribe(EventType event_id,
                            std::function<void(std::shared_ptr<EventMessage> message)> function) {
-    auto handle_id = std::string{};
-    exclusive_access([&]() {
-        auto event_key = static_cast<int>(event_id);
-        handle_id = xg::newGuid().str();
-        subscribers_.emplace(handle_id, std::move(function));
-        registry_.emplace(event_key, handle_id);
-    });
+    std::unique_lock<mutex_type> lock(subscribe_mutex_);
+
+    const auto event_key = static_cast<int>(event_id);
+    auto handle_id = xg::newGuid().str();
+
+    subscribers_.emplace(handle_id, std::move(function));
+    registry_.emplace(event_key, handle_id);
 
     return std::make_unique<EventSubscriberHandler>(handle_id, this);
 }
 
 void DefaultEventBus::publish(std::unique_ptr<EventMessage> message) const {
-    shared_access([&]() {
-        std::shared_ptr<EventMessage> shared_message = std::move(message);
+    std::shared_ptr<EventMessage> shared_message = std::move(message);
+    std::vector<std::function<void(std::shared_ptr<EventMessage>)>> handlers;
 
-        // Only call the functions we need for the event type
-        auto [begin_id, end_id] = registry_.equal_range(shared_message->id());
-        for (; begin_id != end_id; ++begin_id) {
-            subscribers_.at(begin_id->second)(shared_message);
+    {
+        std::shared_lock<mutex_type> lock(subscribe_mutex_);
+
+        const auto [begin_id, end_id] = registry_.equal_range(shared_message->id());
+        for (auto it = begin_id; it != end_id; ++it) {
+            auto handler_it = subscribers_.find(it->second);
+            if (handler_it != subscribers_.end()) {
+                handlers.push_back(handler_it->second);
+            }
         }
-    });
+    }
+
+    for (const auto &handler : handlers) {
+        handler(shared_message);
+    }
 }
 
 void DefaultEventBus::publish_async(std::unique_ptr<EventMessage> message) const {
-    auto futptr = std::make_shared<std::future<void>>();
-    *futptr = core::run_async(&DefaultEventBus::publish, this, std::move(message));
+    std::ignore = core::run_async([this, msg = std::move(message)]() mutable {
+        publish(std::move(msg));
+    });
 }
 
 bool DefaultEventBus::unsubscribe(const EventSubscriber &subscriber) {
-    auto result = false;
-    exclusive_access([this, &result, &subscriber]() {
-        auto sub_id = subscriber.id().str();
-        if (subscribers_.contains(sub_id)) {
-            for (auto it = registry_.begin(); it != registry_.end(); ++it) {
-                if (it->second == subscriber.id()) {
-                    registry_.erase(it);
-                    result = true;
-                    break;
-                }
-            }
+    std::unique_lock<mutex_type> lock(subscribe_mutex_);
 
-            if (result) {
-                subscribers_.erase(sub_id);
-            }
+    const auto sub_id = subscriber.id().str();
+    if (!subscribers_.contains(sub_id)) {
+        return false;
+    }
+
+    subscribers_.erase(sub_id);
+
+    for (auto it = registry_.begin(); it != registry_.end();) {
+        if (it->second == sub_id) {
+            it = registry_.erase(it);
+        } else {
+            ++it;
         }
-    });
+    }
 
-    return result;
+    return true;
 }
 
-std::size_t DefaultEventBus::count() {
+std::size_t DefaultEventBus::count() const {
     std::shared_lock<mutex_type> lock(subscribe_mutex_);
-    std::size_t count{};
-    shared_access([this, &count]() noexcept { count = registry_.size(); });
-    return count;
+    return registry_.size();
 }
 
 void DefaultEventBus::clear() noexcept {
-    exclusive_access([this]() noexcept {
-        registry_.clear();
-        subscribers_.clear();
-    });
+    std::unique_lock<mutex_type> lock(subscribe_mutex_);
+    registry_.clear();
+    subscribers_.clear();
 }
+
 } // namespace hgps

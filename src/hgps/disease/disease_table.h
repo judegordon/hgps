@@ -1,4 +1,5 @@
 #pragma once
+
 #include <map>
 #include <string>
 
@@ -18,7 +19,7 @@ class DiseaseMeasure {
   public:
     DiseaseMeasure() = default;
 
-    DiseaseMeasure(std::map<int, double> measures);
+    explicit DiseaseMeasure(std::map<int, double> measures);
 
     std::size_t size() const noexcept;
 
@@ -45,7 +46,7 @@ class DiseaseTable {
 
     std::size_t cols() const noexcept;
 
-    bool contains(const int age) const noexcept;
+    bool contains(int age) const noexcept;
 
     const std::map<std::string, int> &measures() const noexcept;
 
@@ -53,13 +54,14 @@ class DiseaseTable {
 
     int operator[](const std::string &measure) const;
 
-    DiseaseMeasure &operator()(const int age, const core::Gender gender);
+    DiseaseMeasure &operator()(int age, core::Gender gender);
 
-    const DiseaseMeasure &operator()(const int age, const core::Gender gender) const;
+    const DiseaseMeasure &operator()(int age, core::Gender gender) const;
 
   private:
     core::DiseaseInfo info_;
     std::map<std::string, int> measures_;
     std::map<int, std::map<core::Gender, DiseaseMeasure>> data_;
 };
+
 } // namespace hgps

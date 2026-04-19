@@ -1,9 +1,11 @@
 #include "disease.h"
+
 #include "disease_registry.h"
 #include "models/lms_model.h"
 #include "models/weight_model.h"
 
-#include <oneapi/tbb/parallel_for_each.h>
+#include <stdexcept>
+#include <utility>
 
 namespace hgps {
 
@@ -30,30 +32,27 @@ DiseaseModule::operator[](const core::Identifier &disease_id) const {
 }
 
 void DiseaseModule::initialise_population(RuntimeContext &context) {
-    // Initialise disease status based on prevalence
-    for (auto &model : models_) {
-        model.second->initialise_disease_status(context);
+    for (auto &[_, model] : models_) {
+        model->initialise_disease_status(context);
     }
 
-    // Recalculate relative risks once diseases status were generated
-    for (auto &model : models_) {
-        model.second->initialise_average_relative_risk(context);
+    for (auto &[_, model] : models_) {
+        model->initialise_average_relative_risk(context);
     }
 
-    // After initialising with prevalence, do a 'dry run' to simulate incidence.
-    for (auto &model : models_) {
-        model.second->update_disease_status(context);
+    for (auto &[_, model] : models_) {
+        model->update_disease_status(context);
     }
 }
 
 void DiseaseModule::update_population(RuntimeContext &context) {
-    for (auto &model : models_) {
-        model.second->update_disease_status(context);
+    for (auto &[_, model] : models_) {
+        model->update_disease_status(context);
     }
 }
 
 double DiseaseModule::get_excess_mortality(const core::Identifier &disease_code,
-                                           const Person &entity) const noexcept {
+                                           const Person &entity) const {
     if (!models_.contains(disease_code)) {
         return 0.0;
     }
@@ -63,15 +62,14 @@ double DiseaseModule::get_excess_mortality(const core::Identifier &disease_code,
 
 std::unique_ptr<DiseaseModule> build_disease_module(Repository &repository,
                                                     const ModelInput &config) {
-    // Models must be registered prior to be created.
-    auto registry = get_default_disease_model_registry();
-    auto models = std::map<core::Identifier, std::shared_ptr<DiseaseModel>>();
+    const auto registry = get_default_disease_model_registry();
+    std::map<core::Identifier, std::shared_ptr<DiseaseModel>> models;
 
     const auto &diseases = config.diseases();
-    std::mutex m;
-    tbb::parallel_for_each(std::begin(diseases), std::end(diseases), [&](auto &info) {
-        auto info_code_str = info.code.to_string();
-        auto other = repository.get_disease_info(info_code_str);
+    for (const auto &info : diseases) {
+        const auto info_code_str = info.code.to_string();
+        const auto other = repository.get_disease_info(info_code_str);
+
         if (!registry.contains(info.group) || !other.has_value()) {
             throw std::out_of_range("Unknown disease definition: " + info_code_str);
         }
@@ -80,13 +78,12 @@ std::unique_ptr<DiseaseModule> build_disease_module(Repository &repository,
         auto &lms_definition = repository.get_lms_definition();
         auto classifier = WeightModel{LmsModel{lms_definition}};
 
-        // Sync region
-        std::scoped_lock lock(m);
         models.emplace(core::Identifier{info.code},
                        registry.at(info.group)(disease_definition, std::move(classifier),
                                                config.settings().age_range()));
-    });
+    }
 
     return std::make_unique<DiseaseModule>(std::move(models));
 }
+
 } // namespace hgps

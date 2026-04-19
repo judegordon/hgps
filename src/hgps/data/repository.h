@@ -7,10 +7,13 @@
 #include "types/lms_definition.h"
 #include "model_input.h"
 #include "models/risk_factor_adjustable_model.h"
+
 #include <functional>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <string>
 
 namespace hgps {
 
@@ -61,7 +64,7 @@ class CachedRepository final : public Repository {
   public:
     CachedRepository() = delete;
 
-    CachedRepository(core::Datastore &manager);
+    explicit CachedRepository(core::Datastore &manager);
 
     void
     register_risk_factor_model_definition(const RiskFactorModelType &model_type,
@@ -116,4 +119,5 @@ class CachedRepository final : public Repository {
 
     void load_disease_definition(const core::DiseaseInfo &info, const ModelInput &config);
 };
+
 } // namespace hgps

@@ -9,7 +9,7 @@ class RiskFactorModule final : public RiskFactorHostModule {
   public:
     RiskFactorModule() = delete;
 
-    RiskFactorModule(std::map<RiskFactorModelType, std::unique_ptr<RiskFactorModel>> models);
+    explicit RiskFactorModule(std::map<RiskFactorModelType, std::unique_ptr<RiskFactorModel>> models);
 
     SimulationModuleType type() const noexcept override;
 

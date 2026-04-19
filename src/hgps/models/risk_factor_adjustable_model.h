@@ -1,39 +1,32 @@
 #pragma once
 
+#include "data/mapping.h"
+#include "risk_factor_model.h"
+#include "simulation/runtime_context.h"
+#include "utils/map2d.h"
+
 #include "hgps_core/forward_type.h"
 #include "hgps_core/types/identifier.h"
 
-#include "utils/map2d.h"
-#include "risk_factor_model.h"
-#include "simulation/runtime_context.h"
-
 #include <functional>
+#include <memory>
 #include <optional>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
-namespace { // anonymous namespace
-
-using OptionalRange = std::optional<std::reference_wrapper<const hgps::core::DoubleInterval>>;
-
-using OptionalRanges =
-    std::optional<std::reference_wrapper<const std::vector<hgps::core::DoubleInterval>>>;
-
-} // anonymous namespace
-
 namespace hgps {
 
+using OptionalRange = std::optional<std::reference_wrapper<const core::DoubleInterval>>;
+
+using OptionalRanges =
+    std::optional<std::reference_wrapper<const std::vector<core::DoubleInterval>>>;
+
 enum class TrendType {
-    Null,       ///< No trends applied to factors mean adjustment
-    UPFTrend,   ///< UPF (ultra-processed food) trends; config: "upf_trend", "trend" or "UPFTrend"
-    IncomeTrend ///< Income-based trends applied to factors mean adjustment
+    Null,
+    UPFTrend,
+    IncomeTrend
 };
-
-inline bool operator==(TrendType lhs, TrendType rhs) noexcept {
-    return static_cast<int>(lhs) == static_cast<int>(rhs);
-}
-
-inline bool operator!=(TrendType lhs, TrendType rhs) noexcept { return !(lhs == rhs); }
 
 using RiskFactorSexAgeTable = UnorderedMap2d<core::Gender, core::Identifier, std::vector<double>>;
 
@@ -79,15 +72,12 @@ class RiskFactorAdjustableModel : public RiskFactorModel {
     std::shared_ptr<std::unordered_map<core::Identifier, double>> expected_trend_;
     std::shared_ptr<std::unordered_map<core::Identifier, int>> trend_steps_;
 
-    // Trend type for factors mean adjustment
     TrendType trend_type_;
 
-    // Income trend data structures (only used when trend_type_ == TrendType::IncomeTrend)
     std::shared_ptr<std::unordered_map<core::Identifier, double>> expected_income_trend_;
     std::shared_ptr<std::unordered_map<core::Identifier, double>>
         expected_income_trend_decay_factors_;
 
-    // Logistic factors for simulated mean calculation (factors that use 2-stage modeling)
     std::unordered_set<core::Identifier> logistic_factors_;
 };
 

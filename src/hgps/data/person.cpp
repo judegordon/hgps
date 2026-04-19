@@ -1,18 +1,20 @@
 #include "person.h"
 
 #include "hgps_core/diagnostics/internal_error.h"
+
+#include <cmath>
+#include <stdexcept>
+
 using hgps::core::operator""_id;
 
 namespace hgps {
-
-std::atomic<std::size_t> Person::newUID{0};
 
 std::map<core::Identifier, std::function<double(const Person &)>> Person::current_dispatcher{
     {"Intercept"_id, [](const Person &) { return 1.0; }},
     {"Gender"_id, [](const Person &p) { return p.gender_to_value(); }},
     {"Age"_id, [](const Person &p) { return static_cast<double>(p.age); }},
-    {"Age2"_id, [](const Person &p) { return pow(p.age, 2); }},
-    {"Age3"_id, [](const Person &p) { return pow(p.age, 3); }},
+    {"Age2"_id, [](const Person &p) { return std::pow(p.age, 2); }},
+    {"Age3"_id, [](const Person &p) { return std::pow(p.age, 3); }},
     {"Over18"_id, [](const Person &p) { return static_cast<double>(p.over_18()); }},
     {"Sector"_id, [](const Person &p) { return p.sector_to_value(); }},
     {"Region"_id, [](const Person &p) { return p.region_to_value(); }},
@@ -20,10 +22,9 @@ std::map<core::Identifier, std::function<double(const Person &)>> Person::curren
     {"Income"_id, [](const Person &p) { return p.income_to_value(); }},
     {"SES"_id, [](const Person &p) { return p.ses; }},
 
-    // FINCH-specific coefficient mappings (lowercase with numbers)
     {"gender2"_id, [](const Person &p) { return p.gender_to_value(); }},
     {"age1"_id, [](const Person &p) { return static_cast<double>(p.age); }},
-    {"age2"_id, [](const Person &p) { return pow(p.age, 2); }},
+    {"age2"_id, [](const Person &p) { return std::pow(p.age, 2); }},
     {"ethnicity2"_id, [](const Person &p) { return p.ethnicity_to_value() == 2.0 ? 1.0 : 0.0; }},
     {"ethnicity3"_id, [](const Person &p) { return p.ethnicity_to_value() == 3.0 ? 1.0 : 0.0; }},
     {"ethnicity4"_id, [](const Person &p) { return p.ethnicity_to_value() == 4.0 ? 1.0 : 0.0; }},
@@ -33,13 +34,6 @@ std::map<core::Identifier, std::function<double(const Person &)>> Person::curren
     {"region4"_id, [](const Person &p) { return p.region_to_value() == 4.0 ? 1.0 : 0.0; }},
 };
 
-Person::Person() : id_{++Person::newUID} {}
-
-Person::Person(const core::Gender birth_gender) noexcept
-    : gender{birth_gender}, id_{++Person::newUID} {}
-
-// MAHIMA: Index-based ID constructors for Population; same logical person gets same ID in
-// baseline and intervention (ID = slot index + 1).
 Person::Person(std::size_t id) noexcept : id_{id} {}
 
 Person::Person(const core::Gender birth_gender, std::size_t id) noexcept
@@ -60,21 +54,20 @@ unsigned int Person::time_of_migration() const noexcept { return time_of_migrati
 bool Person::is_active() const noexcept { return is_alive_ && !has_emigrated_; }
 
 double Person::get_risk_factor_value(const core::Identifier &key) const {
-    // Income: use stored value when present, so continuous income works before categories are set.
-    // Dispatcher would call income_to_value() which throws for Income::unknown.
     const core::Identifier income_id("income");
     if (risk_factors.contains(income_id) &&
         (key == income_id || key == core::Identifier("Income"))) {
         return risk_factors.at(income_id);
     }
+
     if (current_dispatcher.contains(key)) {
-        // Static properties
         return current_dispatcher.at(key)(*this);
     }
+
     if (risk_factors.contains(key)) {
-        // Dynamic properties
         return risk_factors.at(key);
     }
+
     throw std::out_of_range("Risk factor not found: " + key.to_string());
 }
 
@@ -84,6 +77,7 @@ float Person::gender_to_value(core::Gender gender) {
     if (gender == core::Gender::unknown) {
         throw core::InternalError("Gender is unknown.");
     }
+
     return gender == core::Gender::male ? 1.0f : 0.0f;
 }
 
@@ -91,6 +85,7 @@ std::string Person::gender_to_string() const {
     if (gender == core::Gender::unknown) {
         throw core::InternalError("Gender is unknown.");
     }
+
     return gender == core::Gender::male ? "male" : "female";
 }
 
@@ -110,14 +105,14 @@ float Person::sector_to_value() const {
 float Person::income_to_value() const {
     switch (income) {
     case core::Income::low:
-        return 1.0f; // Low income
+        return 1.0f;
     case core::Income::lowermiddle:
     case core::Income::middle:
-        return 2.0f; // Both middle income categories map to same value for consistency
+        return 2.0f;
     case core::Income::uppermiddle:
-        return 3.0f; // Upper middle income
+        return 3.0f;
     case core::Income::high:
-        return 4.0f; // High income
+        return 4.0f;
     case core::Income::unknown:
     default:
         throw core::InternalError("Unknown income category");
@@ -130,10 +125,9 @@ float Person::region_to_value() const {
             "Region is unknown - CSV data may not have been loaded properly.");
     }
 
-    // Parse numeric value from region string (e.g., "region1" -> 1, "region2" -> 2)
     if (region.starts_with("region")) {
         try {
-            std::string num_str = region.substr(6); // Get the number part
+            const std::string num_str = region.substr(6);
             return static_cast<float>(std::stoi(num_str));
         } catch (const std::exception &) {
             throw core::InternalError("Invalid region format: " + region);
@@ -149,10 +143,9 @@ float Person::ethnicity_to_value() const {
             "Ethnicity is unknown - CSV data may not have been loaded properly.");
     }
 
-    // Parse numeric value from ethnicity string (e.g., "ethnicity1" -> 1, "ethnicity2" -> 2)
     if (ethnicity.starts_with("ethnicity")) {
         try {
-            std::string num_str = ethnicity.substr(9); // Get the number part
+            const std::string num_str = ethnicity.substr(9);
             return static_cast<float>(std::stoi(num_str));
         } catch (const std::exception &) {
             throw core::InternalError("Invalid ethnicity format: " + ethnicity);
@@ -162,7 +155,7 @@ float Person::ethnicity_to_value() const {
     throw core::InternalError("Unknown ethnicity format: " + ethnicity);
 }
 
-void Person::emigrate(const unsigned int time) {
+void Person::emigrate(unsigned int time) {
     if (!is_active()) {
         throw std::logic_error("Entity must be active prior to emigrate.");
     }
@@ -171,7 +164,7 @@ void Person::emigrate(const unsigned int time) {
     time_of_migration_ = time;
 }
 
-void Person::die(const unsigned int time) {
+void Person::die(unsigned int time) {
     if (!is_active()) {
         throw std::logic_error("Entity must be active prior to death.");
     }
@@ -180,5 +173,4 @@ void Person::die(const unsigned int time) {
     time_of_death_ = time;
 }
 
-void Person::reset_id() { Person::newUID = 0; }
 } // namespace hgps

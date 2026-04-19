@@ -1,10 +1,16 @@
 #include "repository.h"
+
+#include "converter.h"
 #include "hgps_input/data/data_manager.h"
 #include "hgps_input/data/pif_data.h"
-#include "converter.h"
 
 #include <fmt/core.h>
+#include <nlohmann/json.hpp>
+
+#include <algorithm>
 #include <stdexcept>
+#include <utility>
+#include <vector>
 
 namespace hgps {
 
@@ -31,6 +37,7 @@ CachedRepository::get_risk_factor_model_definition(const RiskFactorModelType &mo
 
 const std::vector<core::DiseaseInfo> &CachedRepository::get_diseases() {
     std::scoped_lock<std::mutex> lock(mutex_);
+
     if (diseases_info_.empty()) {
         diseases_info_ = data_manager_.get().get_diseases();
     }
@@ -52,25 +59,24 @@ std::optional<core::DiseaseInfo> CachedRepository::get_disease_info(core::Identi
 
 DiseaseDefinition &CachedRepository::get_disease_definition(const core::DiseaseInfo &info,
                                                             const ModelInput &config) {
-
-    // lock-free multiple readers
-    if (diseases_.contains(info.code)) {
-        return diseases_.at(info.code);
-    }
-
     std::scoped_lock<std::mutex> lock(mutex_);
-    try {
-        load_disease_definition(info, config);
-        return diseases_.at(info.code);
-    } catch (const std::exception &ex) {
-        auto code_str = info.code.to_string();
-        throw std::runtime_error(
-            fmt::format("Filed to load disease {} definition, {}", code_str, ex.what()));
+
+    if (!diseases_.contains(info.code)) {
+        try {
+            load_disease_definition(info, config);
+        } catch (const std::exception &ex) {
+            const auto code_str = info.code.to_string();
+            throw std::runtime_error(
+                fmt::format("Failed to load disease {} definition, {}", code_str, ex.what()));
+        }
     }
+
+    return diseases_.at(info.code);
 }
 
 LmsDefinition &CachedRepository::get_lms_definition() {
     std::unique_lock<std::mutex> lock(mutex_);
+
     if (lms_parameters_.empty()) {
         auto lms_poco = data_manager_.get().get_lms_parameters();
         lms_parameters_ = detail::StoreConverter::to_lms_definition(lms_poco);
@@ -84,6 +90,7 @@ void CachedRepository::clear_cache() noexcept {
     rf_model_definition_.clear();
     diseases_info_.clear();
     diseases_.clear();
+    lms_parameters_ = LmsDefinition{};
     region_prevalence_.clear();
     ethnicity_prevalence_.clear();
 }
@@ -94,7 +101,7 @@ void CachedRepository::load_disease_definition(const core::DiseaseInfo &info,
         return;
     }
 
-    auto risk_factors = std::vector<MappingEntry>();
+    auto risk_factors = std::vector<MappingEntry>{};
     for (auto level = 1; level <= config.risk_mapping().max_level(); level++) {
         auto risks = config.risk_mapping().at_level(level);
         risk_factors.insert(risk_factors.end(), risks.begin(), risks.end());
@@ -108,20 +115,22 @@ void CachedRepository::load_disease_definition(const core::DiseaseInfo &info,
                                                               .inputs = config,
                                                               .risk_factors = risk_factors});
 
-    // Load PIF data if available
     hgps::input::PIFData pif_data;
     if (config.population_impact_fraction().enabled) {
-        // Convert PIFInfo to JSON for DataManager, using the DataManager's root directory
+        auto *input_manager = dynamic_cast<hgps::input::DataManager *>(&data_manager_.get());
+        if (input_manager == nullptr) {
+            throw std::runtime_error(
+                "PIF loading requires hgps::input::DataManager as the repository datastore");
+        }
+
         nlohmann::json pif_config;
         pif_config["enabled"] = config.population_impact_fraction().enabled;
-        // Use the DataManager's root directory instead of requiring environment variable
-        pif_config["data_root_path"] =
-            dynamic_cast<hgps::input::DataManager &>(data_manager_.get()).get_root_path();
+        pif_config["data_root_path"] = input_manager->get_root_path();
         pif_config["risk_factor"] = config.population_impact_fraction().risk_factor;
         pif_config["scenario"] = config.population_impact_fraction().scenario;
 
-        auto pif_result = dynamic_cast<hgps::input::DataManager &>(data_manager_.get())
-                              .get_pif_data(info, config.settings().country(), pif_config);
+        auto pif_result =
+            input_manager->get_pif_data(info, config.settings().country(), pif_config);
         if (pif_result.has_value()) {
             pif_data = std::move(pif_result.value());
         }
@@ -131,7 +140,7 @@ void CachedRepository::load_disease_definition(const core::DiseaseInfo &info,
         auto definition =
             DiseaseDefinition(std::move(disease_table), std::move(relative_risks.diseases),
                               std::move(relative_risks.risk_factors), std::move(pif_data));
-        diseases_.emplace(info.code, definition);
+        diseases_.emplace(info.code, std::move(definition));
     } else {
         auto cancer_param =
             data_manager_.get().get_disease_parameter(info, config.settings().country());
@@ -140,7 +149,7 @@ void CachedRepository::load_disease_definition(const core::DiseaseInfo &info,
         auto definition = DiseaseDefinition(
             std::move(disease_table), std::move(relative_risks.diseases),
             std::move(relative_risks.risk_factors), std::move(parameter), std::move(pif_data));
-        diseases_.emplace(info.code, definition);
+        diseases_.emplace(info.code, std::move(definition));
     }
 }
 
@@ -161,14 +170,13 @@ void CachedRepository::register_ethnicity_prevalence(
 
 const std::map<core::Identifier, std::map<core::Gender, std::map<std::string, double>>> &
 CachedRepository::get_region_prevalence() const {
-    std::scoped_lock<std::mutex> lock(mutex_);
     return region_prevalence_;
 }
 
 const std::map<core::Identifier,
                std::map<core::Gender, std::map<std::string, std::map<std::string, double>>>> &
 CachedRepository::get_ethnicity_prevalence() const {
-    std::scoped_lock<std::mutex> lock(mutex_);
     return ethnicity_prevalence_;
 }
+
 } // namespace hgps

@@ -1,25 +1,58 @@
 #include "data_series.h"
-#include "hgps_core/utils/string_util.h"
 
 #include "fmt/core.h"
-#include <array>    // Added for std::array
-#include <iostream> // Added for debug prints
+#include "hgps_core/utils/string_util.h"
+
+#include <array>
 #include <stdexcept>
 #include <unordered_set>
 
 namespace hgps {
-DataSeries::DataSeries(std::size_t sample_size) : sample_size_{sample_size} {
-    data_.emplace(core::Gender::male, std::map<std::string, std::vector<double>>{});
-    data_.emplace(core::Gender::female, std::map<std::string, std::vector<double>>{});
+namespace {
+constexpr std::array<core::Gender, 2> genders = {
+    core::Gender::male,
+    core::Gender::female,
+};
 
-    // Initialize income data structure for ALL possible income categories
-    for (auto gender : {core::Gender::male, core::Gender::female}) {
+constexpr std::array<core::Income, 6> all_income_categories = {
+    core::Income::unknown,
+    core::Income::low,
+    core::Income::lowermiddle,
+    core::Income::middle,
+    core::Income::uppermiddle,
+    core::Income::high,
+};
+
+constexpr std::array<core::Income, 5> standard_income_categories = {
+    core::Income::low,
+    core::Income::lowermiddle,
+    core::Income::middle,
+    core::Income::uppermiddle,
+    core::Income::high,
+};
+
+void validate_unique_keys(const std::vector<std::string> &keys) {
+    std::unordered_set<std::string> seen;
+    seen.reserve(keys.size());
+
+    for (const auto &key : keys) {
+        const auto channel_key = core::to_lower(key);
+        if (!seen.insert(channel_key).second) {
+            throw std::logic_error(
+                fmt::format("No duplicated channel key: {} is not allowed.", key));
+        }
+    }
+}
+} // namespace
+
+DataSeries::DataSeries(std::size_t sample_size) : sample_size_{sample_size} {
+    for (auto gender : genders) {
+        data_.emplace(gender, std::map<std::string, std::vector<double>>{});
         income_data_.emplace(gender,
                              std::map<core::Income, std::map<std::string, std::vector<double>>>{});
-        // Initialize ALL possible income categories to ensure any enum value can be accessed
-        for (auto income : {core::Income::unknown, core::Income::low, core::Income::lowermiddle,
-                            core::Income::middle, core::Income::uppermiddle, core::Income::high}) {
-            income_data_[gender].emplace(income, std::map<std::string, std::vector<double>>{});
+
+        for (auto income : all_income_categories) {
+            income_data_.at(gender).emplace(income, std::map<std::string, std::vector<double>>{});
         }
     }
 }
@@ -38,25 +71,7 @@ const std::vector<double> &DataSeries::at(core::Gender gender, const std::string
 
 std::vector<double> &DataSeries::at(core::Gender gender, core::Income income,
                                     const std::string &key) {
-    // Check if gender exists
-    auto gender_it = income_data_.find(gender);
-    if (gender_it == income_data_.end()) {
-        throw std::out_of_range("Gender not found in income_data_");
-    }
-
-    // Check if income exists for this gender
-    auto income_it = gender_it->second.find(income);
-    if (income_it == gender_it->second.end()) {
-        throw std::out_of_range("Income not found in income_data_");
-    }
-
-    // Check if key exists for this gender/income combination
-    auto key_it = income_it->second.find(key);
-    if (key_it == income_it->second.end()) {
-        throw std::out_of_range("Key not found in income_data_");
-    }
-
-    return key_it->second;
+    return income_data_.at(gender).at(income).at(key);
 }
 
 const std::vector<double> &DataSeries::at(core::Gender gender, core::Income income,
@@ -78,37 +93,24 @@ void DataSeries::add_channel(std::string key) {
 }
 
 void DataSeries::add_channels(const std::vector<std::string> &keys) {
-    std::cout.flush();
+    validate_unique_keys(keys);
+
     for (const auto &item : keys) {
-        try {
-            add_channel(item);
-        } catch (const std::exception &e) {
-            std::cout << "\nERROR: DataSeries::add_channels - failed to add channel '" << item
-                      << "': " << e.what();
-            throw;
-        }
+        add_channel(item);
     }
 }
 
 void DataSeries::add_income_channels(const std::vector<std::string> &keys) {
-    // Pre-allocate vectors to avoid repeated allocations
+    validate_unique_keys(keys);
+
     std::vector<double> empty_vector(sample_size_);
 
-    // Only create channels for the main income categories that are actually used
-    const std::array<core::Income, 5> income_categories = {
-        core::Income::low, core::Income::lowermiddle, core::Income::middle,
-        core::Income::uppermiddle, core::Income::high};
+    for (const auto &key : keys) {
+        const auto channel_key = core::to_lower(key);
 
-    for (size_t i = 0; i < keys.size(); i++) {
-        const auto &key = keys[i];
-        auto channel_key = core::to_lower(key);
-
-        // Only add to income-based channels - don't add to regular channels here
-        // Regular channels are handled by add_channels() method
-        for (auto gender : {core::Gender::male, core::Gender::female}) {
+        for (auto gender : genders) {
             auto &gender_income_data = income_data_.at(gender);
-            for (auto income : income_categories) {
-                // Check if channel already exists before adding
+            for (auto income : standard_income_categories) {
                 auto &income_channels = gender_income_data.at(income);
                 if (income_channels.find(channel_key) == income_channels.end()) {
                     income_channels.emplace(channel_key, empty_vector);
@@ -120,18 +122,16 @@ void DataSeries::add_income_channels(const std::vector<std::string> &keys) {
 
 void DataSeries::add_income_channels_for_categories(
     const std::vector<std::string> &keys, const std::vector<core::Income> &income_categories) {
-    // Pre-allocate vectors to avoid repeated allocations
+    validate_unique_keys(keys);
+
     std::vector<double> empty_vector(sample_size_);
 
-    for (size_t i = 0; i < keys.size(); i++) {
-        const auto &key = keys[i];
-        auto channel_key = core::to_lower(key);
+    for (const auto &key : keys) {
+        const auto channel_key = core::to_lower(key);
 
-        // Only add to income-based channels for the specified income categories
-        for (auto gender : {core::Gender::male, core::Gender::female}) {
+        for (auto gender : genders) {
             auto &gender_income_data = income_data_.at(gender);
             for (auto income : income_categories) {
-                // Check if channel already exists before adding
                 auto &income_channels = gender_income_data.at(income);
                 if (income_channels.find(channel_key) == income_channels.end()) {
                     income_channels.emplace(channel_key, empty_vector);
@@ -149,7 +149,6 @@ std::vector<core::Income> DataSeries::get_available_income_categories() const {
     std::vector<core::Income> categories;
     std::unordered_set<core::Income> seen;
 
-    // Check which income categories have data
     for (const auto &[gender, income_map] : income_data_) {
         for (const auto &[income, channel_map] : income_map) {
             if (!channel_map.empty() && !seen.contains(income)) {

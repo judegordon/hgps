@@ -1,6 +1,9 @@
 #pragma once
+
 #include <map>
 #include <numeric>
+#include <stdexcept>
+#include <vector>
 
 #include "hgps_core/data/array2d.h"
 #include "hgps_core/forward_type.h"
@@ -82,12 +85,13 @@ template <core::Numerical TYPE> class AgeGenderTable : public GenderTable<int, T
 
 template <core::Numerical TYPE>
 GenderTable<int, TYPE> create_integer_gender_table(const core::IntegerInterval &rows_range) {
-    if (rows_range.lower() < 0 || rows_range.lower() >= rows_range.upper()) {
-        throw std::out_of_range("The 'range lower' value must be greater than zero and less than "
-                                "the 'range upper' value.");
+    if (rows_range.lower() < 0 || rows_range.lower() > rows_range.upper()) {
+        throw std::out_of_range(
+            "The 'range lower' value must be non-negative and less than or equal to the "
+            "'range upper' value.");
     }
 
-    auto rows = std::vector<int>(static_cast<size_t>(rows_range.length()) + 1);
+    auto rows = std::vector<int>(static_cast<std::size_t>(rows_range.length()) + 1);
     std::iota(rows.begin(), rows.end(), rows_range.lower());
 
     auto cols = std::vector<core::Gender>{core::Gender::male, core::Gender::female};
@@ -97,9 +101,10 @@ GenderTable<int, TYPE> create_integer_gender_table(const core::IntegerInterval &
 
 template <core::Numerical TYPE>
 AgeGenderTable<TYPE> create_age_gender_table(const core::IntegerInterval &age_range) {
-    if (age_range.lower() < 0 || age_range.lower() == age_range.upper()) {
+    if (age_range.lower() < 0 || age_range.lower() > age_range.upper()) {
         throw std::invalid_argument(
-            "The 'age lower' value must be greater than zero and less than the 'age upper' value.");
+            "The 'age lower' value must be non-negative and less than or equal to the "
+            "'age upper' value.");
     }
 
     auto rows = std::vector<int>(static_cast<std::size_t>(age_range.length()) + 1);
@@ -111,8 +116,7 @@ AgeGenderTable<TYPE> create_age_gender_table(const core::IntegerInterval &age_ra
 }
 
 using IntegerAgeGenderTable = AgeGenderTable<int>;
-
 using FloatAgeGenderTable = AgeGenderTable<float>;
-
 using DoubleAgeGenderTable = AgeGenderTable<double>;
+
 } // namespace hgps

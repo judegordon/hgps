@@ -11,7 +11,7 @@ class DataSeries {
   public:
     DataSeries() = delete;
 
-    DataSeries(std::size_t sample_size);
+    explicit DataSeries(std::size_t sample_size);
 
     std::vector<double> &operator()(core::Gender gender, const std::string &key);
 
@@ -52,4 +52,5 @@ class DataSeries {
     std::map<core::Gender, std::map<core::Income, std::map<std::string, std::vector<double>>>>
         income_data_;
 };
+
 } // namespace hgps

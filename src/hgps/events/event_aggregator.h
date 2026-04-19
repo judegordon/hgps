@@ -1,22 +1,24 @@
 #pragma once
+
 #include <functional>
+#include <memory>
 #include <stdexcept>
+#include <string>
 
 #include "event_message.h"
-#include <memory>
 
 namespace hgps {
 
 struct EventHandlerIdentifier {
     EventHandlerIdentifier() = delete;
 
-    EventHandlerIdentifier(std::string identifier) : identifier_{identifier} {
-        if (identifier.empty()) {
+    explicit EventHandlerIdentifier(std::string identifier) : identifier_{std::move(identifier)} {
+        if (identifier_.empty()) {
             throw std::invalid_argument("Event handler identifier must not be empty.");
         }
     }
 
-    const std::string str() const noexcept { return identifier_; }
+    const std::string &str() const noexcept { return identifier_; }
 
     auto operator<=>(const EventHandlerIdentifier &other) const = default;
 
@@ -44,12 +46,10 @@ class EventAggregator {
   public:
     EventAggregator() = default;
 
-    EventAggregator(EventAggregator &&other) = default;
-
-    EventAggregator &operator=(EventAggregator &&other) = default;
-
     EventAggregator(const EventAggregator &) = delete;
+    EventAggregator(EventAggregator &&) = delete;
     EventAggregator &operator=(const EventAggregator &) = delete;
+    EventAggregator &operator=(EventAggregator &&) = delete;
 
     virtual ~EventAggregator() = default;
 

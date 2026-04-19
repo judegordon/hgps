@@ -1,4 +1,5 @@
 #pragma once
+
 #include <type_traits>
 
 namespace hgps {
@@ -10,16 +11,15 @@ struct GenderValue {
 
     GenderValue(T males_value, T females_value) : males{males_value}, females{females_value} {}
 
-    T males;
+    T males{};
 
-    T females;
+    T females{};
 
     T total() const noexcept { return males + females; }
 };
 
 using IntegerGenderValue = GenderValue<int>;
-
 using FloatGenderValue = GenderValue<float>;
-
 using DoubleGenderValue = GenderValue<double>;
+
 } // namespace hgps

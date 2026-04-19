@@ -10,7 +10,6 @@ namespace hgps {
 
 enum class RiskFactorModelType : uint8_t {
     Static,
-
     Dynamic,
 };
 
@@ -20,7 +19,7 @@ class RiskFactorModel {
 
     virtual RiskFactorModelType type() const noexcept = 0;
 
-    virtual std::string name() const noexcept = 0;
+    virtual std::string name() const = 0;
 
     virtual void generate_risk_factors(RuntimeContext &context) = 0;
 

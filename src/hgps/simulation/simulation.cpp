@@ -267,7 +267,8 @@ hgps::IntegerAgeGenderTable Simulation::create_net_migration() {
 }
 
 Person Simulation::partial_clone_entity(const Person &source) noexcept {
-    auto clone = Person{};
+    // Population::add(...) assigns the final slot-based ID.
+    auto clone = Person{0};
     clone.age = source.age;
     clone.gender = source.gender;
     clone.region = source.region;
@@ -275,6 +276,7 @@ Person Simulation::partial_clone_entity(const Person &source) noexcept {
     clone.ses = source.ses;
     clone.sector = source.sector;
     clone.income = source.income;
+
     for (const auto &item : source.risk_factors) {
         clone.risk_factors.emplace(item.first, item.second);
     }

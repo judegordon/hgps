@@ -1,10 +1,11 @@
 #pragma once
+
 #include "hgps_core/types/identifier.h"
 #include "hgps_core/types/interval.h"
 
+#include <optional>
 #include <stdexcept>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 namespace hgps {
@@ -43,7 +44,7 @@ class HierarchicalMapping {
 
     HierarchicalMapping() = delete;
 
-    HierarchicalMapping(std::vector<MappingEntry> mapping);
+    explicit HierarchicalMapping(std::vector<MappingEntry> mapping);
 
     const std::vector<MappingEntry> &entries() const noexcept;
 
@@ -51,7 +52,7 @@ class HierarchicalMapping {
 
     int max_level() const noexcept;
 
-    MappingEntry at(const core::Identifier &key) const;
+    const MappingEntry &at(const core::Identifier &key) const;
 
     std::vector<MappingEntry> at_level(int level) const noexcept;
 

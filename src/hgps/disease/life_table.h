@@ -1,6 +1,7 @@
 #pragma once
-#include "hgps_core/types/interval.h"
+
 #include "data/gender_value.h"
+#include "hgps_core/types/interval.h"
 
 #include <map>
 
@@ -9,18 +10,17 @@ namespace hgps {
 using Mortality = GenderValue<float>;
 
 struct Birth {
-
     Birth(float number_of_births, float birth_sex_ratio)
         : number{number_of_births}, sex_ratio{birth_sex_ratio} {}
 
     float number{};
-
     float sex_ratio{};
 };
 
 class LifeTable {
   public:
     LifeTable() = delete;
+
     LifeTable(std::map<int, Birth> &&births, std::map<int, std::map<int, Mortality>> &&deaths);
 
     const Birth &get_births_at(int time_year) const;
@@ -43,8 +43,8 @@ class LifeTable {
     std::map<int, Birth> birth_table_;
     std::map<int, std::map<int, Mortality>> death_table_;
 
-    // Data limits cache
     core::IntegerInterval time_range_{};
     core::IntegerInterval age_range_{};
 };
+
 } // namespace hgps

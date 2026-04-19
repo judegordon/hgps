@@ -1,7 +1,10 @@
 #include "weight_model.h"
 
+#include <stdexcept>
+
 namespace hgps {
-std::string weight_category_to_string(WeightCategory value) {
+
+std::string weight_category_to_string(const WeightCategory value) {
     switch (value) {
     case WeightCategory::normal:
         return "normal";
@@ -13,4 +16,5 @@ std::string weight_category_to_string(WeightCategory value) {
         throw std::invalid_argument("Unknown weight category item");
     }
 }
+
 } // namespace hgps

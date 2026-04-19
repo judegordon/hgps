@@ -1,13 +1,15 @@
 #pragma once
 
 #include "hgps_core/diagnostics/internal_error.h"
+#include "hgps_core/types/identifier.h"
 
-#include "types/interfaces.h"
-#include "utils/map2d.h"
 #include "data/mapping.h"
 #include "risk_factor_adjustable_model.h"
+#include "types/interfaces.h"
+#include "utils/map2d.h"
 
 #include <optional>
+#include <unordered_map>
 #include <vector>
 
 namespace hgps {
@@ -32,7 +34,7 @@ class KevinHallModel final : public RiskFactorAdjustableModel {
 
     RiskFactorModelType type() const noexcept override;
 
-    std::string name() const noexcept override;
+    std::string name() const override;
 
     void generate_risk_factors(RuntimeContext &context) override;
 
@@ -110,19 +112,18 @@ class KevinHallModel final : public RiskFactorAdjustableModel {
     const std::unordered_map<core::Gender, double> &height_stddev_;
     const std::unordered_map<core::Gender, double> &height_slope_;
 
-    // Model parameters.
-    static constexpr int kevin_hall_age_min = 19; // Start age for the main Kevin Hall model.
-    static constexpr double rho_F = 39.5e3;       // Energy content of fat (kJ/kg).
-    static constexpr double rho_L = 7.6e3;        // Energy content of lean (kJ/kg).
-    static constexpr double rho_G = 17.6e3;       // Energy content of glycogen (kJ/kg).
-    static constexpr double gamma_F = 13.0;       // RMR fat coefficients (kJ/kg/day).
-    static constexpr double gamma_L = 92.0;       // RMR lean coefficients (kJ/kg/day).
-    static constexpr double eta_F = 750.0;        // Fat synthesis energy coefficient (kJ/kg).
-    static constexpr double eta_L = 960.0;        // Lean synthesis energy coefficient (kJ/kg).
-    static constexpr double beta_TEF = 0.1;       // TEF from energy intake (unitless).
-    static constexpr double beta_AT = 0.14;       // AT from energy intake (unitless).
-    static constexpr double xi_Na = 3000.0;       // Na from ECF changes (mg/L/day).
-    static constexpr double xi_CI = 4000.0;       // Na from carbohydrate changes (mg/day).
+    static constexpr int kevin_hall_age_min = 19;
+    static constexpr double rho_F = 39.5e3;
+    static constexpr double rho_L = 7.6e3;
+    static constexpr double rho_G = 17.6e3;
+    static constexpr double gamma_F = 13.0;
+    static constexpr double gamma_L = 92.0;
+    static constexpr double eta_F = 750.0;
+    static constexpr double eta_L = 960.0;
+    static constexpr double beta_TEF = 0.1;
+    static constexpr double beta_AT = 0.14;
+    static constexpr double xi_Na = 3000.0;
+    static constexpr double xi_CI = 4000.0;
 };
 
 class KevinHallModelDefinition final : public RiskFactorAdjustableModelDefinition {

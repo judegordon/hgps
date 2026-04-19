@@ -2,9 +2,33 @@
 
 #include "hgps_core/utils/string_util.h"
 #include "models/default_cancer_model.h"
+
 #include <fmt/format.h>
+#include <stdexcept>
 
 namespace hgps::detail {
+namespace {
+
+void validate_relative_risk_entity(const core::RelativeRiskEntity &entity) {
+    if (entity.columns.size() < 2) {
+        throw std::out_of_range(
+            "Relative risk entity must contain one row key column and at least one value column");
+    }
+
+    for (size_t i = 0; i < entity.rows.size(); ++i) {
+        const auto &row = entity.rows[i];
+        if (row.size() != entity.columns.size()) {
+            throw std::out_of_range(fmt::format(
+                "Relative risk row {} has {} values but expected {}",
+                i,
+                row.size(),
+                entity.columns.size()));
+        }
+    }
+}
+
+} // namespace
+
 core::Gender StoreConverter::to_gender(const std::string &name) {
     if (core::case_insensitive::equals(name, "male")) {
         return core::Gender::male;
@@ -28,11 +52,16 @@ DiseaseTable StoreConverter::to_disease_table(const core::DiseaseEntity &entity)
 }
 
 FloatAgeGenderTable StoreConverter::to_relative_risk_table(const core::RelativeRiskEntity &entity) {
-    auto num_rows = entity.rows.size();
-    auto num_cols = entity.columns.size() - 1;
+    validate_relative_risk_entity(entity);
+
+    const auto num_rows = entity.rows.size();
+    const auto num_cols = entity.columns.size() - 1;
+
     auto cols = std::vector<core::Gender>();
-    for (size_t i = 1; i <= num_cols; i++) {
-        auto gender = to_gender(entity.columns[i]);
+    cols.reserve(num_cols);
+
+    for (size_t i = 1; i < entity.columns.size(); ++i) {
+        const auto gender = to_gender(entity.columns[i]);
         if (gender == core::Gender::unknown) {
             throw std::out_of_range(
                 fmt::format("Invalid column gender type: {}", entity.columns[i]));
@@ -43,10 +72,11 @@ FloatAgeGenderTable StoreConverter::to_relative_risk_table(const core::RelativeR
 
     auto rows = std::vector<int>(num_rows);
     auto data = core::FloatArray2D(num_rows, num_cols);
-    for (size_t i = 0; i < num_rows; i++) {
+
+    for (size_t i = 0; i < num_rows; ++i) {
         const auto &row = entity.rows[i];
         rows[i] = static_cast<int>(row[0]);
-        for (size_t j = 1; j < row.size(); j++) {
+        for (size_t j = 1; j < row.size(); ++j) {
             data(i, j - 1) = row[j];
         }
     }
@@ -55,19 +85,30 @@ FloatAgeGenderTable StoreConverter::to_relative_risk_table(const core::RelativeR
 }
 
 RelativeRiskLookup StoreConverter::to_relative_risk_lookup(const core::RelativeRiskEntity &entity) {
-    auto num_rows = entity.rows.size();
-    auto num_cols = entity.columns.size() - 1;
+    validate_relative_risk_entity(entity);
+
+    const auto num_rows = entity.rows.size();
+    const auto num_cols = entity.columns.size() - 1;
+
     auto cols = std::vector<float>();
-    for (size_t i = 1; i <= num_cols; i++) {
-        cols.emplace_back(std::stof(entity.columns[i]));
+    cols.reserve(num_cols);
+
+    for (size_t i = 1; i < entity.columns.size(); ++i) {
+        try {
+            cols.emplace_back(std::stof(entity.columns[i]));
+        } catch (const std::exception &) {
+            throw std::out_of_range(
+                fmt::format("Invalid relative risk lookup column value: {}", entity.columns[i]));
+        }
     }
 
     auto rows = std::vector<int>(num_rows);
     auto data = core::FloatArray2D(num_rows, num_cols);
-    for (size_t i = 0; i < num_rows; i++) {
-        auto row = entity.rows[i];
+
+    for (size_t i = 0; i < num_rows; ++i) {
+        const auto &row = entity.rows[i];
         rows[i] = static_cast<int>(row[0]);
-        for (size_t j = 1; j < row.size(); j++) {
+        for (size_t j = 1; j < row.size(); ++j) {
             data(i, j - 1) = row[j];
         }
     }
@@ -101,6 +142,10 @@ RelativeRisk create_relative_risk(const RelativeRiskInfo &info) {
 
 AnalysisDefinition
 StoreConverter::to_analysis_definition(const core::DiseaseAnalysisEntity &entity) {
+    if (entity.cost_of_diseases.empty()) {
+        throw std::out_of_range("Disease analysis entity has empty cost_of_diseases");
+    }
+
     auto cols = std::vector<core::Gender>{core::Gender::male, core::Gender::female};
     auto lex_rows = std::vector<int>(entity.life_expectancy.size());
     auto lex_data = core::FloatArray2D(lex_rows.size(), cols.size());
@@ -114,8 +159,8 @@ StoreConverter::to_analysis_definition(const core::DiseaseAnalysisEntity &entity
     auto life_expectancy =
         GenderTable<int, float>(MonotonicVector(lex_rows), cols, std::move(lex_data));
 
-    auto min_time = entity.cost_of_diseases.begin()->first;
-    auto max_time = entity.cost_of_diseases.rbegin()->first;
+    const auto min_time = entity.cost_of_diseases.begin()->first;
+    const auto max_time = entity.cost_of_diseases.rbegin()->first;
     auto cost_of_disease =
         create_age_gender_table<double>(core::IntegerInterval(min_time, max_time));
     for (const auto &item : entity.cost_of_diseases) {
@@ -147,6 +192,10 @@ LifeTable StoreConverter::to_life_table(const std::vector<core::BirthItem> &birt
 }
 
 DiseaseParameter StoreConverter::to_disease_parameter(const core::CancerParameterEntity &entity) {
+    if (entity.death_weight.empty()) {
+        throw std::out_of_range("Cancer parameter entity has empty death_weight");
+    }
+
     auto distribution = ParameterLookup{};
     for (const auto &item : entity.prevalence_distribution) {
         distribution.emplace(item.value, DoubleGenderValue(item.male, item.female));
@@ -159,7 +208,7 @@ DiseaseParameter StoreConverter::to_disease_parameter(const core::CancerParamete
 
     // Make sure that the deaths table is zero based!
     auto deaths = ParameterLookup{};
-    auto offset = entity.death_weight.front().value;
+    const auto offset = entity.death_weight.front().value;
     for (const auto &item : entity.death_weight) {
         deaths.emplace(item.value - offset, DoubleGenderValue(item.male, item.female));
     }

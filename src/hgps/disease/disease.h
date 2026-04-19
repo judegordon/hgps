@@ -1,9 +1,9 @@
 #pragma once
 
-#include "types/interfaces.h"
 #include "data/model_input.h"
 #include "data/repository.h"
 #include "simulation/runtime_context.h"
+#include "types/interfaces.h"
 
 namespace hgps {
 
@@ -11,7 +11,7 @@ class DiseaseModule final : public UpdatableModule {
   public:
     DiseaseModule() = delete;
 
-    DiseaseModule(std::map<core::Identifier, std::shared_ptr<DiseaseModel>> &&models);
+    explicit DiseaseModule(std::map<core::Identifier, std::shared_ptr<DiseaseModel>> &&models);
 
     SimulationModuleType type() const noexcept override;
 
@@ -30,7 +30,7 @@ class DiseaseModule final : public UpdatableModule {
     void update_population(RuntimeContext &context) override;
 
     double get_excess_mortality(const core::Identifier &disease_code,
-                                const Person &entity) const noexcept;
+                                const Person &entity) const;
 
   private:
     std::map<core::Identifier, std::shared_ptr<DiseaseModel>> models_;

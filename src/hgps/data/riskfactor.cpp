@@ -1,12 +1,13 @@
 #include "riskfactor.h"
-#include <iostream>
+
+#include <stdexcept>
+#include <utility>
 
 namespace hgps {
 
 RiskFactorModule::RiskFactorModule(
     std::map<RiskFactorModelType, std::unique_ptr<RiskFactorModel>> models)
     : models_{std::move(models)} {
-
     if (models_.empty()) {
         throw std::invalid_argument("Missing required model of types = static and dynamic.");
     }
@@ -43,58 +44,26 @@ RiskFactorModel &RiskFactorModule::at(const RiskFactorModelType &model_type) con
 }
 
 void RiskFactorModule::initialise_population(RuntimeContext &context) {
-    if (!models_.contains(RiskFactorModelType::Static)) {
-        std::cout << " ERROR: Static model not found!";
-        throw std::runtime_error("Static model not found in RiskFactorModule");
-    }
-    try {
-        auto &static_model = models_.at(RiskFactorModelType::Static);
-        static_model->generate_risk_factors(context);
-    } catch (const std::exception &e) {
-        std::cout << " ERROR: Exception in static model: " << e.what();
-        throw;
-    }
-
-    if (!models_.contains(RiskFactorModelType::Dynamic)) {
-        std::cout << " ERROR: Dynamic model not found!";
-        throw std::runtime_error("Dynamic model not found in RiskFactorModule");
-    }
-
-    try {
-        auto &dynamic_model = models_.at(RiskFactorModelType::Dynamic);
-        dynamic_model->generate_risk_factors(context);
-    } catch (const std::exception &e) {
-        std::cout << " ERROR: Exception in dynamic model: " << e.what();
-        throw;
-    }
+    models_.at(RiskFactorModelType::Static)->generate_risk_factors(context);
+    models_.at(RiskFactorModelType::Dynamic)->generate_risk_factors(context);
 }
 
 void RiskFactorModule::update_population(RuntimeContext &context) {
-    // Generate risk factors for newborns
-    auto &static_model = models_.at(RiskFactorModelType::Static);
-    static_model->update_risk_factors(context);
-
-    // Update risk factors for population
-    auto &dynamic_model = models_.at(RiskFactorModelType::Dynamic);
-    dynamic_model->update_risk_factors(context);
+    models_.at(RiskFactorModelType::Static)->update_risk_factors(context);
+    models_.at(RiskFactorModelType::Dynamic)->update_risk_factors(context);
 }
 
 std::unique_ptr<RiskFactorModule>
 build_risk_factor_module(Repository &repository, [[maybe_unused]] const ModelInput &config) {
-
     auto models = std::map<RiskFactorModelType, std::unique_ptr<RiskFactorModel>>{};
 
-    // Static (initialisation) model
     const auto &static_definition =
         repository.get_risk_factor_model_definition(RiskFactorModelType::Static);
-    auto static_model = static_definition.create_model();
-    models.emplace(RiskFactorModelType::Static, std::move(static_model));
+    models.emplace(RiskFactorModelType::Static, static_definition.create_model());
 
-    // Dynamic (update) model
     const auto &dynamic_definition =
         repository.get_risk_factor_model_definition(RiskFactorModelType::Dynamic);
-    auto dynamic_model = dynamic_definition.create_model();
-    models.emplace(RiskFactorModelType::Dynamic, std::move(dynamic_model));
+    models.emplace(RiskFactorModelType::Dynamic, dynamic_definition.create_model());
 
     return std::make_unique<RiskFactorModule>(std::move(models));
 }

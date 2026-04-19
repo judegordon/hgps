@@ -1,8 +1,10 @@
 #pragma once
+
+#include "data/gender_table.h"
 #include "hgps_core/data/array2d.h"
 #include "hgps_core/types/identifier.h"
-#include "data/gender_table.h"
 #include "utils/monotonic_vector.h"
+
 #include <map>
 
 namespace hgps {
@@ -22,18 +24,18 @@ class RelativeRiskLookup {
 
     bool empty() const noexcept;
 
-    float at(const int age, const float value) const;
+    float at(int age, float value) const;
 
-    float operator()(const int age, const float value) const;
+    float operator()(int age, float value) const;
 
-    bool contains(const int age, const float value) const noexcept;
+    bool contains(int age, float value) const noexcept;
 
   private:
     core::FloatArray2D table_;
     std::map<int, int> rows_index_;
     std::map<float, int> cols_index_;
 
-    float lookup_value(const int age, const float value) const;
+    float lookup_value(int age, float value) const;
 };
 
 using RelativeRiskTableMap = std::map<core::Identifier, FloatAgeGenderTable>;
@@ -43,7 +45,7 @@ using RelativeRiskLookupMap =
 
 struct RelativeRisk {
     RelativeRiskTableMap diseases;
-
     RelativeRiskLookupMap risk_factors;
 };
+
 } // namespace hgps

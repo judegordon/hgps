@@ -5,12 +5,15 @@
 #include <mutex>
 #include <optional>
 #include <queue>
+#include <utility>
 
 namespace hgps {
+
 template <typename T> class Channel {
   public:
     using value_type = T;
     using size_type = std::size_t;
+
     explicit Channel(size_type capacity = 0) : capacity_{capacity}, is_closed_{false} {}
 
     Channel(const Channel &) = delete;
@@ -28,10 +31,10 @@ template <typename T> class Channel {
         std::unique_lock<std::mutex> lock{mtx_};
 
         if (timeout_millis <= 0) {
-            cond_var_.wait(lock, [this] { return buffer_.size() > 0 || closed(); });
+            cond_var_.wait(lock, [this] { return !buffer_.empty() || is_closed_; });
         } else {
             cond_var_.wait_for(lock, std::chrono::milliseconds(timeout_millis),
-                               [this] { return buffer_.size() > 0 || closed(); });
+                               [this] { return !buffer_.empty() || is_closed_; });
         }
 
         if (buffer_.empty()) {
@@ -45,13 +48,22 @@ template <typename T> class Channel {
         return entry;
     }
 
-    [[nodiscard]] size_type constexpr size() const noexcept { return buffer_.size(); }
+    [[nodiscard]] size_type size() const noexcept {
+        std::scoped_lock<std::mutex> lock{mtx_};
+        return buffer_.size();
+    }
 
-    [[nodiscard]] bool constexpr empty() const noexcept { return buffer_.empty(); }
+    [[nodiscard]] bool empty() const noexcept {
+        std::scoped_lock<std::mutex> lock{mtx_};
+        return buffer_.empty();
+    }
 
     void close() noexcept {
-        cond_var_.notify_one();
-        is_closed_.store(true);
+        {
+            std::scoped_lock<std::mutex> lock{mtx_};
+            is_closed_ = true;
+        }
+        cond_var_.notify_all();
     }
 
     [[nodiscard]] bool closed() const noexcept { return is_closed_.load(); }
@@ -61,21 +73,29 @@ template <typename T> class Channel {
     std::queue<value_type> buffer_;
     std::atomic<bool> is_closed_;
     std::condition_variable cond_var_;
-    std::mutex mtx_;
+    mutable std::mutex mtx_;
 
-    bool do_send(auto &&payload) {
-        if (is_closed_.load()) {
+    template <typename U> bool do_send(U &&payload) {
+        std::unique_lock<std::mutex> lock(mtx_);
+
+        if (is_closed_) {
             return false;
         }
 
-        std::unique_lock<std::mutex> lock(mtx_);
-        if (capacity_ > 0 && buffer_.size() >= capacity_) {
-            cond_var_.wait(lock, [this]() { return buffer_.size() < capacity_; });
+        if (capacity_ > 0) {
+            cond_var_.wait(lock, [this] {
+                return buffer_.size() < capacity_ || is_closed_;
+            });
         }
 
-        buffer_.push(std::forward<decltype(payload)>(payload));
+        if (is_closed_) {
+            return false;
+        }
+
+        buffer_.push(std::forward<U>(payload));
         cond_var_.notify_one();
         return true;
     }
 };
+
 } // namespace hgps

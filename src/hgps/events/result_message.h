@@ -2,17 +2,17 @@
 #include "event_message.h"
 #include "simulation/model_result.h"
 
+#include <string>
+
 namespace hgps {
 
 struct ResultEventMessage final : public EventMessage {
-
     ResultEventMessage() = delete;
 
     ResultEventMessage(std::string sender, unsigned int run, int time, ModelResult result);
 
-    int model_time{};
-
-    ModelResult content;
+    const int model_time{};
+    const ModelResult content;
 
     int id() const noexcept override;
 
@@ -20,4 +20,5 @@ struct ResultEventMessage final : public EventMessage {
 
     void accept(EventMessageVisitor &visitor) const override;
 };
+
 } // namespace hgps

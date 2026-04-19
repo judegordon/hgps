@@ -1,15 +1,15 @@
 #include "univariate_visitor.h"
 
 #include <stdexcept>
+#include <type_traits>
 #include <variant>
 
 namespace hgps {
-
 namespace {
 
 template <typename T>
-core::UnivariateSummary summarise_numeric_column(const core::DataTableColumn& column,
-                                                 const std::vector<T>& values) {
+core::UnivariateSummary summarise_numeric_column(const core::DataTableColumn &column,
+                                                 const std::vector<T> &values) {
     core::UnivariateSummary summary(column.name);
 
     if (column.null_count() > 0) {
@@ -24,7 +24,7 @@ core::UnivariateSummary summarise_numeric_column(const core::DataTableColumn& co
         return summary;
     }
 
-    for (const auto& value : values) {
+    for (const auto &value : values) {
         summary.append(value);
     }
 
@@ -33,9 +33,9 @@ core::UnivariateSummary summarise_numeric_column(const core::DataTableColumn& co
 
 } // namespace
 
-core::UnivariateSummary UnivariateVisitor::get_summary(const core::DataTableColumn& column) const {
+core::UnivariateSummary UnivariateVisitor::get_summary(const core::DataTableColumn &column) const {
     return std::visit(
-        [&](const auto& values) -> core::UnivariateSummary {
+        [&](const auto &values) -> core::UnivariateSummary {
             using ValueType = typename std::decay_t<decltype(values)>::value_type;
 
             if constexpr (std::is_same_v<ValueType, std::string>) {

@@ -1,11 +1,13 @@
 #include "disease_table.h"
 
 #include <fmt/format.h>
+
 #include <stdexcept>
 #include <utility>
 
 namespace hgps {
-/* --------------------   Disease Measure Implementation ----------------- */
+
+/* -------------------- DiseaseMeasure implementation -------------------- */
 
 DiseaseMeasure::DiseaseMeasure(std::map<int, double> measures) : measures_{std::move(measures)} {}
 
@@ -15,26 +17,39 @@ double DiseaseMeasure::at(const int measure_id) const { return measures_.at(meas
 
 double DiseaseMeasure::operator[](const int measure_id) const { return measures_.at(measure_id); }
 
-/* --------------------   Disease Table Implementation ----------------- */
+/* --------------------- DiseaseTable implementation --------------------- */
 
 DiseaseTable::DiseaseTable(const core::DiseaseInfo &info, std::map<std::string, int> &&measures,
                            std::map<int, std::map<core::Gender, DiseaseMeasure>> &&data)
     : info_{info}, measures_{std::move(measures)}, data_{std::move(data)} {
-
-    if (info.code.is_empty()) {
+    if (info_.code.is_empty()) {
         throw std::invalid_argument("Invalid disease information with empty identifier");
     }
+
     if (data_.empty()) {
-        return; // empty table
+        return;
     }
 
-    // Consistence checks, otherwise number of columns is wrong.
-    auto col_size = data_.begin()->second.size();
-    for (const auto &age : data_) {
-        if (age.second.size() != col_size) {
+    const auto &reference_row = data_.begin()->second;
+    const auto expected_measure_count = measures_.size();
+
+    for (const auto &[age, row] : data_) {
+        if (row.size() != reference_row.size()) {
             throw std::invalid_argument(
-                fmt::format("Number of columns mismatch at age: {} ({} vs {}).", age.first,
-                            age.second.size(), col_size));
+                fmt::format("Number of columns mismatch at age {} ({} vs {}).", age, row.size(),
+                            reference_row.size()));
+        }
+
+        for (const auto &[gender, reference_measure] : reference_row) {
+            if (!row.contains(gender)) {
+                throw std::invalid_argument(
+                    fmt::format("Missing gender column at age {}.", age));
+            }
+
+            if (row.at(gender).size() != expected_measure_count) {
+                throw std::invalid_argument(
+                    fmt::format("Number of measures mismatch at age {}.", age));
+            }
         }
     }
 }

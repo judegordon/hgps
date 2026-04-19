@@ -1,21 +1,26 @@
 #pragma once
-#include "hgps_core/types/identifier.h"
+
 #include "data/person.h"
 #include "data/weight_category.h"
+#include "hgps_core/types/identifier.h"
 
 #include <memory>
 #include <string>
+#include <utility>
 
 namespace hgps {
 
 class WeightModel {
   public:
-    template <typename T> WeightModel(T &&value) : pimpl_{new Model<T>(std::forward<T>(value))} {}
+    template <typename T>
+    WeightModel(T &&value) : pimpl_{std::make_unique<Model<T>>(std::forward<T>(value))} {}
 
     WeightModel(const WeightModel &other) : pimpl_{other.pimpl_->clone()} {}
 
     WeightModel &operator=(const WeightModel &other) {
-        this->pimpl_ = other.pimpl_->clone();
+        if (this != &other) {
+            pimpl_ = other.pimpl_->clone();
+        }
         return *this;
     }
 
@@ -36,17 +41,22 @@ class WeightModel {
 
   private:
     struct Concept {
-        virtual ~Concept() {}
+        virtual ~Concept() = default;
+
         virtual std::unique_ptr<Concept> clone() const = 0;
+
         virtual unsigned int child_cutoff_age() const noexcept = 0;
+
         virtual WeightCategory classify_weight(const Person &entity) const = 0;
+
         virtual double adjust_risk_factor_value(const Person &entity,
                                                 const core::Identifier &risk_factor_key,
                                                 double value) const = 0;
     };
 
-    template <typename T> struct Model : Concept {
-        Model(T &&value) : object_{std::forward<T>(value)} {}
+    template <typename T>
+    struct Model : Concept {
+        explicit Model(T &&value) : object_{std::forward<T>(value)} {}
 
         std::unique_ptr<Concept> clone() const override { return std::make_unique<Model>(*this); }
 
@@ -71,4 +81,5 @@ class WeightModel {
 };
 
 std::string weight_category_to_string(WeightCategory value);
+
 } // namespace hgps

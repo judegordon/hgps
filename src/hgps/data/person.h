@@ -3,40 +3,37 @@
 #include "hgps_core/forward_type.h"
 #include "hgps_core/types/identifier.h"
 
-#include <atomic>
+#include <functional>
 #include <map>
+#include <string>
 
 namespace hgps {
 
 enum struct DiseaseStatus : uint8_t {
     free,
-
     active
 };
 
 struct Disease {
     DiseaseStatus status{};
-
     int start_time{};
-
     int time_since_onset{-1};
 
     Disease clone() const noexcept {
         return Disease{
-            .status = status, .start_time = start_time, .time_since_onset = time_since_onset};
+            .status = status,
+            .start_time = start_time,
+            .time_since_onset = time_since_onset,
+        };
     }
 };
 
 struct Person {
-    Person();
+    Person() = delete;
 
-    Person(const core::Gender gender) noexcept;
+    Person(const core::Gender gender) = delete;
 
-    // MAHIMA: Index-based ID for same-person tracking across baseline and intervention.
-    // When a Person is created by Population (initial slot, newborn, or add), ID = slot index + 1
-    // so the same logical person has the same ID in both baseline and intervention runs.
-
-    Person(std::size_t id) noexcept;
+    explicit Person(std::size_t id) noexcept;
 
     Person(const core::Gender gender, std::size_t id) noexcept;
 
@@ -45,25 +42,15 @@ struct Person {
     std::size_t id() const noexcept;
 
     core::Gender gender{core::Gender::unknown};
-
     unsigned int age{};
-
     core::Sector sector{core::Sector::unknown};
-
     std::string region{"unknown"};
-
     std::string ethnicity{"unknown"};
-
     core::Income income{core::Income::unknown};
-
     double income_continuous{0.0};
-
     double physical_activity{0.0};
-
     double ses{};
-
     std::map<core::Identifier, double> risk_factors;
-
     std::map<core::Identifier, Disease> diseases;
 
     bool is_alive() const noexcept;
@@ -94,11 +81,9 @@ struct Person {
 
     float ethnicity_to_value() const;
 
-    void emigrate(const unsigned int time);
+    void emigrate(unsigned int time);
 
-    void die(const unsigned int time);
-
-    static void reset_id();
+    void die(unsigned int time);
 
   private:
     std::size_t id_{};
@@ -107,7 +92,7 @@ struct Person {
     unsigned int time_of_death_{};
     unsigned int time_of_migration_{};
 
-    static std::atomic<std::size_t> newUID;
     static std::map<core::Identifier, std::function<double(const Person &)>> current_dispatcher;
 };
+
 } // namespace hgps

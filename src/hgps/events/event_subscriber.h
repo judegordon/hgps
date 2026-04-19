@@ -1,4 +1,5 @@
 #pragma once
+
 #include "event_aggregator.h"
 
 namespace hgps {
@@ -14,7 +15,7 @@ class EventSubscriberHandler final : public EventSubscriber {
     EventSubscriberHandler(EventSubscriberHandler &&other) = delete;
     EventSubscriberHandler &operator=(EventSubscriberHandler &&other) = delete;
 
-    ~EventSubscriberHandler();
+    ~EventSubscriberHandler() noexcept override;
 
     void unsubscribe() const override;
 
@@ -22,6 +23,7 @@ class EventSubscriberHandler final : public EventSubscriber {
 
   private:
     EventHandlerIdentifier identifier_;
-    EventAggregator *event_hub_;
+    mutable EventAggregator *event_hub_;
 };
+
 } // namespace hgps

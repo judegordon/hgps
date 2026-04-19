@@ -1,11 +1,11 @@
 #pragma once
 
-#include "types/lms_definition.h"
 #include "data/person.h"
+#include "types/lms_definition.h"
 
 #include "hgps_core/types/identifier.h"
+
 #include <functional>
-#include <string>
 
 namespace hgps {
 
@@ -13,7 +13,7 @@ class LmsModel {
   public:
     LmsModel() = delete;
 
-    LmsModel(LmsDefinition &definition);
+    explicit LmsModel(LmsDefinition &definition);
 
     unsigned int child_cutoff_age() const noexcept;
 
@@ -29,4 +29,5 @@ class LmsModel {
 
     WeightCategory classify_weight_bmi(const Person &entity, double bmi) const;
 };
+
 } // namespace hgps

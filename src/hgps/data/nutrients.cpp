@@ -1,38 +1,38 @@
 #include "nutrients.h"
 
 #include "hgps_core/diagnostics/internal_error.h"
-#include "hgps_core/utils/string_util.h"
 
-#include "fmt/color.h"
 #include "fmt/format.h"
 
 #include <algorithm>
 #include <iterator>
+#include <string>
+#include <vector>
 
 namespace hgps {
 namespace detail {
+
 std::vector<size_t> get_nutrient_indexes(const std::vector<std::string> &column_names,
                                          const std::vector<core::Identifier> &nutrients) {
-    bool nutrients_missing = false;
-
-    std::vector<size_t> nutrient_idx; // Which column each nutrient is in
+    std::vector<size_t> nutrient_idx;
     nutrient_idx.reserve(nutrients.size());
+
+    std::vector<std::string> missing;
+    missing.reserve(nutrients.size());
+
     for (const auto &nutrient : nutrients) {
         const auto it = std::find(column_names.begin(), column_names.end(), nutrient);
         if (it == column_names.end()) {
-            if (!nutrients_missing) {
-                nutrients_missing = true;
-                fmt::print(fmt::fg(fmt::color::yellow), "The following nutrients were missing:\n");
-            }
-
-            fmt::print(fmt::fg(fmt::color::yellow), "- {}\n", nutrient.to_string());
+            missing.push_back(nutrient.to_string());
         } else {
-            nutrient_idx.push_back(std::distance(column_names.begin(), it));
+            nutrient_idx.push_back(static_cast<size_t>(std::distance(column_names.begin(), it)));
         }
     }
 
-    if (nutrients_missing) {
-        throw core::InternalError{"One or more nutrients were missing from CSV file"};
+    if (!missing.empty()) {
+        throw core::InternalError(
+            fmt::format("One or more nutrients were missing from CSV file: {}",
+                        fmt::join(missing, ", ")));
     }
 
     return nutrient_idx;
@@ -41,21 +41,32 @@ std::vector<size_t> get_nutrient_indexes(const std::vector<std::string> &column_
 std::unordered_map<core::Identifier, std::vector<double>>
 get_nutrient_table(rapidcsv::Document &doc, const std::vector<core::Identifier> &nutrients,
                    const std::vector<size_t> &nutrient_idx) {
+    if (nutrients.size() != nutrient_idx.size()) {
+        throw core::InternalError("Nutrient column count mismatch while loading nutrient table");
+    }
 
     std::unordered_map<core::Identifier, std::vector<double>> out;
     out.reserve(doc.GetRowCount());
+
     for (size_t i = 0; i < doc.GetRowCount(); i++) {
         std::vector<double> row;
         row.reserve(nutrients.size());
+
         for (size_t j = 0; j < nutrients.size(); j++) {
             row.push_back(doc.GetCell<double>(nutrient_idx[j], i));
         }
 
-        out.emplace(doc.GetRowName(i), std::move(row));
+        const auto row_name = doc.GetRowName(i);
+        const auto [it, inserted] = out.emplace(row_name, std::move(row));
+        if (!inserted) {
+            throw core::InternalError(
+                fmt::format("Duplicate nutrient table row name: {}", row_name.to_string()));
+        }
     }
 
     return out;
 }
+
 } // namespace detail
 
 std::unordered_map<core::Identifier, std::vector<double>>
@@ -66,4 +77,5 @@ load_nutrient_table(const std::string &csv_path, const std::vector<core::Identif
     const auto nutrient_idx = detail::get_nutrient_indexes(column_names, nutrients);
     return detail::get_nutrient_table(doc, nutrients, nutrient_idx);
 }
+
 } // namespace hgps
