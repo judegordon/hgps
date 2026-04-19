@@ -6,6 +6,7 @@
 #include <array>
 #include <stdexcept>
 #include <unordered_set>
+#include <vector>
 
 namespace hgps {
 namespace {
@@ -43,6 +44,24 @@ void validate_unique_keys(const std::vector<std::string> &keys) {
         }
     }
 }
+
+std::vector<core::Income> unique_income_categories(
+    const std::vector<core::Income> &income_categories) {
+    std::vector<core::Income> result;
+    std::unordered_set<core::Income> seen;
+
+    result.reserve(income_categories.size());
+
+    for (const auto income : income_categories) {
+        if (!seen.contains(income)) {
+            result.emplace_back(income);
+            seen.insert(income);
+        }
+    }
+
+    return result;
+}
+
 } // namespace
 
 DataSeries::DataSeries(std::size_t sample_size) : sample_size_{sample_size} {
@@ -58,25 +77,25 @@ DataSeries::DataSeries(std::size_t sample_size) : sample_size_{sample_size} {
 }
 
 std::vector<double> &DataSeries::operator()(core::Gender gender, const std::string &key) {
-    return data_.at(gender).at(key);
+    return data_.at(gender).at(core::to_lower(key));
 }
 
 std::vector<double> &DataSeries::at(core::Gender gender, const std::string &key) {
-    return data_.at(gender).at(key);
+    return data_.at(gender).at(core::to_lower(key));
 }
 
 const std::vector<double> &DataSeries::at(core::Gender gender, const std::string &key) const {
-    return data_.at(gender).at(key);
+    return data_.at(gender).at(core::to_lower(key));
 }
 
 std::vector<double> &DataSeries::at(core::Gender gender, core::Income income,
                                     const std::string &key) {
-    return income_data_.at(gender).at(income).at(key);
+    return income_data_.at(gender).at(income).at(core::to_lower(key));
 }
 
 const std::vector<double> &DataSeries::at(core::Gender gender, core::Income income,
                                           const std::string &key) const {
-    return income_data_.at(gender).at(income).at(key);
+    return income_data_.at(gender).at(income).at(core::to_lower(key));
 }
 
 const std::vector<std::string> &DataSeries::channels() const noexcept { return channels_; }
@@ -124,6 +143,7 @@ void DataSeries::add_income_channels_for_categories(
     const std::vector<std::string> &keys, const std::vector<core::Income> &income_categories) {
     validate_unique_keys(keys);
 
+    const auto unique_categories = unique_income_categories(income_categories);
     std::vector<double> empty_vector(sample_size_);
 
     for (const auto &key : keys) {
@@ -131,7 +151,7 @@ void DataSeries::add_income_channels_for_categories(
 
         for (auto gender : genders) {
             auto &gender_income_data = income_data_.at(gender);
-            for (auto income : income_categories) {
+            for (auto income : unique_categories) {
                 auto &income_channels = gender_income_data.at(income);
                 if (income_channels.find(channel_key) == income_channels.end()) {
                     income_channels.emplace(channel_key, empty_vector);
@@ -168,7 +188,11 @@ bool DataSeries::has_income_category(core::Gender gender, core::Income income) c
     }
 
     auto income_it = gender_it->second.find(income);
-    return income_it != gender_it->second.end();
+    if (income_it == gender_it->second.end()) {
+        return false;
+    }
+
+    return !income_it->second.empty();
 }
 
 std::string DataSeries::income_category_to_string(core::Income income) const {
