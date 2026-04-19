@@ -3,7 +3,7 @@
 #include "config/config.h"
 #include "hgps_core/diagnostics/input_issue.h"
 
-#include "hgps/dynamic_hierarchical_linear_model.h"
+#include "hgps/models/dynamic_hierarchical_linear_model.h"
 
 #include <memory>
 #include <string_view>

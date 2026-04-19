@@ -1,7 +1,10 @@
 #include "runner.h"
+
 #include "events/runner_message.h"
 
 #include <chrono>
+#include <stdexcept>
+
 #include <fmt/format.h>
 
 namespace hgps {
@@ -9,18 +12,19 @@ namespace hgps {
 using ElapsedTime = std::chrono::duration<double, std::milli>;
 
 namespace {
+
 double run_simulation_series(EventAggregator &event_bus, RandomBitGenerator &seed_generator,
                              std::stop_source &source, const std::string &runner_id,
                              Simulation &baseline, Simulation *intervention,
-                             unsigned int trial_runs) {
+                             const unsigned int trial_runs) {
     source = std::stop_source{};
 
-    auto notify = [&](std::unique_ptr<hgps::EventMessage> message) {
+    auto notify = [&](std::unique_ptr<EventMessage> message) {
         event_bus.publish_async(std::move(message));
     };
 
-    auto run_one = [&](Simulation &model, unsigned int run, unsigned int seed) {
-        auto run_start = std::chrono::steady_clock::now();
+    auto run_one = [&](Simulation &model, const unsigned int run, const unsigned int seed) {
+        const auto run_start = std::chrono::steady_clock::now();
 
         notify(std::make_unique<RunnerEventMessage>(
             fmt::format("{} - {}", runner_id, model.name()), RunnerAction::run_begin, run));
@@ -33,13 +37,13 @@ double run_simulation_series(EventAggregator &event_bus, RandomBitGenerator &see
             sim.exec_next_event();
         }
 
-        ElapsedTime elapsed = std::chrono::steady_clock::now() - run_start;
+        const ElapsedTime elapsed = std::chrono::steady_clock::now() - run_start;
         notify(std::make_unique<RunnerEventMessage>(
             fmt::format("{} - {}", runner_id, model.name()), RunnerAction::run_end, run,
             elapsed.count()));
     };
 
-    auto start = std::chrono::steady_clock::now();
+    const auto start = std::chrono::steady_clock::now();
     notify(std::make_unique<RunnerEventMessage>(runner_id, RunnerAction::start));
 
     for (auto run = 1u; run <= trial_runs; ++run) {
@@ -62,11 +66,12 @@ double run_simulation_series(EventAggregator &event_bus, RandomBitGenerator &see
         }
     }
 
-    ElapsedTime elapsed = std::chrono::steady_clock::now() - start;
+    const ElapsedTime elapsed = std::chrono::steady_clock::now() - start;
     const auto elapsed_ms = elapsed.count();
     notify(std::make_unique<RunnerEventMessage>(runner_id, RunnerAction::finish, elapsed_ms));
     return elapsed_ms;
 }
+
 } // namespace
 
 Runner::Runner(std::shared_ptr<EventAggregator> bus,
@@ -129,10 +134,7 @@ void Runner::cancel() noexcept {
     }
 }
 
-void Runner::run_model_thread(const std::stop_token &, Simulation &, unsigned int,
-                              const unsigned int) {}
-
-void Runner::notify(std::unique_ptr<hgps::EventMessage> message) {
+void Runner::notify(std::unique_ptr<EventMessage> message) {
     event_bus_->publish_async(std::move(message));
 }
 

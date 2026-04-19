@@ -2,7 +2,6 @@
 
 #include <cmath>
 #include <stdexcept>
-#include <utility>
 
 namespace hgps {
 
@@ -10,8 +9,8 @@ RelativeRiskLookup::RelativeRiskLookup(const MonotonicVector<int> &rows,
                                        const MonotonicVector<float> &cols,
                                        core::FloatArray2D &&values)
     : table_{std::move(values)} {
-    if (rows.empty() || cols.empty() || table_.empty()) {
-        throw std::invalid_argument("Relative risk lookup must not be empty.");
+    if (rows.size() == 0 || cols.size() == 0 || table_.size() == 0) {
+        throw std::out_of_range("Lookup breakpoints and values must not be empty.");
     }
 
     if (rows.size() != table_.rows() || cols.size() != table_.columns()) {
@@ -35,25 +34,30 @@ std::size_t RelativeRiskLookup::rows() const noexcept { return table_.rows(); }
 
 std::size_t RelativeRiskLookup::columns() const noexcept { return table_.columns(); }
 
-bool RelativeRiskLookup::empty() const noexcept { return table_.empty(); }
+bool RelativeRiskLookup::empty() const noexcept { return table_.size() == 0; }
 
-float RelativeRiskLookup::at(const int age, const float value) const { return lookup_value(age, value); }
+float RelativeRiskLookup::at(const int age, const float value) const {
+    return lookup_value(age, value);
+}
 
 float RelativeRiskLookup::operator()(const int age, const float value) const {
     return lookup_value(age, value);
 }
 
 bool RelativeRiskLookup::contains(const int age, const float value) const noexcept {
-    if (empty() || !rows_index_.contains(age)) {
-        return false;
+    if (rows_index_.contains(age)) {
+        return cols_index_.contains(value);
     }
 
-    return value >= cols_index_.begin()->first && value <= cols_index_.rbegin()->first;
+    return false;
 }
 
 float RelativeRiskLookup::lookup_value(const int age, const float value) const {
-    const auto row_index = rows_index_.at(age);
+    if (empty()) {
+        return std::nanf("");
+    }
 
+    const auto row_index = rows_index_.at(age);
     if (value <= cols_index_.begin()->first) {
         return table_(row_index, cols_index_.begin()->second);
     }
@@ -68,7 +72,6 @@ float RelativeRiskLookup::lookup_value(const int age, const float value) const {
 
     const auto it = cols_index_.lower_bound(value);
     const auto it_prev = std::prev(it);
-
     const auto x1 = it_prev->first;
     const auto x2 = it->first;
     const auto y1 = table_(row_index, it_prev->second);

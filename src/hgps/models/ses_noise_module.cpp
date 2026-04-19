@@ -55,7 +55,7 @@ void SESNoiseModule::update_population(RuntimeContext &context) {
 std::unique_ptr<SESNoiseModule> build_ses_noise_module([[maybe_unused]] Repository &repository,
                                                        const ModelInput &config) {
     const auto &ses = config.ses_definition();
-    return std::make_unique<SESNoiseModule>(ses.fuction_name, ses.parameters);
+    return std::make_unique<SESNoiseModule>(ses.function_name, ses.parameters);
 }
 
 } // namespace hgps

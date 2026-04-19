@@ -1,10 +1,12 @@
 #include "simulation.h"
-#include "hgps_core/utils/thread_util.h"
+
 #include "data/converter.h"
 #include "events/info_message.h"
-#include "utils/mt_random.h"
-#include "models/static_linear_model.h"
 #include "events/sync_message.h"
+#include "models/static_linear_model.h"
+#include "utils/mt_random.h"
+
+#include "hgps_core/utils/thread_util.h"
 
 #include <algorithm>
 #include <fmt/format.h>
@@ -12,11 +14,11 @@
 #include <oneapi/tbb/parallel_for_each.h>
 #include <stdexcept>
 
-namespace { // anonymous namespace
+namespace {
 
 using NetImmigrationMessage = hgps::SyncDataMessage<hgps::IntegerAgeGenderTable>;
 
-} // anonymous namespace
+} // namespace
 
 namespace hgps {
 
@@ -26,7 +28,6 @@ Simulation::Simulation(SimulationModuleFactory &factory,
                        std::unique_ptr<Scenario> scenario,
                        SyncChannel &sync_channel)
     : context_{std::move(bus), std::move(inputs), std::move(scenario), sync_channel} {
-
     auto ses_base = factory.create(SimulationModuleType::SES, context_.inputs());
     auto dem_base = factory.create(SimulationModuleType::Demographic, context_.inputs());
     auto risk_base = factory.create(SimulationModuleType::RiskFactor, context_.inputs());
@@ -40,7 +41,7 @@ Simulation::Simulation(SimulationModuleFactory &factory,
     analysis_ = std::static_pointer_cast<UpdatableModule>(analysis_base);
 }
 
-void Simulation::setup_run(unsigned int run_number, unsigned int run_seed) noexcept {
+void Simulation::setup_run(const unsigned int run_number, const unsigned int run_seed) noexcept {
     context_.set_current_run(run_number);
     context_.random().seed(run_seed);
 }
@@ -48,7 +49,8 @@ void Simulation::setup_run(unsigned int run_number, unsigned int run_seed) noexc
 adevs::Time Simulation::init(adevs::SimEnv<int> *env) {
     auto start = std::chrono::steady_clock::now();
     const auto &inputs = context_.inputs();
-    auto world_time = inputs.start_time();
+    const auto world_time = inputs.start_time();
+
     context_.metrics().clear();
     context_.scenario().clear();
     context_.set_current_time(world_time);
@@ -57,9 +59,9 @@ adevs::Time Simulation::init(adevs::SimEnv<int> *env) {
     initialise_population();
 
     auto stop = std::chrono::steady_clock::now();
-    auto elapsed = std::chrono::duration<double, std::milli>(stop - start);
+    const auto elapsed = std::chrono::duration<double, std::milli>(stop - start);
 
-    auto message =
+    const auto message =
         fmt::format("[{:4},{}] population size: {}, elapsed: {}ms", env->now().real,
                     env->now().logical, context_.population().initial_size(), elapsed.count());
     context_.publish(std::make_unique<InfoEventMessage>(
@@ -73,16 +75,16 @@ adevs::Time Simulation::update(adevs::SimEnv<int> *env) {
         auto start = std::chrono::steady_clock::now();
         context_.metrics().reset();
 
-        auto world_time = env->now() + adevs::Time(1, 0);
-        auto time_year = world_time.real;
+        const auto world_time = env->now() + adevs::Time(1, 0);
+        const auto time_year = world_time.real;
         context_.set_current_time(time_year);
         update_population();
 
         auto stop = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration<double, std::milli>(stop - start);
+        const auto elapsed = std::chrono::duration<double, std::milli>(stop - start);
 
-        auto message = fmt::format("[{:4},{}], elapsed: {}ms", env->now().real, env->now().logical,
-                                   elapsed.count());
+        const auto message = fmt::format("[{:4},{}], elapsed: {}ms", env->now().real,
+                                         env->now().logical, elapsed.count());
         context_.publish(std::make_unique<InfoEventMessage>(
             name(), ModelAction::update, context_.current_run(), context_.time_now(), message));
 
@@ -97,8 +99,8 @@ adevs::Time Simulation::update(adevs::SimEnv<int> * /*env*/, std::vector<int> & 
     return adevs_inf<adevs::Time>();
 }
 
-void Simulation::fini(adevs::Time clock) {
-    auto message = fmt::format("[{:4},{}] clear up resources.", clock.real, clock.logical);
+void Simulation::fini(const adevs::Time clock) {
+    const auto message = fmt::format("[{:4},{}] clear up resources.", clock.real, clock.logical);
     context_.publish(std::make_unique<InfoEventMessage>(
         name(), ModelAction::stop, context_.current_run(), context_.time_now(), message));
 }
@@ -106,10 +108,10 @@ void Simulation::fini(adevs::Time clock) {
 void Simulation::initialise_population() {
     const auto &inputs = context_.inputs();
 
-    auto model_start_year = inputs.start_time();
-    auto total_year_pop_size = demographic_->get_total_population_size(model_start_year);
-    float size_fraction = inputs.settings().size_fraction();
-    auto virtual_pop_size = static_cast<int>(size_fraction * total_year_pop_size);
+    const auto model_start_year = inputs.start_time();
+    const auto total_year_pop_size = demographic_->get_total_population_size(model_start_year);
+    const float size_fraction = inputs.settings().size_fraction();
+    const auto virtual_pop_size = static_cast<int>(size_fraction * total_year_pop_size);
 
     context_.reset_population(virtual_pop_size);
 
@@ -131,14 +133,15 @@ void Simulation::update_population() {
 
 void Simulation::update_net_immigration() {
     auto net_immigration = get_net_migration();
+    const auto &age_range = context_.inputs().settings().age_range();
 
-    auto start_age = context_.age_range().lower();
-    auto end_age = context_.age_range().upper();
-    for (int age = start_age; age <= end_age; age++) {
-        auto male_net_value = net_immigration.at(age, core::Gender::male);
+    const auto start_age = age_range.lower();
+    const auto end_age = age_range.upper();
+    for (int age = start_age; age <= end_age; ++age) {
+        const auto male_net_value = net_immigration.at(age, core::Gender::male);
         apply_net_migration(male_net_value, age, core::Gender::male);
 
-        auto female_net_value = net_immigration.at(age, core::Gender::female);
+        const auto female_net_value = net_immigration.at(age, core::Gender::female);
         apply_net_migration(female_net_value, age, core::Gender::female);
     }
 
@@ -150,17 +153,20 @@ void Simulation::update_net_immigration() {
 
 IntegerAgeGenderTable Simulation::get_current_expected_population() const {
     const auto &inputs = context_.inputs();
-    auto sim_start_time = context_.start_time();
-    auto total_initial_population = demographic_->get_total_population_size(sim_start_time);
-    float size_fraction = inputs.settings().size_fraction();
-    auto start_population_size = static_cast<int>(size_fraction * total_initial_population);
+    const auto sim_start_time = context_.start_time();
+    const auto total_initial_population = demographic_->get_total_population_size(sim_start_time);
+    const float size_fraction = inputs.settings().size_fraction();
+    const auto start_population_size = static_cast<int>(size_fraction * total_initial_population);
 
     const auto &current_population_table =
         demographic_->get_population_distribution(context_.time_now());
-    auto expected_population = create_age_gender_table<int>(context_.age_range());
-    auto start_age = context_.age_range().lower();
-    auto end_age = context_.age_range().upper();
-    for (int age = start_age; age <= end_age; age++) {
+
+    const auto &age_range = context_.inputs().settings().age_range();
+    auto expected_population = create_age_gender_table<int>(age_range);
+    const auto start_age = age_range.lower();
+    const auto end_age = age_range.upper();
+
+    for (int age = start_age; age <= end_age; ++age) {
         const auto &age_info = current_population_table.at(age);
         expected_population.at(age, core::Gender::male) = static_cast<int>(
             std::round(age_info.males * start_population_size / total_initial_population));
@@ -173,9 +179,11 @@ IntegerAgeGenderTable Simulation::get_current_expected_population() const {
 }
 
 IntegerAgeGenderTable Simulation::get_current_simulated_population() {
-    auto simulated_population = create_age_gender_table<int>(context_.age_range());
+    const auto &age_range = context_.inputs().settings().age_range();
+    auto simulated_population = create_age_gender_table<int>(age_range);
     auto &pop = context_.population();
     auto count_mutex = std::mutex{};
+
     tbb::parallel_for_each(pop.cbegin(), pop.cend(), [&](const auto &entity) {
         if (!entity.is_active()) {
             return;
@@ -188,7 +196,8 @@ IntegerAgeGenderTable Simulation::get_current_simulated_population() {
     return simulated_population;
 }
 
-void Simulation::apply_net_migration(int net_value, unsigned int age, const core::Gender &gender) {
+void Simulation::apply_net_migration(const int net_value, const unsigned int age,
+                                     const core::Gender &gender) {
     if (net_value > 0) {
         auto &pop = context_.population();
         auto similar_indices = core::find_index_of_all(pop, [&](const Person &entity) {
@@ -198,8 +207,8 @@ void Simulation::apply_net_migration(int net_value, unsigned int age, const core
         if (!similar_indices.empty()) {
             std::sort(similar_indices.begin(), similar_indices.end());
 
-            for (auto trial = 0; trial < net_value; trial++) {
-                auto index =
+            for (auto trial = 0; trial < net_value; ++trial) {
+                const auto index =
                     context_.random().next_int(static_cast<int>(similar_indices.size()) - 1);
                 const auto &source = pop.at(similar_indices.at(index));
                 context_.population().add(partial_clone_entity(source), context_.time_now());
@@ -214,7 +223,7 @@ void Simulation::apply_net_migration(int net_value, unsigned int age, const core
 
             if (entity.age == age && entity.gender == gender) {
                 entity.emigrate(context_.time_now());
-                net_value_counter++;
+                ++net_value_counter;
                 if (net_value_counter == 0) {
                     break;
                 }
@@ -223,17 +232,17 @@ void Simulation::apply_net_migration(int net_value, unsigned int age, const core
     }
 }
 
-hgps::IntegerAgeGenderTable Simulation::get_net_migration() {
+IntegerAgeGenderTable Simulation::get_net_migration() {
     if (context_.scenario().type() == ScenarioType::baseline) {
         return create_net_migration();
     }
 
     auto message = context_.sync_channel().try_receive(context_.sync_timeout_millis());
     if (message.has_value()) {
-        auto &basePtr = message.value();
-        auto *messagePrt = dynamic_cast<NetImmigrationMessage *>(basePtr.get());
-        if (messagePrt) {
-            return messagePrt->data();
+        auto &base_ptr = message.value();
+        auto *message_ptr = dynamic_cast<NetImmigrationMessage *>(base_ptr.get());
+        if (message_ptr) {
+            return message_ptr->data();
         }
 
         throw std::runtime_error(
@@ -245,17 +254,19 @@ hgps::IntegerAgeGenderTable Simulation::get_net_migration() {
         context_.sync_timeout_millis()));
 }
 
-hgps::IntegerAgeGenderTable Simulation::create_net_migration() {
+IntegerAgeGenderTable Simulation::create_net_migration() {
     auto expected_future = core::run_async(&Simulation::get_current_expected_population, this);
     auto simulated_population = get_current_simulated_population();
-    auto net_emigration = create_age_gender_table<int>(context_.age_range());
-    auto start_age = context_.age_range().lower();
-    auto end_age = context_.age_range().upper();
-    auto expected_population = expected_future.get();
-    auto net_value = 0;
-    for (int age = start_age; age <= end_age; age++) {
-        net_value = expected_population.at(age, core::Gender::male) -
-                    simulated_population.at(age, core::Gender::male);
+
+    const auto &age_range = context_.inputs().settings().age_range();
+    auto net_emigration = create_age_gender_table<int>(age_range);
+    const auto start_age = age_range.lower();
+    const auto end_age = age_range.upper();
+
+    const auto expected_population = expected_future.get();
+    for (int age = start_age; age <= end_age; ++age) {
+        auto net_value = expected_population.at(age, core::Gender::male) -
+                         simulated_population.at(age, core::Gender::male);
         net_emigration.at(age, core::Gender::male) = net_value;
 
         net_value = expected_population.at(age, core::Gender::female) -
@@ -267,7 +278,6 @@ hgps::IntegerAgeGenderTable Simulation::create_net_migration() {
 }
 
 Person Simulation::partial_clone_entity(const Person &source) noexcept {
-    // Population::add(...) assigns the final slot-based ID.
     auto clone = Person{0};
     clone.age = source.age;
     clone.gender = source.gender;

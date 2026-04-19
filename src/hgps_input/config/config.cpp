@@ -6,17 +6,17 @@
 #include "data/validated_data_source.h"
 #include "version.h"
 
-#include "hgps/baseline_scenario.h"
-#include "hgps/fiscal_scenario.h"
-#include "hgps/food_labelling_scenario.h"
-#include "hgps/intervention_scenario.h"
-#include "hgps/marketing_dynamic_scenario.h"
-#include "hgps/marketing_scenario.h"
-#include "hgps/model_input.h"
-#include "hgps/physical_activity_scenario.h"
-#include "hgps/scenario.h"
-#include "hgps/simple_policy_scenario.h"
-#include "hgps/simulation.h"
+#include "hgps/data/model_input.h"
+#include "hgps/scenarios/baseline_scenario.h"
+#include "hgps/scenarios/fiscal_scenario.h"
+#include "hgps/scenarios/food_labelling_scenario.h"
+#include "hgps/scenarios/intervention_scenario.h"
+#include "hgps/scenarios/marketing_dynamic_scenario.h"
+#include "hgps/scenarios/marketing_scenario.h"
+#include "hgps/scenarios/physical_activity_scenario.h"
+#include "hgps/scenarios/scenario.h"
+#include "hgps/scenarios/simple_policy_scenario.h"
+#include "hgps/simulation/simulation.h"
 
 #include "hgps_core/diagnostics/input_issue.h"
 #include "hgps_core/utils/scoped_timer.h"
@@ -82,14 +82,11 @@ std::unique_ptr<DataSource> get_data_source_from_json(const nlohmann::json &opt,
     throw std::runtime_error("Data configuration must contain either 'index' or 'source'");
 }
 
-// Get path to config file
 std::filesystem::path get_config_file_path(const std::string &config_source) {
-    // Config source is path to local JSON file
     if (std::filesystem::is_regular_file(config_source) && config_source.ends_with(".json")) {
         return config_source;
     }
 
-    // Config source is path to directory, zip file or URL
     return DataSource{config_source}.get_data_directory() / "config.json";
 }
 
@@ -112,7 +109,6 @@ Configuration get_configuration(const std::string &config_source,
 
     core::InputIssueReport diagnostics{};
 
-    // verbosity
     config.verbosity = core::VerboseMode::none;
     if (verbose) {
         config.verbosity = core::VerboseMode::verbose;
@@ -123,10 +119,8 @@ Configuration get_configuration(const std::string &config_source,
     const auto opt = load_and_validate_json(config_file, ConfigSchemaFileName, ConfigSchemaVersion,
                                             /*require_schema_property=*/false);
 
-    // Base dir for relative paths
     config.root_path = config_file.parent_path();
 
-    // project_requirements is optional; if absent, use default-constructed values for older configs
     if (opt.contains("project_requirements")) {
         const auto &pr = opt["project_requirements"];
         auto &req = config.project_requirements;
@@ -170,12 +164,10 @@ Configuration get_configuration(const std::string &config_source,
             req.two_stage.logistic_file = ts["logistic_file"].get<std::string>();
         }
     } else {
-        // Legacy configs without project_requirements
         config.project_requirements.income.type = "categorical";
         config.project_requirements.physical_activity.type = "simple";
     }
 
-    // Read trend_type from JSON file (defaults to "null")
     if (opt.contains("trend_type")) {
         config.trend_type = opt["trend_type"].get<std::string>();
         if (config.trend_type != "null" && config.trend_type != "trend" &&
@@ -187,10 +179,8 @@ Configuration get_configuration(const std::string &config_source,
         }
     }
 
-    // Store the original config.json data for accessing additional fields
     config.config_data = opt;
 
-    // Read PIF configuration from JSON file (if available)
     if (opt.contains("population_impact_fraction")) {
         const auto &pif_json = opt["population_impact_fraction"];
         config.population_impact_fraction.enabled = pif_json["enabled"].get<bool>();
@@ -200,7 +190,6 @@ Configuration get_configuration(const std::string &config_source,
         config.population_impact_fraction.scenario = pif_json["scenario"].get<std::string>();
     }
 
-    // Read data source from JSON file. For now, this is optional.
     if (opt.contains("data")) {
         config.data_source = get_data_source_from_json(opt["data"], config.root_path);
     }
@@ -290,22 +279,22 @@ ModelInput create_model_input(core::DataTable &input_table, core::Country countr
     };
 
     auto ses_mapping =
-        SESDefinition{.fuction_name = config.ses.function, .parameters = config.ses.parameters};
+        SESDefinition{.function_name = config.ses.function, .parameters = config.ses.parameters};
 
-    auto mapping = std::vector<MappingEntry>();
+    auto mapping = std::vector<MappingEntry>{};
     for (const auto &item : config.modelling.risk_factors) {
         mapping.emplace_back(item.name, item.level, item.range);
     }
 
-    return {input_table,
-            settings,
-            run_info,
-            ses_mapping,
-            HierarchicalMapping(std::move(mapping)),
-            std::move(diseases),
-            config.project_requirements,
-            config.population_impact_fraction,
-            config.output.individual_id_tracking};
+    return ModelInput{input_table,
+                      settings,
+                      run_info,
+                      ses_mapping,
+                      HierarchicalMapping(std::move(mapping)),
+                      std::move(diseases),
+                      config.project_requirements,
+                      config.population_impact_fraction,
+                      config.output.individual_id_tracking};
 }
 
 std::string create_output_file_name(const OutputInfo &info, int job_id) {
@@ -353,8 +342,9 @@ std::string create_output_file_name(const OutputInfo &info, int job_id) {
     return log_file_name;
 }
 
-std::unique_ptr<hgps::Scenario> create_baseline_scenario(hgps::SyncChannel &channel) {
-    return std::make_unique<BaselineScenario>(channel);
+std::unique_ptr<hgps::Scenario>
+create_baseline_scenario([[maybe_unused]] hgps::SyncChannel &channel) {
+    return std::make_unique<BaselineScenario>();
 }
 
 hgps::Simulation create_baseline_simulation(hgps::SyncChannel &channel,
@@ -362,11 +352,12 @@ hgps::Simulation create_baseline_simulation(hgps::SyncChannel &channel,
                                             std::shared_ptr<const hgps::EventAggregator> event_bus,
                                             std::shared_ptr<const hgps::ModelInput> input) {
     auto scenario = create_baseline_scenario(channel);
-    return Simulation{factory, std::move(event_bus), std::move(input), std::move(scenario)};
+    return Simulation{
+        factory, std::move(event_bus), std::move(input), std::move(scenario), channel};
 }
 
-std::unique_ptr<hgps::Scenario> create_intervention_scenario(SyncChannel &channel,
-                                                             const PolicyScenarioInfo &info) {
+std::unique_ptr<hgps::Scenario> create_intervention_scenario(
+    [[maybe_unused]] SyncChannel &channel, const PolicyScenarioInfo &info) {
     using namespace hgps;
 
     fmt::print(fg(fmt::color::light_coral), "\nIntervention policy: {}.\n\n", info.identifier);
@@ -386,25 +377,23 @@ std::unique_ptr<hgps::Scenario> create_intervention_scenario(SyncChannel &channe
         }
 
         auto definition = SimplePolicyDefinition(impact_type, std::move(risk_impacts), period);
-        return std::make_unique<SimplePolicyScenario>(channel, std::move(definition));
+        return std::make_unique<SimplePolicyScenario>(std::move(definition));
     }
 
     if (info.identifier == "marketing") {
         auto definition = MarketingPolicyDefinition(period, std::move(risk_impacts));
-        return std::make_unique<MarketingPolicyScenario>(channel, std::move(definition));
+        return std::make_unique<MarketingPolicyScenario>(std::move(definition));
     }
 
     if (info.identifier == "dynamic_marketing") {
         auto dynamic = PolicyDynamic{info.dynamics};
         auto definition = MarketingDynamicDefinition{period, std::move(risk_impacts), dynamic};
-        return std::make_unique<MarketingDynamicScenario>(channel, std::move(definition));
+        return std::make_unique<MarketingDynamicScenario>(std::move(definition));
     }
 
     if (info.identifier == "food_labelling") {
-        // NOLINTBEGIN(bugprone-unchecked-optional-access)
         const auto cutoff_time = info.coverage_cutoff_time.value();
         const auto cutoff_age = info.child_cutoff_age.value();
-        // NOLINTEND(bugprone-unchecked-optional-access)
 
         const auto &adjustment = info.adjustments.at(0);
         auto definition = FoodLabellingDefinition{
@@ -414,7 +403,7 @@ std::unique_ptr<hgps::Scenario> create_intervention_scenario(SyncChannel &channe
             .coverage = PolicyCoverage{info.coverage_rates, cutoff_time},
             .transfer_coefficient = TransferCoefficient{info.coefficients, cutoff_age}};
 
-        return std::make_unique<FoodLabellingScenario>(channel, std::move(definition));
+        return std::make_unique<FoodLabellingScenario>(std::move(definition));
     }
 
     if (info.identifier == "physical_activity") {
@@ -422,13 +411,13 @@ std::unique_ptr<hgps::Scenario> create_intervention_scenario(SyncChannel &channe
                                                      .impacts = std::move(risk_impacts),
                                                      .coverage_rate = info.coverage_rates.at(0)};
 
-        return std::make_unique<PhysicalActivityScenario>(channel, std::move(definition));
+        return std::make_unique<PhysicalActivityScenario>(std::move(definition));
     }
 
     if (info.identifier == "fiscal") {
         auto impact_type = parse_fiscal_impact_type(info.impact_type);
         auto definition = FiscalPolicyDefinition(impact_type, period, std::move(risk_impacts));
-        return std::make_unique<FiscalPolicyScenario>(channel, std::move(definition));
+        return std::make_unique<FiscalPolicyScenario>(std::move(definition));
     }
 
     throw std::invalid_argument(
@@ -441,7 +430,8 @@ create_intervention_simulation(hgps::SyncChannel &channel, hgps::SimulationModul
                                std::shared_ptr<const hgps::ModelInput> input,
                                const PolicyScenarioInfo &info) {
     auto scenario = create_intervention_scenario(channel, info);
-    return Simulation{factory, std::move(event_bus), std::move(input), std::move(scenario)};
+    return Simulation{
+        factory, std::move(event_bus), std::move(input), std::move(scenario), channel};
 }
 
 #ifdef _WIN32

@@ -8,6 +8,7 @@
 #include <unordered_set>
 
 namespace hgps::analysis {
+    using hgps::core::operator""_id;
 
 std::vector<core::Income> get_available_income_categories(RuntimeContext &context) {
     std::vector<core::Income> categories;
@@ -254,9 +255,7 @@ void calculate_income_based_population_statistics(
     DataSeries &series) {
     auto income_channels = std::vector<std::string>{
         "count",       "deaths",      "emigrations", "mean_yll",      "mean_yld",
-        "mean_daly",   "normal_weight", "over_weight", "obese_weight", "above_weight",
-        "mean_age",    "std_age",     "mean_age2",   "std_age2",      "mean_age3",
-        "std_age3",    "mean_gender", "std_gender",  "mean_income",   "std_income"};
+        "mean_daly",   "normal_weight", "over_weight", "obese_weight", "above_weight",  "mean_gender", "std_gender",  "mean_income",   "std_income"};
 
     bool has_region = false;
     bool has_ethnicity = false;
@@ -535,30 +534,8 @@ void calculate_income_based_population_statistics(
                 safe_divide_channel_income(core::Gender::male, income, column, age, count_m);
             }
 
-            if (added_income_channels.contains("mean_age")) {
-                series.at(core::Gender::female, income, "mean_age").at(age) =
-                    static_cast<double>(age);
-                series.at(core::Gender::male, income, "mean_age").at(age) =
-                    static_cast<double>(age);
-            }
-            if (added_income_channels.contains("mean_age2")) {
-                series.at(core::Gender::female, income, "mean_age2").at(age) =
-                    static_cast<double>(age) * static_cast<double>(age);
-                series.at(core::Gender::male, income, "mean_age2").at(age) =
-                    static_cast<double>(age) * static_cast<double>(age);
-            }
-            if (added_income_channels.contains("mean_age3")) {
-                series.at(core::Gender::female, income, "mean_age3").at(age) =
-                    static_cast<double>(age) * static_cast<double>(age) *
-                    static_cast<double>(age);
-                series.at(core::Gender::male, income, "mean_age3").at(age) =
-                    static_cast<double>(age) * static_cast<double>(age) *
-                    static_cast<double>(age);
-            }
-
             safe_divide_channel_income(core::Gender::female, income, "mean_gender", age, count_f);
             safe_divide_channel_income(core::Gender::male, income, "mean_gender", age, count_m);
-            safe_divide_channelIncome:
             safe_divide_channel_income(core::Gender::female, income, "mean_income", age, count_f);
             safe_divide_channel_income(core::Gender::male, income, "mean_income", age, count_m);
             safe_divide_channel_income(core::Gender::female, income, "mean_sector", age, count_f);
@@ -610,8 +587,7 @@ void calculate_income_based_standard_deviation(
     auto income_channels = std::vector<std::string>{
         "count",       "deaths",      "emigrations", "mean_yll",      "mean_yld",
         "mean_daly",   "normal_weight", "over_weight", "obese_weight", "above_weight",
-        "mean_age",    "std_age",     "mean_age2",   "std_age2",      "mean_age3",
-        "std_age3",    "mean_gender", "std_gender",  "mean_income",   "std_income"};
+          "mean_gender", "std_gender",  "mean_income",   "std_income"};
 
     bool has_region = false;
     bool has_ethnicity = false;
@@ -772,18 +748,6 @@ void calculate_income_based_standard_deviation(
             accumulate_squared_diffs_income("physical_activity", sex, income, age, pa_it->second);
         }
 
-        accumulate_squared_diffs_income("age", sex, income, age, static_cast<double>(person.age));
-        accumulate_squared_diffs_income("age2", sex, income, age,
-                                        static_cast<double>(person.age) *
-                                            static_cast<double>(person.age));
-        accumulate_squared_diffs_income("age3", sex, income, age,
-                                        static_cast<double>(person.age) *
-                                            static_cast<double>(person.age) *
-                                            static_cast<double>(person.age));
-        accumulate_squared_diffs_income("gender", sex, income, age,
-                                        static_cast<double>(person.gender_to_value()));
-    }
-
     auto divide_by_count_sqrt_income =
         [&series, &added_income_channels](const std::string &chan, core::Gender sex,
                                           core::Income income, int age, double count) {
@@ -818,7 +782,7 @@ void calculate_income_based_standard_deviation(
             }
 
             for (const auto &channel :
-                 {"age", "age2", "age3", "gender", "income", "sector", "region", "ethnicity",
+                 {"gender", "income", "sector", "region", "ethnicity",
                   "income_category", "physical_activity"}) {
                 divide_by_count_sqrt_income(channel, core::Gender::female, income, age, count_f);
                 divide_by_count_sqrt_income(channel, core::Gender::male, income, age, count_m);
@@ -833,5 +797,5 @@ void calculate_income_based_standard_deviation(
         }
     }
 }
-
+    }
 } // namespace hgps::analysis

@@ -1,7 +1,10 @@
 #include "fiscal_scenario.h"
+
 #include "hgps_core/utils/string_util.h"
 
 #include <fmt/core.h>
+
+#include <functional>
 #include <stdexcept>
 
 namespace hgps {
@@ -21,15 +24,17 @@ FiscalPolicyScenario::FiscalPolicyScenario(FiscalPolicyDefinition &&definition)
     }
 }
 
-std::size_t FiscalPolicyScenario::make_book_key(
-    std::size_t entity_id, const core::Identifier &risk_factor_key) noexcept {
-    return entity_id ^ (risk_factor_key.hash_code() + 0x9e3779b9 + (entity_id << 6) + (entity_id >> 2));
+std::size_t FiscalPolicyScenario::make_book_key(const std::size_t entity_id,
+                                                const core::Identifier &risk_factor_key) noexcept {
+    return entity_id ^
+           (std::hash<core::Identifier>{}(risk_factor_key) + 0x9e3779b9 + (entity_id << 6) +
+            (entity_id >> 2));
 }
 
 void FiscalPolicyScenario::clear() noexcept { interventions_book_.clear(); }
 
-double FiscalPolicyScenario::apply([[maybe_unused]] Random &generator, Person &entity, int time,
-                                   const core::Identifier &risk_factor_key, double value) {
+double FiscalPolicyScenario::apply([[maybe_unused]] Random &generator, Person &entity, const int time,
+                                   const core::Identifier &risk_factor_key, const double value) {
     if (!definition_.active_period.contains(time)) {
         return value;
     }

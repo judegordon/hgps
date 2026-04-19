@@ -1,8 +1,10 @@
 #include "food_labelling_scenario.h"
 
+#include <functional>
 #include <stdexcept>
 
 namespace hgps {
+
 inline constexpr int FOP_NO_EFFECT = -2;
 
 FoodLabellingScenario::FoodLabellingScenario(FoodLabellingDefinition &&definition)
@@ -21,12 +23,14 @@ FoodLabellingScenario::FoodLabellingScenario(FoodLabellingDefinition &&definitio
 }
 
 std::size_t FoodLabellingScenario::make_book_key(
-    std::size_t entity_id, const core::Identifier &risk_factor_key) noexcept {
-    return entity_id ^ (risk_factor_key.hash_code() + 0x9e3779b9 + (entity_id << 6) + (entity_id >> 2));
+    const std::size_t entity_id, const core::Identifier &risk_factor_key) noexcept {
+    return entity_id ^
+           (std::hash<core::Identifier>{}(risk_factor_key) + 0x9e3779b9 + (entity_id << 6) +
+            (entity_id >> 2));
 }
 
 const PolicyImpact *FoodLabellingScenario::find_active_impact(
-    const core::Identifier &risk_factor_key, unsigned int age) const noexcept {
+    const core::Identifier &risk_factor_key, const unsigned int age) const noexcept {
     const PolicyImpact *active = nullptr;
     for (const auto &impact : definition_.impacts) {
         if (impact.risk_factor != risk_factor_key) {
@@ -43,8 +47,8 @@ const PolicyImpact *FoodLabellingScenario::find_active_impact(
 
 void FoodLabellingScenario::clear() noexcept { interventions_book_.clear(); }
 
-double FoodLabellingScenario::apply(Random &generator, Person &entity, int time,
-                                    const core::Identifier &risk_factor_key, double value) {
+double FoodLabellingScenario::apply(Random &generator, Person &entity, const int time,
+                                    const core::Identifier &risk_factor_key, const double value) {
     if (!definition_.active_period.contains(time)) {
         return value;
     }

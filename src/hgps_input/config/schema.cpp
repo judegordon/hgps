@@ -1,6 +1,6 @@
 #include "schema.h"
 
-#include "hgps/program_dirs.h"
+#include "hgps/utils/program_dirs.h"
 
 #include <fmt/color.h>
 #include <fmt/format.h>

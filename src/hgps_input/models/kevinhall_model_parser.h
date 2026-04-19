@@ -3,7 +3,7 @@
 #include "config/config.h"
 #include "hgps_core/diagnostics/input_issue.h"
 
-#include "hgps/kevin_hall_model.h"
+#include "hgps/models/kevin_hall_model.h"
 
 #include <memory>
 #include <string_view>

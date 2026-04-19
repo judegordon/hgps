@@ -10,9 +10,14 @@ configure_file(version.h.in version.h ESCAPE_QUOTES)
 target_sources(
     hgps
     PRIVATE
+        analysis/analysis_income.cpp
+        analysis/analysis_series.cpp
+        analysis/analysis_summary.cpp
+        analysis/analysis_tracking.cpp
+
         simulation/analysis_module.cpp
         simulation/model_result.cpp
-        simulation/modulefactory.cpp
+        simulation/module_factory.cpp
         simulation/runner.cpp
         simulation/runtime_context.cpp
         simulation/runtime_metric.cpp
@@ -44,17 +49,16 @@ target_sources(
         disease/life_table.cpp
         disease/relative_risk.cpp
 
-        repository/converter.cpp
-        repository/data_series.cpp
-        repository/mapping.cpp
-        repository/modelinput.cpp
-        repository/repository.cpp
-
-        population/demographic.cpp
-        population/person.cpp
-        population/population.cpp
-        population/riskfactor.cpp
-        population/nutrients.cpp
+        data/converter.cpp
+        data/data_series.cpp
+        data/demographic.cpp
+        data/mapping.cpp
+        data/model_input.cpp
+        data/nutrients.cpp
+        data/person.cpp
+        data/population.cpp
+        data/repository.cpp
+        data/riskfactor.cpp
 
         events/error_message.cpp
         events/event_bus.cpp
@@ -64,7 +68,7 @@ target_sources(
         events/result_message.cpp
         events/runner_message.cpp
 
-        utils/mtrandom.cpp
+        utils/mt_random.cpp
         utils/program_dirs.cpp
         utils/random_algorithm.cpp
         utils/settings.cpp

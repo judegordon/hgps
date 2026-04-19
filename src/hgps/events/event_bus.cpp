@@ -24,7 +24,7 @@ DefaultEventBus::subscribe(EventType event_id,
     subscribers_.emplace(handle_id, std::move(function));
     registry_.emplace(event_key, handle_id);
 
-    return std::make_unique<EventSubscriberHandler>(handle_id, this);
+    return std::make_unique<EventSubscriberHandler>(EventHandlerIdentifier{handle_id}, this);
 }
 
 void DefaultEventBus::publish(std::unique_ptr<EventMessage> message) const {
@@ -36,7 +36,7 @@ void DefaultEventBus::publish(std::unique_ptr<EventMessage> message) const {
 
         const auto [begin_id, end_id] = registry_.equal_range(shared_message->id());
         for (auto it = begin_id; it != end_id; ++it) {
-            auto handler_it = subscribers_.find(it->second);
+            const auto handler_it = subscribers_.find(it->second);
             if (handler_it != subscribers_.end()) {
                 handlers.push_back(handler_it->second);
             }

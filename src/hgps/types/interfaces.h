@@ -68,7 +68,7 @@ class DiseaseModel {
 
     virtual void update_disease_status(RuntimeContext &context) = 0;
 
-    virtual double get_excess_mortality(const Person &entity) const noexcept = 0;
+    virtual double get_excess_mortality(const Person &entity) const = 0;
 };
 
 } // namespace hgps

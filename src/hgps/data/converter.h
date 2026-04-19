@@ -1,16 +1,15 @@
 #pragma once
 
 #include "analysis/analysis_definition.h"
-#include "types/disease_definition.h"
 #include "disease/disease_table.h"
-#include "data/gender_table.h"
 #include "disease/life_table.h"
-#include "types/lms_definition.h"
-#include "data/model_input.h"
 #include "disease/relative_risk.h"
+#include "gender_table.h"
+#include "model_input.h"
+#include "types/disease_definition.h"
+#include "types/lms_definition.h"
 
 #include "hgps_core/interfaces/datastore.h"
-
 #include "hgps_core/types/disease.h"
 #include "hgps_core/types/disease_analysis.h"
 #include "hgps_core/types/identifier.h"
@@ -19,6 +18,13 @@
 #include "hgps_core/types/mortality.h"
 
 namespace hgps::detail {
+
+struct RelativeRiskInfo {
+    const core::DiseaseInfo &disease;
+    core::Datastore &manager;
+    const ModelInput &inputs;
+    std::vector<MappingEntry> &risk_factors;
+};
 
 class StoreConverter {
   public:

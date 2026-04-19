@@ -1,9 +1,9 @@
 #include "event_monitor.h"
 
-#include "hgps/error_message.h"
-#include "hgps/individual_tracking_message.h"
-#include "hgps/info_message.h"
-#include "hgps/runner_message.h"
+#include "hgps/events/error_message.h"
+#include "hgps/events/individual_tracking_message.h"
+#include "hgps/events/info_message.h"
+#include "hgps/events/runner_message.h"
 
 #include <fmt/color.h>
 #include <fmt/core.h>

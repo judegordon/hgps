@@ -1,6 +1,6 @@
 #pragma once
 
-#include "hgps/result_message.h"
+#include "hgps/events/result_message.h"
 
 namespace hgps {
 class ResultWriter {

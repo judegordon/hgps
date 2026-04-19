@@ -3,7 +3,7 @@
 #include "config/config.h"
 #include "hgps_core/diagnostics/input_issue.h"
 
-#include "hgps/risk_factor_adjustable_model.h"
+#include "hgps/models/risk_factor_adjustable_model.h"
 
 #include <filesystem>
 #include <memory>

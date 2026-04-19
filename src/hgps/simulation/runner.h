@@ -1,4 +1,5 @@
 #pragma once
+
 #include "events/event_aggregator.h"
 #include "simulation.h"
 
@@ -7,9 +8,11 @@
 #include <stop_token>
 
 namespace hgps {
+
 class Runner {
   public:
     Runner() = delete;
+
     Runner(std::shared_ptr<EventAggregator> bus,
            std::unique_ptr<RandomBitGenerator> seed_generator) noexcept;
 
@@ -25,7 +28,7 @@ class Runner {
     std::unique_ptr<RandomBitGenerator> seed_generator_;
     std::stop_source source_;
 
-    void notify(std::unique_ptr<hgps::EventMessage> message);
+    void notify(std::unique_ptr<EventMessage> message);
 };
 
 } // namespace hgps

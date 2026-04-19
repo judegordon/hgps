@@ -10,6 +10,7 @@
 #include <unordered_set>
 
 namespace hgps::analysis {
+    using hgps::core::operator""_id;
 
 void initialise_output_channels(RuntimeContext &context, std::vector<std::string> &channels) {
     if (!channels.empty()) {

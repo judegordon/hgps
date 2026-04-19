@@ -3,7 +3,7 @@
 #include "events/event_aggregator.h"
 #include "events/channel.h"
 #include "events/sync_message.h"
-#include "models/model_input.h"
+#include "data/model_input.h"
 #include "data/population.h"
 #include "utils/random_algorithm.h"
 #include "runtime_metric.h"

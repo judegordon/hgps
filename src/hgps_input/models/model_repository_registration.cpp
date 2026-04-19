@@ -5,7 +5,7 @@
 
 #include "config/config_section_parsing.h"
 #include "io/csv_parser.h"
-#include "hgps/repository.h"
+#include "hgps/data/repository.h"
 
 #include <fmt/core.h>
 

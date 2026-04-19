@@ -3,6 +3,7 @@
 #include "analysis_definition.h"
 #include "simulation/runtime_context.h"
 #include "models/weight_model.h"
+#include "data/data_series.h"
 
 #include <string>
 #include <vector>

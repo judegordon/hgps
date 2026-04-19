@@ -3,7 +3,7 @@
 #include "config/config.h"
 #include "hgps_core/diagnostics/input_issue.h"
 
-#include "hgps/static_linear_model.h"
+#include "hgps/models/static_linear_model.h"
 
 #include <nlohmann/json.hpp>
 

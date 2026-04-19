@@ -2,7 +2,7 @@
 
 #include <rapidcsv.h>
 
-#include "hgps/gender_value.h"
+#include "hgps/data/gender_value.h"
 #include "hgps_core/utils/scoped_timer.h"
 #include "hgps_core/utils/string_util.h"
 

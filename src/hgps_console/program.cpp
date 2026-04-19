@@ -5,12 +5,12 @@
 #include "hgps_input/models/model_parser.h"
 #include "hgps/scenarios/baseline_scenario.h"
 #include "hgps/events/event_bus.h"
-#include "hgps/repository/model_input.h"
+#include "hgps/data/model_input.h"
 #include "hgps/utils/mt_random.h"
 #include "hgps/simulation/runner.h"
 #include "hgps/simulation/simulation.h"
 #include "hgps/simulation/simulation_module.h"
-#include "hgps/event_bus.h"
+#include "hgps/events/event_bus.h"
 #include "command_options.h"
 #include "event_monitor.h"
 #include "individual_id_tracking_writer.h"
@@ -203,7 +203,8 @@ int main(int argc, char *argv[]) { // NOLINT(bugprone-exception-escape)
                          individual_tracking_writer ? &*individual_tracking_writer : nullptr};
 
         // Create simulation executive instance with master seed generator
-        auto seed_generator = std::make_unique<hgps::MTRandom32>();
+        constexpr unsigned int GLOBAL_SEED = 12345;
+        auto seed_generator = std::make_unique<hgps::MTRandom32>(GLOBAL_SEED);
         if (const auto seed = model_input->seed()) {
             seed_generator->seed(seed.value());
         }

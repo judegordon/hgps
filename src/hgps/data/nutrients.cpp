@@ -60,7 +60,7 @@ get_nutrient_table(rapidcsv::Document &doc, const std::vector<core::Identifier> 
         const auto [it, inserted] = out.emplace(row_name, std::move(row));
         if (!inserted) {
             throw core::InternalError(
-                fmt::format("Duplicate nutrient table row name: {}", row_name.to_string()));
+                fmt::format("Duplicate nutrient table row name: {}", row_name));
         }
     }
 

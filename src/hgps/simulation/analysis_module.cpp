@@ -7,6 +7,7 @@
 #include "data/converter.h"
 #include "models/lms_model.h"
 #include "models/weight_model.h"
+#include "events/result_message.h"
 
 #include <algorithm>
 #include <stdexcept>

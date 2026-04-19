@@ -1,8 +1,11 @@
 #pragma once
 
+#include "data/demographic.h"
+#include "disease/disease.h"
 #include "events/event_aggregator.h"
-#include "runtime_context.h"
-#include "simulation_module.h"
+#include "simulation/module_factory.h"
+#include "simulation/runtime_context.h"
+#include "simulation/simulation_module.h"
 
 #include <adevs/adevs.h>
 #include <memory>
@@ -30,7 +33,7 @@ class Simulation : public adevs::Model<int> {
     void setup_run(unsigned int run_number, unsigned int seed) noexcept;
 
     ScenarioType type() noexcept { return context_.scenario().type(); }
-    std::string name() override { return context_.identifier(); }
+    std::string name() override { return context_.scenario().name(); }
 
   private:
     RuntimeContext context_;
