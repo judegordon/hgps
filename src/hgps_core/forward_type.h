@@ -43,6 +43,6 @@ struct LookupGenderValue {
 };
 
 class DataTable;
-class DataTableColumn;
+struct DataTableColumn;
 
 } // namespace hgps::core
