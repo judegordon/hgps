@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(
-    Health-GPS
+    HealthGPS
     VERSION 1.0.0
     LANGUAGES CXX
 )

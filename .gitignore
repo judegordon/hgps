@@ -7,10 +7,7 @@ compile_commands.json
 
 vcpkg_installed/
 
-# Unsure if anyway uses this
 .vs/
 .idea/
 *.code-workspace
 *.swp
-
-test.cpp
