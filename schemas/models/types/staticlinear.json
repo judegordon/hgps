@@ -4,10 +4,6 @@
   "type": "object",
   "description": "Configuration for the StaticLinear model using CSV-based model inputs.",
   "properties": {
-    "$schema": {
-      "type": "string",
-      "description": "Optional JSON Schema identifier."
-    },
     "ModelName": {
       "const": "StaticLinear",
       "description": "Model type identifier."
@@ -45,11 +41,11 @@
       }
     },
     "RegionFile": {
-      "$ref": "../../config/defs/csv_file.json",
+      "$ref": "../../defs/csv_file.json",
       "description": "CSV file containing region assignment probabilities by age and gender."
     },
     "EthnicityFile": {
-      "$ref": "../../config/defs/csv_file.json",
+      "$ref": "../../defs/csv_file.json",
       "description": "CSV file containing ethnicity assignment probabilities by age group, gender, and region."
     },
     "IncomeModels": {
@@ -255,16 +251,16 @@
       "description": "CSV-based risk factor coefficient files.",
       "properties": {
         "boxcox_coefficients": {
-          "$ref": "../../config/defs/csv_file.json"
+          "$ref": "../../defs/csv_file.json"
         },
         "policy_coefficients": {
-          "$ref": "../../config/defs/csv_file.json"
+          "$ref": "../../defs/csv_file.json"
         },
         "trend_coefficients": {
-          "$ref": "../../config/defs/csv_file.json"
+          "$ref": "../../defs/csv_file.json"
         },
         "logistic_regression": {
-          "$ref": "../../config/defs/csv_file.json"
+          "$ref": "../../defs/csv_file.json"
         }
       },
       "required": [
@@ -273,11 +269,11 @@
       "additionalProperties": false
     },
     "RiskFactorCorrelationFile": {
-      "$ref": "../../config/defs/csv_file.json",
+      "$ref": "../../defs/csv_file.json",
       "description": "CSV file containing correlations between risk factors."
     },
     "PolicyCovarianceFile": {
-      "$ref": "../../config/defs/csv_file.json",
+      "$ref": "../../defs/csv_file.json",
       "description": "CSV file containing policy covariance values."
     }
   },

@@ -4,10 +4,6 @@
   "type": "object",
   "description": "Configuration for the KevinHall dynamic model.",
   "properties": {
-    "$schema": {
-      "type": "string",
-      "description": "Optional JSON Schema identifier."
-    },
     "ModelName": {
       "const": "KevinHall",
       "description": "Model type identifier."
@@ -62,7 +58,7 @@
             "description": "Food name."
           },
           "Nutrients": {
-            "$ref": "../../config/defs/numeric_coefficient_map.json"
+            "$ref": "../../defs/numeric_coefficient_map.json"
           },
           "Price": {
             "type": [
@@ -105,10 +101,10 @@
       "description": "CSV files containing weight quantiles by sex.",
       "properties": {
         "Male": {
-          "$ref": "../../config/defs/csv_file.json"
+          "$ref": "../../defs/csv_file.json"
         },
         "Female": {
-          "$ref": "../../config/defs/csv_file.json"
+          "$ref": "../../defs/csv_file.json"
         }
       },
       "required": [
@@ -118,7 +114,7 @@
       "additionalProperties": false
     },
     "EnergyPhysicalActivityQuantiles": {
-      "$ref": "../../config/defs/csv_file.json"
+      "$ref": "../../defs/csv_file.json"
     },
     "HeightStdDev": {
       "type": "object",

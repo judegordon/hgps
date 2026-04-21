@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/data_index/defs/demographic_file_info.json",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/defs/demographic_file_info.json",
   "type": "object",
   "description": "Reference to a demographic dataset file including its description and location.",
   "properties": {

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/config/components/interventions.json",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/config/interventions.json",
   "type": "object",
   "description": "Configuration for intervention types, their active periods, impacts, and adjustment settings.",
   "properties": {

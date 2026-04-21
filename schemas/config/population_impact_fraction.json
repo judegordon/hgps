@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/config/components/population_impact_fraction.json",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/config/population_impact_fraction.json",
   "type": "object",
   "description": "Configuration for Population Impact Fraction analysis.",
   "properties": {
@@ -27,10 +27,19 @@
     }
   },
   "required": [
-    "enabled",
-    "data_root_path",
-    "risk_factor",
-    "scenario"
+    "enabled"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "enabled": { "const": true }
+        }
+      },
+      "then": {
+        "required": ["data_root_path", "risk_factor", "scenario"]
+      }
+    }
   ],
   "additionalProperties": false
 }

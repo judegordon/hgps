@@ -4,10 +4,6 @@
   "type": "object",
   "description": "Configuration for the EBHLM dynamic model.",
   "properties": {
-    "$schema": {
-      "type": "string",
-      "description": "Optional JSON Schema identifier."
-    },
     "ModelName": {
       "const": "EBHLM",
       "description": "Model type identifier."

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/config/defs/sex_coefficients.json",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/defs/sex_coefficients.json",
   "type": "object",
   "description": "Numeric coefficients for male and female groups.",
   "properties": {

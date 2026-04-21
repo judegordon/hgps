@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/data_index/components/disease.json",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/data_index/disease.json",
   "type": "object",
   "description": "File references and metadata for a single disease dataset.",
   "properties": {

@@ -4,30 +4,26 @@
   "type": "object",
   "description": "Root configuration for a HealthGPS simulation.",
   "properties": {
-    "$schema": {
-      "type": "string",
-      "description": "Optional JSON Schema identifier."
-    },
     "project_requirements": {
-      "$ref": "components/project_requirements.json"
+      "$ref": "project_requirements.json"
     },
     "data": {
-      "$ref": "components/data.json"
+      "$ref": "data.json"
     },
     "inputs": {
-      "$ref": "components/inputs.json"
+      "$ref": "inputs.json"
     },
     "modelling": {
-      "$ref": "components/modelling.json"
+      "$ref": "modelling.json"
     },
     "running": {
-      "$ref": "components/running.json"
+      "$ref": "running.json"
     },
     "output": {
-      "$ref": "components/output.json"
+      "$ref": "output.json"
     },
     "population_impact_fraction": {
-      "$ref": "components/population_impact_fraction.json"
+      "$ref": "population_impact_fraction.json"
     }
   },
   "required": [

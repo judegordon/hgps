@@ -5,21 +5,17 @@
   "description": "Metadata and paths for HealthGPS input files.",
   "type": "object",
   "properties": {
-    "$schema": {
-      "type": "string",
-      "description": "Optional JSON Schema identifier."
-    },
     "country": {
-      "$ref": "components/country.json"
+      "$ref": "country.json"
     },
     "demographic": {
-      "$ref": "components/demographic.json"
+      "$ref": "demographic.json"
     },
     "diseases": {
-      "$ref": "components/diseases.json"
+      "$ref": "diseases.json"
     },
     "analysis": {
-      "$ref": "components/analysis.json"
+      "$ref": "analysis.json"
     }
   },
   "required": [

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/config/components/inputs.json",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/config/inputs.json",
   "type": "object",
   "description": "Configuration for simulation input data and input selection settings.",
   "properties": {
@@ -17,7 +17,7 @@
         },
         "size_fraction": {
           "type": "number",
-          "minimum": 0,
+          "exclusiveMinimum": 0,
           "maximum": 1,
           "description": "Fraction of the dataset to use."
         },

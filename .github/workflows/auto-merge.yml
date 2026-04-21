@@ -1,4 +1,4 @@
-name: Dependabot and Pre-commit auto-merge
+name: Dependabot auto-merge
 
 on:
   pull_request:

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/data_index/components/diseases.json",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/data_index/diseases.json",
   "allOf": [
     {
       "$ref": "../defs/dataset_metadata.json"

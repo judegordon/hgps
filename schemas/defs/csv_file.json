@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/config/defs/csv_file.json",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/defs/csv_file.json",
   "type": "object",
   "description": "Definition of a CSV file and its column types.",
   "properties": {

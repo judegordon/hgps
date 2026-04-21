@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/data_index/defs/dataset_metadata.json",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/defs/dataset_metadata.json",
   "type": "object",
   "description": "Common metadata describing a dataset used by the HealthGPS data index.",
   "properties": {

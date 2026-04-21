@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/config/components/running.json",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/config/running.json",
   "type": "object",
   "description": "Configuration for simulation execution, including timing, trials, diseases, interventions, and random seed settings.",
   "properties": {

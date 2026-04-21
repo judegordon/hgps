@@ -1,16 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/data_index/defs/disease_population_impact_fraction_file.json",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/defs/disease_population_impact_fraction_file.json",
   "type": "object",
   "description": "Reference to disease Population Impact Fraction data files.",
   "properties": {
     "file_name": {
       "type": "string",
       "description": "Population Impact Fraction file name pattern. Use {COUNTRY_CODE} as a placeholder for the country code."
-    },
-    "description": {
-      "type": "string",
-      "description": "Description of the Population Impact Fraction data."
     }
   },
   "required": [

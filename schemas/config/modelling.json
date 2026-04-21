@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/config/components/modelling.json",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/config/modelling.json",
   "type": "object",
   "description": "Configuration for simulation modelling, including demographic models, risk factors, baseline adjustments, and policy timing.",
   "properties": {

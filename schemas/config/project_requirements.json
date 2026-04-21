@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/config/components/project_requirements.json",
+  "$id": "https://raw.githubusercontent.com/judegordon/hgps/main/schemas/config/project_requirements.json",
   "type": "object",
   "description": "Project requirements for demographics, income, physical activity, risk factors, trend, and two-stage modelling.",
   "properties": {
@@ -78,11 +78,22 @@
       },
       "required": [
         "enabled",
-        "type",
-        "categories",
         "adjust_to_factors_mean",
         "trended"
       ],
+      "if": {
+        "properties": {
+          "enabled": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "type",
+          "categories"
+        ]
+      },
       "additionalProperties": false
     },
     "physical_activity": {
@@ -112,10 +123,21 @@
       },
       "required": [
         "enabled",
-        "type",
         "adjust_to_factors_mean",
         "trended"
       ],
+      "if": {
+        "properties": {
+          "enabled": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "type"
+        ]
+      },
       "additionalProperties": false
     },
     "risk_factors": {
@@ -156,9 +178,27 @@
         }
       },
       "required": [
-        "enabled",
-        "type"
+        "enabled"
       ],
+      "if": {
+        "properties": {
+          "enabled": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "type"
+        ]
+      },
+      "else": {
+        "properties": {
+          "type": {
+            "const": "none"
+          }
+        }
+      },
       "additionalProperties": false
     },
     "two_stage": {
@@ -177,6 +217,18 @@
       "required": [
         "use_logistic"
       ],
+      "if": {
+        "properties": {
+          "use_logistic": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "logistic_file"
+        ]
+      },
       "additionalProperties": false
     }
   },
