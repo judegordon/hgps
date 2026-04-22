@@ -4,6 +4,9 @@
   "type": "object",
   "description": "Configuration for the KevinHall dynamic model.",
   "properties": {
+    "$schema": {
+      "type": "string"
+    },
     "ModelName": {
       "const": "KevinHall",
       "description": "Model type identifier."

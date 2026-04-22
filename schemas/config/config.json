@@ -4,6 +4,9 @@
   "type": "object",
   "description": "Root configuration for a HealthGPS simulation.",
   "properties": {
+    "$schema": {
+      "type": "string"
+    },
     "project_requirements": {
       "$ref": "project_requirements.json"
     },

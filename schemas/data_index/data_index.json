@@ -5,6 +5,9 @@
   "description": "Metadata and paths for HealthGPS input files.",
   "type": "object",
   "properties": {
+    "$schema": {
+            "type": "string"
+        },
     "country": {
       "$ref": "country.json"
     },

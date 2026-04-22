@@ -4,6 +4,9 @@
   "type": "object",
   "description": "Configuration for the HLM static model.",
   "properties": {
+    "$schema": {
+      "type": "string"
+    },
     "ModelName": {
       "const": "HLM",
       "description": "Model type identifier."

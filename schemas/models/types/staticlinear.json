@@ -4,6 +4,9 @@
   "type": "object",
   "description": "Configuration for the StaticLinear model using CSV-based model inputs.",
   "properties": {
+    "$schema": {
+      "type": "string"
+    },
     "ModelName": {
       "const": "StaticLinear",
       "description": "Model type identifier."
