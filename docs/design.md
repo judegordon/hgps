@@ -86,10 +86,14 @@ graph LR
 | the five intervention scenarios | 1,183 | `sim/interventions.cpp` — one `BandedInterventionScenario` holding the shape they share, and one virtual function per policy ([ADR 0029](decisions/0029-one-banded-intervention-shape.md)) |
 | `model_parser.cpp` | 2,252 | `config/models/` — one unit per model family (`hlm.cpp`, `dynamic_hlm.cpp`, `static_linear.cpp`, `kevin_hall.cpp`) plus `model_loader.cpp` for the shared readers and the name validation |
 | `analysis_module.cpp` | 2,202 | `model/analysis/` — `module.cpp` (lifecycle), `burden.cpp` (YLL/YLD/DALY), `channels.cpp`, `series.cpp`, `income_strata.cpp` |
-| `datamanager.cpp` | 806 | `data/` — `index.cpp`, `store.cpp`, `registry.cpp` |
+| `datamanager.cpp` | 806 | `data/` — `index.cpp` (the release index and its tokens) and `store.cpp` (the tables, and the disease registry validated against the directory tree) |
 
-Roughly 5,300 lines of the baseline's four largest files become nineteen units here, none over 500
-lines, each with a name that says what it holds.
+About 10,500 lines of the baseline's six largest files become twenty units here, each with a name
+that says what it holds. Fifteen of the twenty are under 400 lines; the exceptions are the two
+model *loaders*, `config/models/static_linear.cpp` at 1,265 and `kevin_hall.cpp` at 550, and
+`data/store.cpp` at 756. Those are long for the same reason in each case — one function per file
+shape, and the FINCH and India packs between them ship a lot of file shapes — and splitting them
+further would separate a reader from the format they are trying to understand.
 
 Splitting these is the one structural idea taken wholesale from the earlier rewrite
 ([ADR 0019](decisions/0019-split-the-monolith-translation-units.md)).

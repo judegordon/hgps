@@ -80,9 +80,10 @@ six interventions** — asserted by `tests/sim/reproducibility_test.cpp`, not ju
 
 **Memory and threading.** The whole suite passes under AddressSanitizer + UndefinedBehaviorSanitizer
 and under ThreadSanitizer, which is where audit finding B-02 — a data race in the baseline's
-lazily-populated repository — was confirmed in the first place. This build has never exited on a
-signal, on any example, at any seed, under any preset. The baseline does, on `KevinHall_FINCH`, on
-about one run in twenty, with three different signals seen.
+lazily-populated repository — was confirmed in the first place. Across every run this project has
+made — several hundred, over two examples, six interventions and both seed counts — this build has
+not once exited on a signal. The baseline has, on `KevinHall_FINCH`, on roughly one run in twenty,
+with three different signals seen.
 
 **Performance.** [docs/performance.md](performance.md):
 

@@ -450,6 +450,5 @@ The harness retries a baseline run up to three times for this reason, counts the
 each one, and puts them in the `--json` outcome, so the flake is visible rather than smoothed away.
 It is not something a comparison against the baseline can fix, and it is the strongest single
 argument for the sequential-scenario design this implementation uses
-([ADR 0009](decisions/0009-sequential-scenarios-and-the-migration-journal.md)): this build has
-never exited on a signal on any example, at any seed, under any preset, including
-ThreadSanitizer.
+([ADR 0009](decisions/0009-sequential-scenarios-and-the-migration-journal.md)). Across the same
+runs, this build has not exited on a signal once.
