@@ -1,0 +1,62 @@
+BSD 3-Clause License
+
+Copyright (c) 2021, Centre for Health Economics & Policy Innovation, Imperial College London;
+INRAE, France.
+Copyright (c) 2024, Centre for Health Economics & Policy Innovation.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+--------------------------------------------------------------------------------
+
+STATEMENT OF DERIVATION
+
+This software is a derivative work of Health-GPS, the population health
+microsimulation developed by the Centre for Health Economics & Policy Innovation
+at Imperial College London and INRAE, France, and distributed under the BSD
+3-Clause License reproduced above.
+
+It is a new implementation rather than a fork: the code here was written for this
+repository, but its behaviour, its data formats, its configuration format and its
+test suite derive directly from that work, and parts of it were ported from
+Health-GPS source. Files that derive from Health-GPS source carry a header saying
+so. The copyright notice, conditions and disclaimer above are retained as clauses
+1 and 2 of that licence require.
+
+Neither the names of the copyright holders above nor those of their contributors
+are used to endorse or promote this derived work, and no endorsement by them is
+implied or should be inferred (clause 3).
+
+Where this implementation intentionally behaves differently from Health-GPS, the
+difference is recorded in docs/deviations.md with the evidence for it.
+
+The Health-GPS *data* — the UN World Population Prospects demographic series and
+the IHME disease series — is NOT part of this repository and is not covered by
+this licence. It carries its own, more restrictive terms, the IHME data under
+CC BY-NC-ND 4.0. This repository fetches that data on demand and vendors none of
+it; see docs/decisions/0011-data-fetched-not-vendored.md. The synthetic data pack
+under tests/fixtures/ contains invented numbers only and is covered by this
+licence.

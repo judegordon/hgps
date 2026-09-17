@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "healthgps",
+  "version": "0.1.0",
+  "description": "Deterministic reimplementation of the Health-GPS population health microsimulation",
+  "license": "BSD-3-Clause",
+  "builtin-baseline": "bd2b54836beed96e1efbe9aaf8ee800f5448856d",
+  "dependencies": [
+    "fmt",
+    "nlohmann-json",
+    {
+      "name": "gtest",
+      "default-features": false
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+# Matches the upstream Health-GPS style, so ported code and its origin stay diffable.
+BasedOnStyle: LLVM
+IndentWidth: 4
+ColumnLimit: 100
+PointerAlignment: Right
+AlwaysBreakTemplateDeclarations: Yes
+AllowShortFunctionsOnASingleLine: Inline
+SeparateDefinitionBlocks: Always

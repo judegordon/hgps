@@ -1,0 +1,25 @@
+# Checks chosen for the defects this project exists to avoid, not for style points.
+#  - bugprone-* / cert-* : the undefined-behaviour classes the audit found in the baseline
+#  - performance-*       : the copies and reallocations the audit found in population handling
+#  - misc-const-correctness was the baseline's single largest clang-tidy category (485 hits);
+#    it is on here so that number stays at zero.
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  cert-*,
+  -cert-err58-cpp,
+  misc-const-correctness,
+  misc-unused-parameters,
+  modernize-use-nullptr,
+  modernize-use-override,
+  modernize-use-using,
+  performance-*,
+  readability-braces-around-statements,
+  readability-container-size-empty,
+  readability-misleading-indentation,
+  readability-redundant-string-cstr
+
+WarningsAsErrors: ''
+HeaderFilterRegex: '(src|tools|tests)/.*\.h$'
+FormatStyle: file
