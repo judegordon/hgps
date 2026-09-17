@@ -103,29 +103,33 @@ the result series.
 
 ## Where the time goes now
 
-From the profile of the current build, by top of stack:
+From a two-second profile of the current build, grouped by top of stack (1,540 thread samples,
+1,463 of them attributed to a symbol with five or more):
 
 | Share | What |
-|---|---|
-| ~30% | `_platform_memcmp` — string comparison, nearly all of it `std::map` lookups keyed by `core::Identifier` or by channel name |
-| ~10% | `DynamicHierarchicalLinearModel::update_exposure` — the per-person, per-factor regression each year |
-| ~9% | the analysis module's two passes over the population |
-| ~7% | `to_lower` and `__tolower`, still, in the remaining name resolution |
-| ~6% | the disease module: incidence, and the relative-risk lookups |
-| ~5% | allocator traffic (`malloc`/`free`) |
-| the rest | migration, the RNG, output formatting |
+|---:|---|
+| 39.5% | `_platform_memcmp` — string comparison, nearly all of it `std::map` lookups keyed by `core::Identifier` or by channel name |
+| 10.5% | allocator traffic and memory moves |
+| 9.3% | the analysis module's two passes over the population |
+| 6.6% | the disease module: incidence, remission, and the relative-risk lookups |
+| 5.7% | the dynamic HLM's per-person, per-factor regression |
+| 5.3% | population bookkeeping and migration |
+| 3.9% | name lower-casing, still, in the resolution that remains |
+| 2.3% | the RNG |
+| 11.9% | other named symbols: output formatting, `std::map` tree operations, the weight model |
+| 5.0% | below the five-sample cutoff |
 
 The shape of that list says the program is now dominated by **map lookups keyed by strings**, not
-by arithmetic. `core::Identifier` compares by string — deliberately, because comparing by cached
-hash is audit finding B-04 — and every risk-factor read on every person in every year is such a
-comparison.
+by arithmetic. `core::Identifier` compares by string — deliberately, because comparing by the
+cached 64-bit hash is audit finding B-04 — and every risk-factor read on every person in every
+year is such a comparison. The allocator share has the same root: those maps.
 
 The obvious next step is to resolve each factor and channel name to an index once per run and use
 the index on the hot path, which is a contained change to `Person::risk_factors` and `DataSeries`.
 It is in [docs/backlog.md](backlog.md) rather than done, for two reasons: the program is already
 faster than the baseline it has to be comparable to, and an index-keyed store is exactly the kind
 of change that can reorder a reduction without anyone noticing. Doing it would want the equivalence
-harness re-run, which is cheap, and the determinism tests to stay green, which they would.
+harness re-run, which is cheap, and the determinism tests to stay green, which they should.
 
 ## Threads
 

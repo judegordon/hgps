@@ -185,21 +185,67 @@ are.
 
 ### Whether 20 seeds is enough
 
-**No, for the standard deviations, and that is why the run was repeated with 60.** [Filled in below.]
+Not for the standard deviations — its standard error at n = 20 is 16% of the standard deviation
+itself, and 29 of the 54 failures were standard deviations. So the whole comparison was repeated at
+**60 seeds**, which costs about eight minutes:
+
+```bash
+tests/equivalence/run.py --example HLM_France --seeds 60 \
+    --reference-dir /tmp/hgps-ref60 --refresh-reference
+```
+
+| | 20 seeds | 60 seeds |
+|---|---:|---:|
+| Comparisons | 38,260 | 38,260 |
+| Out of tolerance | 54 (0.141%) | **54 (0.141%)** |
+| of which mean | **0** / 7,652 | **0** / 7,652 |
+| median | 3 | 9 |
+| 5th percentile | 15 | 21 |
+| 95th percentile | 7 | 7 |
+| standard deviation | 29 | 17 |
+
+**The failure rate does not fall when the noise does.** That is the useful result: tripling the
+seeds tightens every allowance by √3 and the number of failures is unchanged, so what is left is
+not sampling noise — it is a real difference of about the size the allowance now is. Within the
+total, the mix moves exactly as it should: the standard-deviation failures nearly halve as their
+estimate improves, and the percentile failures rise as the allowance tightens around a real
+offset.
+
+The 60-seed run also concentrates the failures into **three cells** — `(baseline, 2045, female)`,
+`(baseline, 2049, female)` and `(baseline, 2050, male)` — each of which fails simultaneously for
+`count`, `mean_age`, `mean_age2`, `mean_age3`, `mean_pa` and the factor means. Six to eight
+variables, one cell, one cause. That is the signature of a single cohort-composition event
+propagating through the count weights, and it is what the "suspected cause" above predicted.
+
+The 60-seed run also found the one thing that *was* a genuine defect rather than a composition
+difference, and it was the only failing **mean** in the whole comparison: `std_yld` divided its sum
+of squared differences by the head count while `mean_yld` divided by head count plus deaths, so a
+channel's spread disagreed with its own mean, and with the baseline's, by about 2%. All three
+burden channels now use person-years at risk for both. The table above is from after that fix; it
+is why the 60-seed run is worth its eight minutes.
 
 ## Verdict
 
-On the reference example, over 20 seeds, 2010–2050, both scenarios and both sexes:
+On the reference example, over 20 seeds and again over 60, 2010–2050, both scenarios and both
+sexes:
 
-- every mean agrees, in all 7,652 comparisons;
+- **every mean agrees** — 0 failures in 7,652 comparisons, at both seed counts;
 - 99.86% of all 38,260 comparisons are within a multiplicity-corrected 4.5σ allowance;
-- the 54 that are not are between 1.01× and 1.36× that allowance, are concentrated in a few late
-  years, and have a single identified cause — a handful of people's difference in cohort
-  composition where an age band empties and immigration cannot fill it.
+- the 54 that are not are between 1.01× and 2.44× that allowance, concentrated in three
+  (year, sex) cells, and have a single identified cause: a handful of people's difference in cohort
+  composition where an age band empties and immigration cannot fill it;
+- the largest disagreement anywhere is 5 people in 3,461, 0.077 years of mean age in 46.9, and
+  0.0023 BMI units in 25.4.
 
-That is equivalence in the sense ADR 0006 asked for. It is not, and was never going to be,
-bit-exactness: [docs/deviations.md](deviations.md) lists twelve places where this implementation
-deliberately computes something differently, several of which change the last bits of every number.
+That is equivalence in the sense [ADR 0006](decisions/0006-validation-strategy.md) asked for. It is
+not, and was never going to be, bit-exactness: [docs/deviations.md](deviations.md) lists
+thirty-three places where this implementation deliberately computes or reports something
+differently, fifteen of them fixes to confirmed baseline defects that change the numbers.
+
+**What would make this stronger**, in order: the same comparison on the FINCH example, which needs
+`StaticLinear` and `KevinHall`; giving the age-band immigration a fallback donor so the projected
+total is always met, which would remove the one remaining cause; and a second country, so the
+evidence is not one config.
 
 ## Reproducing this
 
