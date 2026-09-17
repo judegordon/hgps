@@ -1,0 +1,58 @@
+# Deviations from the baseline
+
+Every behaviour here that intentionally differs from the upstream baseline, with the audit finding
+that motivated it, the evidence, and the test that pins the new behaviour
+([ADR 0024](decisions/0024-deviations-recorded-baseline-bugs-fixed.md)).
+
+This file exists so that a divergence found by the equivalence harness can be attributed. An
+out-of-tolerance variable whose suspected cause is listed here is a different finding from one
+with no explanation, and `docs/equivalence.md` reports them separately.
+
+Finding IDs are from [docs/audit/04-baseline-issues.md](audit/04-baseline-issues.md) (`B-nn`),
+[docs/audit/03-baseline-determinism.md](audit/03-baseline-determinism.md) (`N-nn`) and
+[docs/audit/02-data-and-examples.md](audit/02-data-and-examples.md) (`D-nn`).
+
+## Fixed baseline defects — these change the numbers
+
+| ID | The baseline | Here | Evidence | Pinned by |
+|---|---|---|---|---|
+| **B-04** | `Identifier::operator==` compares only the cached 64-bit hash, while the defaulted `operator<=>` compares the string, so `a == b && a < b` can both hold | equality and ordering both compare the string; the hash is only `std::hash<Identifier>` for bucketing | code reading, unambiguous | `TestCore_Identity.EqualityAndOrderingAgree` |
+| **B-03** | eleven `<cctype>` calls take a plain signed `char`: undefined behaviour for any byte ≥ 0x80 | one wrapper per function, casting to `unsigned char`; nothing else calls them | code reading; `char` is signed on every target | `TestCore_Chars.*` over the whole byte range |
+| **B-05** | an income CDF is built by iterating an `std::unordered_map`, so the same seed can assign a different income category on a different standard library | `rng::Categorical<T>` is constructible only from an ordered sequence; the `unordered_map` constructors are deleted | code reading (`static_linear_model.cpp:1952-1991`) | `TestRandom_Categorical.*` |
+| **B-05 (extension)** | `LinearModelParams::coefficients` is an `unordered_map` and `evaluate_linear_model` **sums over it**, so the last bits of every linear model depend on bucket order — same defect class, in code that runs per person per year | `std::map`, so the summation order is the coefficients' name order | code reading (`linear_model_evaluator.cpp`) | `TestHealthGPS_LinearModelEvaluator.TheSumOrderIsTheCoefficientNameOrder` |
+| **B-06** | an absent `running.seed` runs from `std::random_device`, silently, and the results file then records the seed as `0` | `seed` is a required scalar; `MtEngine` has no default constructor; `std::random_device` appears nowhere | code reading (`mtrandom.cpp:8-11`, `program.cpp:54`) | `ConfigParsing.AnUnseededConfigIsRejected`, `static_assert`s in `tests/random/engine_test.cpp` |
+| **B-07** | `next_int` is documented half-open and implemented inclusive; all four call sites compensate | `next_int(count)` is half-open; the inclusive form is `next_int_inclusive` | header text versus implementation | `TestRandom_Source.NextIntIsHalfOpen` |
+| **B-08** | `output.file_name` is ignored unless it contains a `{…}` token | the configured name is used exactly; `{TIMESTAMP}` and `{JOBID}` are optional | ran with `"file_name": "result.json"`, got `HealthGPS_result_<timestamp>.json` | `ConfigParsing.TheOutputFileNameIsUsedExactlyAsConfigured` |
+| **B-12** | `Population::add` is `noexcept` while calling `emplace_back` and `at()`, so `bad_alloc` is `std::terminate` | not `noexcept`; the exception propagates | code reading | — (a negative property; no test can provoke it portably) |
+| **B-13** | `Population::add` rescans from index 0 on every call, once per migrant per age per sex per year | an explicit free-slot list, O(1) | code reading | `TestHealthGPS_Population.AddingManyPeopleIsNotQuadratic` |
+| **B-14** | `next_empirical_discrete` checks only that its two vectors match in size; both empty reads `values.back()` | empty input is rejected, and a rejected call consumes no draw | code reading | `TestRandom_Source.EmpiricalDiscreteRejectsEmptyAndMismatchedInput` |
+| **B-15** | the polar normal draw rejects `p >= 1.0` but not `p == 0.0`, so `log(0)` can propagate `NaN` into a risk factor | `p == 0.0` is rejected too | code reading | `TestRandom_Source.NormalDrawsAreFiniteOverManySamples` |
+| **N-5** | `next_double` uses `std::generate_canonical`, which has returned exactly `1.0` on some implementations — and the integer sampler would then return `max + 1` | an explicit 53-bit construction, `[0, 1)` by construction | measured: 2 draws per call, max 0.99999999427 over 2×10⁸ samples | `TestRandom_Source.NextDoubleIsInTheUnitIntervalAndNeverOne` |
+| **N-7** | population reductions accumulate into a shared table under a mutex: race-free, not order-stable | `core::parallel::reduce_ordered`, with a block decomposition independent of the thread count | measured bit-identical in the baseline at realistic scale, but the mechanism is real | `TestCore_Parallel.ReduceOrderedIsIdenticalAtEveryThreadCount` |
+| **N-17** | `${VAR}` expansion of an undefined variable yields the empty string silently, relocating a run's output | an undefined variable is an error naming it | code reading (`configuration.cpp:373-393`) | `TestIo_Paths.ReportsUndefinedVariablesInsteadOfSwallowingThem`, `ConfigParsing.ExpandsEnvironmentVariablesInTheOutputFolderAndReportsUndefinedOnes` |
+| **D-01** | the disease registry and the directory tree can disagree, and nothing notices until a run dies part-way through configuration | the registry is validated against the tree at load time and every mismatch is reported; `Metadata.json` is cross-checked as a warning; `pulmonary` is canonical | ran `HLM_India`: `Failed with message: Disease code: 'pulmonar' not found.` | `DataRegistryValidation.*` |
+
+## Design differences that change results or output
+
+| ID | The baseline | Here | Why |
+|---|---|---|---|
+| **B-01** | baseline and intervention run on concurrent threads, publishing rows asynchronously; three same-seed runs gave three different files, identical after sorting | scenarios run sequentially; one owner per output file; rows in `(source, run, time, gender, index_id)` order | [ADR 0009](decisions/0009-sequential-scenarios-and-the-migration-journal.md), [ADR 0020](decisions/0020-output-single-owner-defined-row-order.md). Byte-comparable output is what makes a reproducibility test possible. |
+| **B-02** | disease definitions load lazily from inside a parallel loop, behind a "lock-free multiple readers" fast path that races a concurrent insert | everything a run needs is loaded during start-up, before any worker thread exists | ThreadSanitizer confirmed the race. Loading up front removes it by construction rather than by locking. |
+| — | net migration passes between the two concurrent scenarios over a `SyncChannel` with a `sync_timeout_ms` deadline | the baseline scenario records it in a migration journal that the intervention replays; `sync_timeout_ms` is removed from the config format | [ADR 0009](decisions/0009-sequential-scenarios-and-the-migration-journal.md) |
+| — | run seeds are drawn sequentially from a master engine, so run 3's seed depends on how many runs precede it | `rng::derive_run_seed(master, index)` is a pure function of the pair | Adding a trial run must not change the earlier runs' results. Every draw differs from the baseline's anyway ([ADR 0015](decisions/0015-rng-design.md)), which [ADR 0006](decisions/0006-validation-strategy.md) accepts. |
+| **N-15, N-16** | the output **file name** embeds a wall-clock timestamp, and so does the JSON content | the CSV has no timestamp and the name is as configured; the timestamp lives in the JSON metadata | Two runs of one config must produce comparable paths and byte-comparable CSVs. |
+| **D-03** | `project_requirements` is optional and absent from every primary example config, while most current behaviour is gated on it | required, with every default documented in the schema and reported as a warning when applied | [ADR 0010](decisions/0010-config-v2-and-a-converter.md) |
+| **R-05** | (the earlier rewrite) a swallowing catch substitutes an expected value when a predictor lookup fails, so a misspelled coefficient name produces plausible numbers | every coefficient name is validated at model-load time; an unresolvable name at run time is an `InternalError` | [ADR 0018](decisions/0018-no-swallowing-catch-load-time-validation.md) |
+
+## Internal differences with no effect on results
+
+Recorded because a reader comparing the two codebases will notice them.
+
+| The baseline | Here | Why |
+|---|---|---|
+| one exception type, `core::HgpsException`, for both programmer errors and user mistakes | `diag::InternalError` thrown for programmer errors; `diag::InputIssue` accumulated for user input | [ADR 0007](decisions/0007-two-tier-diagnostics.md). Ported tests that expected `HgpsException`, `std::out_of_range` or `std::logic_error` now expect `InternalError`; each such test says so. |
+| config validated against JSON Schema through `jsoncons`, reporting `Invalid configuration - : Required property 'data' not found.` | the loader validates explicitly and reports located, coded issues; `schemas/v2` is the published contract, kept in step by a test | [ADR 0022](decisions/0022-hand-written-config-validation.md) |
+| `Eigen` for one Cholesky decomposition and one matrix-vector product | `core::Matrix`, with a stated summation order | [ADR 0023](decisions/0023-own-matrix-and-cholesky.md). Residuals will differ in the last bits. |
+| `Population::current_active_size()` counts with `std::count_if(std::execution::par, …)` on every call | a maintained counter | The parallel count is on a hot path and is the only reason PSTL was needed. |
+| the fallback for an unresolvable linear-model predictor is reached through a `catch` | the fallback is consulted before anything throws | Exception-driven control flow per person per year, and the shape of code that ends up swallowing real errors. |
+| `DataTable` carries a mutex to guard `add` against a concurrent `add` that never happens | no mutex; a table is built by one loader and read-only afterwards | — |
