@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/jude/hgps/main/schemas/v2/config/output.json",
+  "$comment": "This repository has no published URL yet, so a config's $schema is the repository-relative path schemas/v2/config/output.json; the loader checks that suffix and never dereferences it. Give this file an absolute $id when the repository has a public home.",
   "title": "Where results go",
   "type": "object",
   "properties": {

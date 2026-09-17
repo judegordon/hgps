@@ -592,13 +592,19 @@ TEST(ConfigParsing, LoadsInterventions) {
     }
 
     {
+        // Four of the six upstream examples select `simple` with an empty impact list, so this
+        // loads — but it makes the intervention scenario a copy of the baseline scenario, which is
+        // worth a warning nobody has to go looking for.
         auto document = fixture.document();
         document["running"]["interventions"]["types"]["simple"]["impacts"] =
             nlohmann::json::array();
         document["running"]["interventions"]["active_type_id"] = "simple";
         auto [config, report] = load(fixture, document);
-        EXPECT_FALSE(config.has_value());
+        ASSERT_TRUE(config.has_value());
+        EXPECT_EQ(0U, report.error_count());
         EXPECT_TRUE(report.contains(IssueCode::config_bad_value));
+        EXPECT_NE(std::string::npos,
+                  report.to_string().find("reproduce the baseline scenario"));
     }
 
     {

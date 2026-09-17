@@ -291,7 +291,7 @@ the upstream format knows this one.
 
 ```jsonc
 {
-  "$schema": "https://raw.githubusercontent.com/jude/hgps/main/schemas/v2/config.json",
+  "$schema": "schemas/v2/config.json",
   "version": 2,
   "project_requirements": { "demographics": {…}, "income": {…}, "physical_activity": {…},
                             "risk_factors": {…}, "trend": {…}, "two_stage": {…} },

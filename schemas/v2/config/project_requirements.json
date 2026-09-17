@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/jude/hgps/main/schemas/v2/config/project_requirements.json",
+  "$comment": "This repository has no published URL yet, so a config's $schema is the repository-relative path schemas/v2/config/project_requirements.json; the loader checks that suffix and never dereferences it. Give this file an absolute $id when the repository has a public home.",
   "title": "Which parts of the model this project uses",
   "description": "Required in config v2. Upstream makes this optional and no primary example config carries it, so every upstream example silently exercises the legacy path while most current behaviour is gated on this block (audit finding D-03). Every default below is applied explicitly and reported as a warning naming the value used — nothing here is silent.",
   "type": "object",

@@ -14,7 +14,7 @@ ConfigFixture::ConfigFixture(const std::string &test_name) : dir_{scratch_dir(te
     touch("dynamic_model.json");
 
     document_ = nlohmann::json::parse(R"({
-        "$schema": "https://raw.githubusercontent.com/jude/hgps/main/schemas/v2/config.json",
+        "$schema": "schemas/v2/config.json",
         "version": 2,
         "project_requirements": {
             "demographics": {"age": true, "gender": true, "region": false, "ethnicity": false},

@@ -82,8 +82,8 @@ std::string static_model_json(const FixturePackSpec &spec) {
         {"coefficients", json{{"Intercept", coefficient(expected_energy(0))},
                               {"Gender", coefficient(90.0)},
                               {"Age", coefficient(energy_slope)}}},
-        {"residuals_standard_deviation", 110.0},
-        {"rsquared", 0.4}};
+        {"residualsStandardDeviation", 110.0},
+        {"rSquared", 0.4}};
 
     // BMI is at level 2, so Energy (level 1) is available to it as a predictor.
     document["models"]["BMI"] =
@@ -93,20 +93,20 @@ std::string static_model_json(const FixturePackSpec &spec) {
                    {"Gender", coefficient(0.8)},
                    {"Age", coefficient(bmi_slope)},
                    {"Energy", coefficient(0.0012)}}},
-             {"residuals_standard_deviation", 2.2},
-             {"rsquared", 0.35}};
+             {"residualsStandardDeviation", 2.2},
+             {"rSquared", 0.35}};
 
     document["levels"]["1"] = json{{"variables", json::array({"Energy"})},
-                                   {"transition", matrix({1.0}, 1)},
-                                   {"inverse_transition", matrix({1.0}, 1)},
-                                   {"residual_distribution", matrix(energy_residuals, 1)},
+                                   {"m", matrix({1.0}, 1)},
+                                   {"w", matrix({1.0}, 1)},
+                                   {"s", matrix(energy_residuals, 1)},
                                    {"correlation", matrix({1.0}, 1)},
                                    {"variances", json::array({1.0})}};
 
     document["levels"]["2"] = json{{"variables", json::array({"BMI"})},
-                                   {"transition", matrix({1.0}, 1)},
-                                   {"inverse_transition", matrix({1.0}, 1)},
-                                   {"residual_distribution", matrix(bmi_residuals, 1)},
+                                   {"m", matrix({1.0}, 1)},
+                                   {"w", matrix({1.0}, 1)},
+                                   {"s", matrix(bmi_residuals, 1)},
                                    {"correlation", matrix({1.0}, 1)},
                                    {"variances", json::array({1.0})}};
 
@@ -161,7 +161,7 @@ std::string dynamic_model_json(const FixturePackSpec &spec) {
 
 std::string config_json(const FixturePackSpec &spec) {
     json document;
-    document["$schema"] = "https://raw.githubusercontent.com/jude/hgps/main/schemas/v2/config.json";
+    document["$schema"] = "schemas/v2/config.json";
     document["version"] = 2;
 
     document["project_requirements"] = json{

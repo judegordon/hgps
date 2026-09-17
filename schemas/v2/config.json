@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/jude/hgps/main/schemas/v2/config.json",
+  "$comment": "This repository has no published URL yet, so a config's $schema is the repository-relative path schemas/v2/config.json; the loader checks that suffix and never dereferences it. Give this file an absolute $id when the repository has a public home.",
   "title": "Health-GPS configuration, version 2",
   "description": "The published contract for a config v2 document. The loader in src/config is the authority — this file is documentation for humans and for editors, and is not consulted at runtime (docs/decisions/0022-hand-written-config-validation.md). tests/config/schema_agreement_test.cpp asserts that the loader rejects a document missing each property listed as required here, and rejects an unknown property at each level that sets additionalProperties: false, so the two cannot drift apart silently.",
   "type": "object",

@@ -1,5 +1,7 @@
 #include "csv_reader.h"
 
+#include <limits>
+
 #include "core/string_util.h"
 #include "diagnostics/internal_error.h"
 
@@ -124,7 +126,8 @@ std::optional<double> CsvDocument::field_as_double(std::size_t row, std::size_t 
 }
 
 std::optional<int> CsvDocument::field_as_int(std::size_t row, std::size_t column,
-                                             diag::IssueReport &report) const {
+                                             diag::IssueReport &report,
+                                             IntegerTruncations *truncations) const {
     const auto &text = field(row, column);
     if (text.empty()) {
         return std::nullopt;
@@ -134,6 +137,21 @@ std::optional<int> CsvDocument::field_as_int(std::size_t row, std::size_t column
         std::size_t consumed = 0;
         const int value = std::stoi(text, &consumed);
         if (consumed != text.size()) {
+            // Not an integer. It may still be a number the caller is willing to truncate.
+            if (truncations != nullptr) {
+                std::size_t number_consumed = 0;
+                const double number = std::stod(text, &number_consumed);
+                if (number_consumed == text.size() &&
+                    number >= static_cast<double>(std::numeric_limits<int>::min()) &&
+                    number <= static_cast<double>(std::numeric_limits<int>::max())) {
+                    if (truncations->count == 0) {
+                        truncations->first_line = line_of(row);
+                        truncations->first_value = text;
+                    }
+                    ++truncations->count;
+                    return static_cast<int>(number); // Toward zero, as std::stoi would have.
+                }
+            }
             throw std::invalid_argument("trailing characters");
         }
         return value;
@@ -247,9 +265,21 @@ std::optional<core::DataTable> load_datatable_from_csv(const std::filesystem::pa
         if (type == "integer") {
             core::IntegerDataTableColumnBuilder builder{spec.name};
             builder.reserve(rows);
+            CsvDocument::IntegerTruncations truncations;
             for (std::size_t row = 0; row < rows; ++row) {
-                const auto value = document->field_as_int(row, *index, report);
+                const auto value = document->field_as_int(row, *index, report, &truncations);
                 value ? builder.append(*value) : builder.append_null();
+            }
+            if (truncations.count > 0) {
+                report.warning(
+                    IssueCode::csv_bad_value,
+                    IssueLocation{.file = path.string(),
+                                  .field = spec.name,
+                                  .line = truncations.first_line},
+                    fmt::format("{} value(s) in this integer column have a fractional part and "
+                                "were truncated toward zero, as the baseline's std::stoi does; "
+                                "the first is '{}'",
+                                truncations.count, truncations.first_value));
             }
             table.add(builder.build());
         } else if (type == "double") {

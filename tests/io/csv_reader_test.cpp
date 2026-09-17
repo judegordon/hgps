@@ -173,6 +173,64 @@ TEST(TestIo_CsvReader, PartiallyNumericFieldIsRejected) {
     EXPECT_TRUE(report.contains(hgps::diag::IssueCode::csv_bad_value));
 }
 
+TEST(TestIo_CsvReader, AnIntegerFieldIsStrictUnlessTruncationIsAskedFor) {
+    hgps::diag::IssueReport report;
+    const auto path = write_csv("fractional.csv", "Age\n30\n4.888365\nnot-a-number\n");
+
+    const auto document = hgps::io::read_csv(path, {}, report);
+    ASSERT_TRUE(document.has_value());
+
+    // Without a tally, a fractional value in an integer column is an error, not a 4.
+    EXPECT_FALSE(document->field_as_int(1, 0, report).has_value());
+    EXPECT_TRUE(report.contains(hgps::diag::IssueCode::csv_bad_value));
+
+    hgps::diag::IssueReport tolerant;
+    hgps::io::CsvDocument::IntegerTruncations truncations;
+    EXPECT_EQ(30, document->field_as_int(0, 0, tolerant, &truncations));
+    EXPECT_EQ(0U, truncations.count); // an exact integer is not a truncation
+
+    EXPECT_EQ(4, document->field_as_int(1, 0, tolerant, &truncations));
+    EXPECT_EQ(1U, truncations.count);
+    EXPECT_EQ(3U, truncations.first_line); // the header is line 1
+    EXPECT_EQ("4.888365", truncations.first_value);
+
+    // Text that is not a number at all is still an error, tally or no tally.
+    EXPECT_FALSE(document->field_as_int(2, 0, tolerant, &truncations).has_value());
+    EXPECT_EQ(1U, truncations.count);
+    EXPECT_TRUE(tolerant.contains(hgps::diag::IssueCode::csv_bad_value));
+}
+
+TEST(TestIo_CsvReader, TruncatesFractionalValuesInAnIntegerColumnAndSaysSo) {
+    // Upstream's France.DataFile.csv declares Age as an integer and then gives 80 of its 40,000
+    // rows a fractional age; the file's own Age1 column carries floor(Age), so truncation is what
+    // the data means, and the baseline's std::stoi does it silently. Here it happens once per
+    // column, out loud, and does not stop the run.
+    hgps::diag::IssueReport report;
+    const auto path =
+        write_csv("ages.csv", "Age,BMI\n30,24.5\n4.888365,18.0\n17.0291,22.5\n");
+
+    const auto table = hgps::io::load_datatable_from_csv(
+        path, {{"Age", "integer"}, {"BMI", "double"}}, {}, report);
+
+    ASSERT_TRUE(table.has_value());
+    EXPECT_FALSE(report.has_errors());
+
+    const auto &ages =
+        dynamic_cast<const hgps::core::IntegerDataTableColumn &>(table->column("Age"));
+    EXPECT_EQ(30, ages.value_unsafe(0));
+    EXPECT_EQ(4, ages.value_unsafe(1));
+    EXPECT_EQ(17, ages.value_unsafe(2));
+
+    // One warning for the column, naming the count and the first offender — not three warnings,
+    // and not 80 when the real file is read.
+    ASSERT_EQ(1U, report.issues().size());
+    const auto &issue = report.issues().front();
+    EXPECT_EQ(hgps::diag::IssueLevel::warning, issue.level);
+    EXPECT_EQ("Age", issue.location.field);
+    EXPECT_NE(std::string::npos, issue.message.find("2 value(s)"));
+    EXPECT_NE(std::string::npos, issue.message.find("4.888365"));
+}
+
 TEST(TestIo_CsvReader, EmptyFieldIsNullNotZero) {
     hgps::diag::IssueReport report;
     const auto path = write_csv("nulls.csv", "Age,BMI\n30,\n");

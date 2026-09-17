@@ -72,13 +72,19 @@ std::unique_ptr<model::RiskFactorModel> load_hlm(const nlohmann::json &document,
             const auto pointer = fmt::format("/models/{}", member.key());
             const io::JsonCursor equation{member.value(), path.string(), pointer, report};
 
-            equation.reject_unknown_members(
-                {"formula", "coefficients", "residuals_standard_deviation", "rsquared"});
+            // The member names are the fitted-model files' own spelling, which is what the
+            // upstream data uses and is therefore not ours to tidy. `residuals` and
+            // `fittedValues` are per-observation diagnostics from the R fit — 40,000 numbers each
+            // in the France model — that the simulation does not read; they are listed so the
+            // file is accepted, not so the values are used.
+            equation.reject_unknown_members({"formula", "coefficients", "residuals",
+                                             "fittedValues", "residualsStandardDeviation",
+                                             "rSquared"});
 
             model::LinearEquation result;
             result.residuals_standard_deviation =
-                equation.number("residuals_standard_deviation").value_or(0.0);
-            result.rsquared = equation.node().value("rsquared", 0.0);
+                equation.number("residualsStandardDeviation").value_or(0.0);
+            result.rsquared = equation.node().value("rSquared", 0.0);
 
             if (const auto coefficients = equation.object("coefficients")) {
                 for (const auto &coefficient : coefficients->node().items()) {
@@ -126,9 +132,12 @@ std::unique_ptr<model::RiskFactorModel> load_hlm(const nlohmann::json &document,
                 continue;
             }
 
-            level.reject_unknown_members({"variables", "residual_distribution",
-                                          "inverse_transition", "transition", "correlation",
-                                          "variances"});
+            // `m`, `w` and `s` are the fitted files' names for the transition matrix, its
+            // inverse and the residual-distribution matrix. They are one letter because the R
+            // script that writes them calls them that; the meaning is recorded here and in
+            // model::HierarchicalLevel rather than renamed in the data.
+            level.reject_unknown_members(
+                {"variables", "s", "w", "m", "correlation", "variances"});
 
             model::HierarchicalLevel result;
 
@@ -145,13 +154,13 @@ std::unique_ptr<model::RiskFactorModel> load_hlm(const nlohmann::json &document,
                 }
             }
 
-            if (const auto matrix = read_matrix(level, "transition")) {
+            if (const auto matrix = read_matrix(level, "m")) {
                 result.transition = *matrix;
             }
-            if (const auto matrix = read_matrix(level, "inverse_transition")) {
+            if (const auto matrix = read_matrix(level, "w")) {
                 result.inverse_transition = *matrix;
             }
-            if (const auto matrix = read_matrix(level, "residual_distribution")) {
+            if (const auto matrix = read_matrix(level, "s")) {
                 result.residual_distribution = *matrix;
             }
             if (const auto matrix = read_matrix(level, "correlation")) {
@@ -166,15 +175,16 @@ std::unique_ptr<model::RiskFactorModel> load_hlm(const nlohmann::json &document,
             const auto count = result.variables.size();
             if (count > 0) {
                 if (result.transition.rows() != count || result.transition.columns() != count) {
-                    level.error("transition", IssueCode::model_dimension_mismatch,
-                                fmt::format("{0} variables need a {0}x{0} transition matrix, "
+                    level.error("m", IssueCode::model_dimension_mismatch,
+                                fmt::format("{0} variables need a {0}x{0} transition matrix 'm', "
                                             "found {1}x{2}",
                                             count, result.transition.rows(),
                                             result.transition.columns()));
                 }
                 if (result.residual_distribution.columns() != count) {
-                    level.error("residual_distribution", IssueCode::model_dimension_mismatch,
-                                fmt::format("{} variables need {} residual columns, found {}",
+                    level.error("s", IssueCode::model_dimension_mismatch,
+                                fmt::format("{} variables need {} residual columns in 's', found "
+                                            "{}",
                                             count, count,
                                             result.residual_distribution.columns()));
                 }

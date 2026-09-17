@@ -38,8 +38,25 @@ class CsvDocument {
     /// @brief The field parsed as a double, or nullopt with a located issue recorded.
     std::optional<double> field_as_double(std::size_t row, std::size_t column,
                                           diag::IssueReport &report) const;
+    /// @brief A tally of values truncated to fit an integer column, for one column of one file.
+    ///
+    /// Upstream's `France.DataFile.csv` declares `Age` as an integer and then gives 80 of its
+    /// 40,000 rows a fractional age; the file's own `Age1` column carries the truncated value, so
+    /// truncation is what the data means. The baseline parses integer columns with `std::stoi`,
+    /// which stops at the decimal point and truncates toward zero without saying anything. This
+    /// build does the same arithmetic and then says so — once per column rather than once per
+    /// row, because 80 identical warnings would bury the rest of the report.
+    struct IntegerTruncations {
+        std::size_t count{0};
+        std::size_t first_line{0};
+        std::string first_value;
+    };
+
+    /// @param truncations When not null, a fractional value is truncated toward zero and tallied
+    ///                    here instead of being reported as an error.
     std::optional<int> field_as_int(std::size_t row, std::size_t column,
-                                    diag::IssueReport &report) const;
+                                    diag::IssueReport &report,
+                                    IntegerTruncations *truncations = nullptr) const;
 
     /// @brief The 1-based line number in the file of a data row (the header is line 1).
     std::size_t line_of(std::size_t row) const noexcept { return row + 2; }

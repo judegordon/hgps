@@ -640,8 +640,14 @@ std::optional<InterventionSpec> load_intervention(const JsonCursor &types,
     }
 
     if (result.impacts.empty()) {
-        cursor->error("impacts", IssueCode::config_bad_value,
-                      "an intervention must have at least one impact");
+        // Upstream ships exactly this in four of its six examples: `simple` with an empty impact
+        // list, selected as the active intervention. It is a well-defined no-op — the
+        // intervention scenario then reproduces the baseline scenario — and it is a useful
+        // calibration run, so it is accepted. It is also a plausible mistake, so it is said out
+        // loud.
+        cursor->warning("impacts", IssueCode::config_bad_value,
+                        "this intervention has no impacts, so the intervention scenario will "
+                        "reproduce the baseline scenario exactly");
     }
 
     if (cursor->has("dynamics")) {
