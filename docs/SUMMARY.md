@@ -50,7 +50,7 @@ For comparison, the baseline is 41,400 lines of C++ for the whole model surface.
 | 4 | FINCH data loading and manifest validation | **Done.** |
 | 5 | `StaticLinear`, split into units, with tests | **Done.** 2,615 baseline lines become seven translation units; 22 + 11 new tests. |
 | 6 | `KevinHall` and the 35 skipped baseline tests | **Done.** The 30 that test behaviour run and pass; the five that assert the contents of a printed summary box this build does not print are recorded as not ported. |
-| 7 | The other five interventions, and determinism for each | **Done.** One `BandedInterventionScenario` and one virtual function per policy; 43 tests; every intervention byte-identical at one thread and at four, twice each. |
+| 7 | The other five interventions, and determinism for each | **Done.** One `BandedInterventionScenario` and one virtual function per policy; 32 tests; every intervention byte-identical at one thread and at four, twice each. |
 | 8 | Converter policy-scenario option, and every example converted and loaded | **Done.** `--policy-scenario S1..S7` resolves audit D-02 without editing the upstream example. Four of six examples run; the two that do not stop at a named missing feature. |
 | 9 | Equivalence and performance for FINCH | **Done.** See below. |
 | 10 | Test port completion and every preset | **Done.** 548 tests, four presets. |

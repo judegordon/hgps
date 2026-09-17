@@ -254,8 +254,8 @@ and neither was what it looked like.
 
 ### The emptying-band mechanism, and why it is the baseline's
 
-The previous run of this project recorded **54 out-of-tolerance comparisons** and traced them, with
-reasoning but without measurement, to age bands that empty. This run measured it.
+The previous run traced the 54, with reasoning but without measurement, to age bands that empty.
+This run measured it.
 
 **The mechanism.** Immigration into an (age, sex) band clones somebody already in that band, which
 is how a new arrival gets a plausible set of risk factors. When the band is empty there is nobody

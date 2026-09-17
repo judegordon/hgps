@@ -58,7 +58,7 @@ silent misalignment of coefficients to factors rather than an out-of-range acces
 
 `tests/sim/interventions_test.cpp` tests the shared shape once — bands out of order, a factor the
 policy does not name, a time outside the active period, a person below the first band — and then
-tests each policy's own rule. That is 43 tests where the baseline has a handful, and the property
+tests each policy's own rule. That is 32 tests where the baseline has a handful, and the property
 that matters most is checked for all of them: a person who moves up a band ends on the *new*
 band's effect rather than on the sum of the two.
 

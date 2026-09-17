@@ -4,6 +4,21 @@
 
 Accepted, 2026-09-17. **Ruled by the project owner.**
 
+**Amended 2026-09-18, also by the project owner.** The scope below was for the first build run,
+which reached `HLM_France` and stopped short of FINCH. The second run's ruling extends it to the
+full `KevinHall_FINCH` surface — `StaticLinear` including the two-stage logistic, categorical and
+continuous income, region, ethnicity and income-quintile FactorsMean strata; the `KevinHall`
+energy balance; the derived-predictor resolver; and **all six** intervention scenarios, not just
+`simple`. Where a feature was rejected at load, the rejection was replaced by the implementation
+and the corresponding "unsupported" test deleted.
+
+Still out of scope, and still rejected at load with a named error: **population impact fraction**.
+`HLM_India` and `KevinHall_India` are converted and run through the loader and the engine so that
+any data inconsistency surfaces as a located input issue, but they are not compared against the
+baseline. Everything below that is not listed in this amendment still holds, and the
+"designed for rather than designed out" paragraph is what made the extension a matter of filling
+in registry entries rather than reshaping the engine.
+
 ## Context
 
 The baseline's model surface is six intervention scenarios, six risk-factor model families and 50
