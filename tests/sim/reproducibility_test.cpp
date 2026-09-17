@@ -16,6 +16,8 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
@@ -119,6 +121,84 @@ TEST(Reproducibility, WithAnInterventionActiveTheOutputIsStillByteIdentical) {
 
     ASSERT_FALSE(left.empty());
     EXPECT_EQ(left, right) << "the two runs differ at " << first_difference(left, right);
+}
+
+TEST(Reproducibility, EveryInterventionIsByteIdenticalAtOneThreadAndAtManyThreadsTwice) {
+    // The determinism contract, for each of the six interventions rather than only for `simple`.
+    // Three of them draw random numbers of their own — `dynamic_marketing`, `physical_activity`
+    // and `food_labelling` — so each is a place the contract could be broken independently.
+    //
+    // Four runs each: twice at one thread, to catch a run that depends on anything but the seed,
+    // and twice at four, to catch one that depends on the thread count.
+    const std::vector<std::pair<std::string, nlohmann::json>> interventions{
+        {"simple", nlohmann::json::object()},
+        {"marketing",
+         {{"impacts", {{{"risk_factor", "BMI"}, {"impact_value", -0.12}, {"from_age", 5},
+                        {"to_age", 12}},
+                       {{"risk_factor", "BMI"}, {"impact_value", -0.31}, {"from_age", 13},
+                        {"to_age", 18}},
+                       {{"risk_factor", "BMI"}, {"impact_value", -0.16}, {"from_age", 19},
+                        {"to_age", nullptr}}}}}},
+        {"dynamic_marketing",
+         {{"dynamics", {0.4, 0.2, 0.3}},
+          {"impacts", {{{"risk_factor", "BMI"}, {"impact_value", -0.12}, {"from_age", 5},
+                        {"to_age", 12}},
+                       {{"risk_factor", "BMI"}, {"impact_value", -0.31}, {"from_age", 13},
+                        {"to_age", 18}},
+                       {{"risk_factor", "BMI"}, {"impact_value", -0.16}, {"from_age", 19},
+                        {"to_age", nullptr}}}}}},
+        {"fiscal",
+         {{"impact_type", "pessimist"},
+          {"impacts", {{{"risk_factor", "Energy"}, {"impact_value", -0.017}, {"from_age", 5},
+                        {"to_age", 9}},
+                       {{"risk_factor", "Energy"}, {"impact_value", -0.018}, {"from_age", 10},
+                        {"to_age", 17}},
+                       {{"risk_factor", "Energy"}, {"impact_value", -0.019}, {"from_age", 18},
+                        {"to_age", nullptr}}}}}},
+        {"physical_activity",
+         {{"coverage_rates", {0.6}},
+          {"impacts", {{{"risk_factor", "PA"}, {"impact_value", 40.0}, {"from_age", 6},
+                        {"to_age", 11}},
+                       {{"risk_factor", "PA"}, {"impact_value", 20.0}, {"from_age", 12},
+                        {"to_age", nullptr}}}}}},
+        {"food_labelling",
+         {{"coverage_rates", {0.3, 0.6}},
+          {"coverage_cutoff_time", 2},
+          {"child_cutoff_age", 18},
+          {"coefficients", {0.1, 0.11, 0.12, 0.13}},
+          {"adjustments", {{{"risk_factor", "Energy"}, {"value", 0.25}}}},
+          {"impacts", {{{"risk_factor", "BMI"}, {"impact_value", -0.05}, {"from_age", 5},
+                        {"to_age", nullptr}}}}}},
+    };
+
+    for (const auto &[identifier, extra] : interventions) {
+        auto document = hgps::test::synthetic_config_document();
+        auto definition = document["running"]["interventions"]["types"]["simple"];
+        for (const auto &member : extra.items()) {
+            definition[member.key()] = member.value();
+        }
+        document["running"]["interventions"]["types"][identifier] = definition;
+        document["running"]["interventions"]["active_type_id"] = identifier;
+
+        const auto config =
+            hgps::test::write_config_variant("repro_" + identifier + "_config", document);
+
+        std::vector<std::string> outputs;
+        for (const auto &[label, threads] : std::vector<std::pair<std::string, std::size_t>>{
+                 {"one_a", 1}, {"one_b", 1}, {"many_a", 4}, {"many_b", 4}}) {
+            const auto outcome = hgps::test::run_simulation(
+                config, hgps::test::scratch_dir("repro_" + identifier + "_" + label), threads);
+            ASSERT_TRUE(outcome.succeeded) << identifier << ": " << outcome.report.to_string();
+            outputs.push_back(read_file(outcome.csv_path));
+            ASSERT_FALSE(outputs.back().empty()) << identifier;
+        }
+
+        for (std::size_t i = 1; i < outputs.size(); ++i) {
+            EXPECT_EQ(outputs[0], outputs[i])
+                << identifier << ", run " << i << " differs at "
+                << first_difference(outputs[0], outputs[i]);
+        }
+    }
 }
 
 TEST(Reproducibility, ADifferentSeedGivesDifferentOutput) {

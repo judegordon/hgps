@@ -840,6 +840,17 @@ std::unique_ptr<model::RiskFactorModel> load_static_linear(const nlohmann::json 
 
     parameters->continuous_income = requirements.income.type == "continuous";
 
+    // Checked here, before anything is read, because it depends only on two config values and
+    // because reporting it after the income model has failed for its own reasons would bury it.
+    if (context.config->modelling.baseline_adjustments.income_stratum_factors_mean.enabled &&
+        !parameters->continuous_income) {
+        report.error(IssueCode::config_bad_value,
+                     IssueLocation{.field = "/modelling/baseline_adjustments/"
+                                            "income_stratum_factors_mean/enabled"},
+                     "per-stratum FactorsMean adjustment needs a continuous income model, "
+                     "because the strata are ranks of a continuous income");
+    }
+
     const auto income_models = root.object("IncomeModels");
     if (!income_models.has_value()) {
         return nullptr;
@@ -997,14 +1008,6 @@ std::unique_ptr<model::RiskFactorModel> load_static_linear(const nlohmann::json 
     parameters->income_stratum_adjustment_enabled = stratum_config.enabled;
     parameters->adjustment_income_stratum_count = stratum_config.adjustment_income_stratum_count;
     parameters->income_stratum_expected = load_income_strata(context, parameters->names, report);
-
-    if (stratum_config.enabled && !parameters->continuous_income) {
-        report.error(IssueCode::config_bad_value,
-                     IssueLocation{.field = "/modelling/baseline_adjustments/"
-                                            "income_stratum_factors_mean/enabled"},
-                     "per-stratum FactorsMean adjustment needs a continuous income model, "
-                     "because the strata are ranks of a continuous income");
-    }
 
     parameters->gender2_indicator =
         model::parse_gender2_indicator(requirements.demographics.gender2);

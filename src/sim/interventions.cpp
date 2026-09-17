@@ -357,8 +357,15 @@ double FoodLabellingScenario::impact_for(rng::RandomSource &random, model::Perso
 
     const auto seen = book_.find(person.id());
 
-    // A label is noticed at a higher rate while it is new. Somebody who did not notice it in the
-    // short-term window gets another chance afterwards; somebody who did keeps the effect.
+    // A label is noticed at a higher rate while it is new. Inside that window somebody who has
+    // not noticed it yet is offered it again every year; after the window closes, everyone has
+    // been decided one way or the other and nobody is reconsidered.
+    //
+    // One difference from the baseline, recorded as B-24: when the draw succeeds the baseline
+    // marks the person with `try_emplace`, which does nothing if they are already marked as
+    // unaffected — so somebody who failed an early draw and passed a later one keeps their
+    // "unaffected" mark and is offered the impact again, and again, every remaining year of the
+    // window. Marking them affected is what the surrounding code plainly intends.
     const bool short_term = elapsed < cutoff_time_;
     if (short_term) {
         if (seen != book_.end() && seen->second != kNoEffect) {

@@ -242,16 +242,39 @@ def find_result_csv(folder: Path) -> Path:
     return whole[0]
 
 
-def run(binary: Path, config: Path, extra: list[str], log: Path) -> float:
-    started = time.monotonic()
-    with log.open("w") as stream:
-        completed = subprocess.run([str(binary), "--config", str(config), *extra],
-                                   stdout=stream, stderr=subprocess.STDOUT, check=False)
-    elapsed = time.monotonic() - started
-    if completed.returncode != 0:
+def run(binary: Path, config: Path, extra: list[str], log: Path,
+        attempts: int = 1, retries: list[str] | None = None) -> float:
+    """Runs one binary on one config, and returns how long it took.
+
+    `attempts` above one is for the baseline only, and exists for a measured reason: on the FINCH
+    example it exits on a signal about one run in twenty, and the *same* config and seed then
+    succeeds. That is the concurrency defect the audit recorded (B-01, B-02) — two scenario threads
+    and a repository populated lazily from inside a parallel loop — and it is not something a
+    comparison against it can fix. A retry keeps a twenty-seed run from being lost to it; every
+    retry is recorded and reported, so the flake is visible rather than smoothed away.
+    """
+    for attempt in range(1, attempts + 1):
+        started = time.monotonic()
+        with log.open("w") as stream:
+            completed = subprocess.run([str(binary), "--config", str(config), *extra],
+                                       stdout=stream, stderr=subprocess.STDOUT, check=False)
+        elapsed = time.monotonic() - started
+
+        if completed.returncode == 0:
+            return elapsed
+
         tail = "".join(log.read_text(errors="replace").splitlines(keepends=True)[-25:])
-        raise RuntimeError(f"{binary.name} exited {completed.returncode}\n{tail}")
-    return elapsed
+        if attempt == attempts:
+            raise RuntimeError(f"{binary.name} exited {completed.returncode} on attempt "
+                               f"{attempt} of {attempts}\n{tail}")
+
+        note = (f"{binary.name} exited {completed.returncode} on {config.name}; "
+                f"retrying (attempt {attempt + 1} of {attempts})")
+        print(f"    {note}", flush=True)
+        if retries is not None:
+            retries.append(note)
+
+    raise RuntimeError("unreachable")
 
 
 # --- reducing a result file --------------------------------------------------------------------
@@ -443,6 +466,9 @@ class Outcome:
     # variable -> (deviation id, reason), for the columns the baseline emits but never fills.
     uncomputed: dict[str, tuple[str, str]] = field(default_factory=dict)
 
+    # Baseline runs that exited on a signal and were retried.
+    retries: list[str] = field(default_factory=list)
+
 
 def modal_share(values: list[float]) -> float:
     """The share of the seeds that take the series' single commonest value."""
@@ -626,6 +652,12 @@ def report(outcome: Outcome, verbose: bool, max_failures: int) -> bool:
         print(f"    {label} config sha256: {digest}")
     print(f"    {outcome.excluded_bands} age band(s) excluded on both sides: the bands either "
           f"implementation empties, which immigration cannot refill (docs/equivalence.md)")
+    if outcome.retries:
+        print(f"    {len(outcome.retries)} baseline run(s) exited on a signal and were retried "
+              f"(audit B-01/B-02; docs/equivalence.md):")
+        for line in outcome.retries:
+            print(f"      {line}")
+
     for variable, (identifier, reason) in sorted(outcome.uncomputed.items()):
         print(f"    {variable}: not compared — the baseline emits the column and never fills it "
               f"({identifier}: {reason})")
@@ -714,6 +746,7 @@ def as_json(outcome: Outcome) -> dict:
         "excluded_age_bands": outcome.excluded_bands,
         "not_computed_by_the_baseline": {v: {"deviation": d, "reason": r}
                                           for v, (d, r) in outcome.uncomputed.items()},
+        "baseline_retries": outcome.retries,
         "skipped": len(outcome.skipped),
         "series_reported_by_one_side_only": outcome.missing,
         "sigma_limit": SIGMA_LIMIT,
@@ -854,7 +887,10 @@ def main() -> int:
                 config_path.write_text(json.dumps(document, indent=1))
 
                 extra = ["-T", "1"] if label == "baseline" else ["--threads", "1"]
-                elapsed = run(binary, config_path, extra, folder.parent / f"log-seed-{seed}.txt")
+                elapsed = run(binary, config_path, extra,
+                              folder.parent / f"log-seed-{seed}.txt",
+                              attempts=3 if is_baseline else 1,
+                              retries=outcome.retries)
                 outcome.timings[label] = outcome.timings.get(label, 0.0) + elapsed
 
                 result = find_result_csv(folder)
