@@ -1,6 +1,6 @@
 # Test port map
 
-How the baseline's 471 tests map onto this implementation's 433, suite by suite. It exists so that
+How the baseline's 471 tests map onto this implementation's 548, suite by suite. It exists so that
 "the tests were ported" is a checkable claim rather than an assertion, and so that a reader can
 find the descendant of any baseline test — or read, in one line, why there isn't one.
 
@@ -38,8 +38,8 @@ Totals are at the bottom. Verified against `hgps_tests --gtest_list_tests` and t
 | `ConfigurationPIF` | 2 | `tests/config/config_loader_test.cpp` | intent — PIF config is reserved and rejected at load in this build (ADR 0021), so the two struct tests become one reservation test. |
 | `JsonParser` | 29 | `tests/config/config_loader_test.cpp`, `tests/config/model_loader_test.cpp` (13), `tests/core/interval_test.cpp` | intent. Twenty-six of the baseline's 29 are `to_json`/`from_json` round-trips of its poco structs; nothing here writes a config, so a round-trip has no counterpart and the *reading* half is what was ported. `CoefficientInfo`, `LinearModelInfo`, `VariableInfo`, `FactorDynamicEquationInfo` and `Array2Info` become the model-loader tests; `Interval` and `DoubleInterval` the interval tests; `SettingsInfo`, `SESInfo`, `PolicyPeriodInfo`, `PolicyImpactInfo`, `PolicyAdjustmentInfo`, `PolicyScenarioInfo`, `OutputInfo` and `IndividualIdTrackingConfig` the config-loader tests. `FileInfoToJson` has no counterpart: nothing writes that structure. |
 | — | — | `tests/config/convert_config_test.cpp` (11), `ConvertedExamples` (3) | Added: the v1→v2 converter and the six converted examples as acceptance tests (ADR 0010). |
-| `ModelParserFinch` | 3 | — | **not ported**: the FINCH model parser needs `StaticLinear` and `KevinHall`, which this run did not implement (ADR 0021, docs/backlog.md). |
-| `LoadNutrientTable` | 2 | — | **not ported**: nutrient tables are a `KevinHall` input. |
+| `ModelParserFinch` | 3 | `tests/config/static_linear_loader_test.cpp` (`StaticLinearLoader` 11) | intent, and **all three of these skip upstream** (B-11). `LoadsStaticLinearDefinitionFromFinchData` becomes `TheUpstreamFinchStaticModelLoads`, which also checks the factor order is the correlation matrix's; `PolicyEnergyIntakeRowNormalizedToLogEnergyIntake` becomes `ThePolicyEnergyIntakeRowIsCanonicalisedToADerivedPredictorName`; `RegisterModelsPrintsStaticLinearSummaryBox` is **not ported** — this build prints no summary box — and its subject, the region and ethnicity prevalence the registration step loads, is tested directly instead. Plus eight added, each a defect this loader had: the misspelled coefficient name, the headerless regression files, the stratum without a column for every factor, a trend with no equations. |
+| `LoadNutrientTable` | 2 | `tests/config/kevin_hall_loader_test.cpp` | intent — the nutrient and food tables are loaded and validated against the FactorsMean columns (`AMissingFoodColumnInTheFactorsMeanTablesIsALoadTimeError`, `ANutrientNoFoodDeclaresIsALoadTimeError`). |
 
 ## Data store
 
@@ -66,16 +66,17 @@ Totals are at the bottom. Verified against `hgps_tests --gtest_list_tests` and t
 | `TestHealthGPS_Metrics` | 4 | `tests/model/containers_test.cpp` (5) | value. |
 | `DataSeries` | 3 | `tests/model/containers_test.cpp` (5) | intent. The baseline's strata are created by an explicit call that had to be made idempotent; here they are created on first use, so the property checked is that touching a stratum again finds its values rather than a fresh vector. |
 | `WeightModelTest` | 5 | `tests/model/disease_types_test.cpp` (7) | value, plus the zero-lambda LMS form and a missing LMS row. |
-| `DemographicSummary` | 2 | — | **not ported**: one asserts the content of a printed summary box, which this build does not print; the other needs region and ethnicity prevalence data, which is loaded nowhere yet — the FINCH surface needs it and the run refuses with a named error without it (docs/backlog.md). |
-| `IncomeStratumAdjustment` | 13 | — | **not ported**: income-quintile FactorsMean strata are a `StaticLinear` feature. The config for them loads and is validated (`KevinHall_FINCH` converts with all fifteen paths rebased); nothing consumes it yet. |
-| `KevinHallHeight` (22) + `KevinHallWeightQuantiles` (7) + `KevinHallWeightValidation` (1) | 30 | — | **not ported**: the `KevinHall` energy-balance model is out of scope for this run. These are the 30 tests that make up most of the baseline's own 35 skips (B-11), so they have never run in the baseline's CI either. |
+| `DemographicSummary` | 2 | `tests/config/static_linear_loader_test.cpp` (`TheRegionAndEthnicityPrevalenceAreReadFromTheStaticModel`) | intent for one — the region and ethnicity prevalence is now loaded from the static model file and checked, including that the shares for an age and sex sum to one. The other asserts the content of a printed summary box, which this build does not print: **not ported**. |
+| `IncomeStratumAdjustment` | 13 | `tests/model/static_linear_test.cpp` (`StaticLinearIncomeSplit` 10), `tests/config/static_linear_loader_test.cpp` | intent. The baseline's tests are of the equal-rank split and of the per-stratum adjustment pass; the split is tested directly here, including the two cases the baseline has no test for — every income equal, and a tie broken by slot rather than by the sort's stability — and the per-stratum pass is tested through the loader's stratum validation and the FINCH equivalence run. |
+| `KevinHallHeight` (22) + `KevinHallWeightQuantiles` (7) + `KevinHallWeightValidation` (1) | 30 | `tests/config/kevin_hall_loader_test.cpp` (27), `tests/model/kevin_hall_behaviour_test.cpp` (7) | intent, **and this is the part of the port that has never been run anywhere**: these 30 are the bulk of the baseline's own 35 skips (B-11), skipped on a `__FILE__`-relative fixture path that exists in neither upstream data repository. Here the path comes from the build, they run against the real converted FINCH example, and they pass. **Five are not ported**: `GeneratePrintsHeightStratumAndIncomeCategoryTables`, `GenerateHeightSummarySkippedAfterFirstUpdateYear`, `GeneratePrintsHeightTablesForFiveIncomeCategories`, `GeneratePrintsHeightTablesForThreeIncomeCategories` and `GeneratePrintsWeightStratumAndIncomeCategoryTables` assert the contents of console tables this build does not print. |
+| — | — | `tests/model/kevin_hall_test.cpp` (`KevinHallPhysiology` 14) | Added: the energy balance's equations against the physiology they encode — glycogen against carbohydrate, fluid against sodium, the resting-rate split between fat and lean tissue, and that a person in energy balance does not drift. The baseline has no test of any of it. |
 
 ## Simulation, scenarios and output
 
 | Baseline suite | Tests | Here | Notes |
 |---|---:|---|---|
 | `TestSimulation` | 25 | `tests/sim/simulation_test.cpp` (11), `tests/random/*` (20), `tests/model/containers_test.cpp` | intent. The six `Random*` tests become the four RNG suites, which go considerably further (B-06, B-07, B-14, B-15, N-5 all came from there). `CreateRuntimeContext`, `CreateSESNoiseModule`, `CreateDemographicModule`, `CreateDiseaseModule`, `CreateAnalysisModule` and `CreateRiskFactorModuleFailWithEmpty` become the end-to-end run in `simulation_test.cpp` plus the load-time rejections in the config tests: there is no module factory registry here to test, because the modules are built once, explicitly, in `app/build_modules.cpp`. `ModelInputProjectRequirements*` become `TestHealthGPS_ModelInput`. `AnalysisModuleDoesNotDoubleCountIncomeFieldsWhenMapped` becomes `AChannelThatIsBothADeclaredFactorAndAMemberIsCountedOnce`, generalised from income to any such channel — which is the regression test for the `mean_gender` bug the equivalence harness found. `DiseaseModuleUpdateWithInterventionAndPIFConfig` is **not ported** (PIF). |
-| `ScenarioTest` | 23 | `tests/sim/simulation_test.cpp` (`ScenarioTest` 5, `ScenarioJournalTest` 3), `tests/config/config_loader_test.cpp` | intent. The baseline's `PolicyPeriod*` construction-validation tests move to the config loader, which is the only place a period can come from here; `PolicyIntervalEquality` is a defaulted `operator<=>` on `config::PolicyPeriod`. The seven `FiscalPolicy*` and `MarketingPolicy*` tests are **not ported**: only `simple` is implemented, and selecting any other intervention is rejected at load with a named error. |
+| `ScenarioTest` | 23 | `tests/sim/simulation_test.cpp` (`ScenarioTest` 5, `ScenarioJournalTest` 3), `tests/sim/interventions_test.cpp` (43), `tests/config/config_loader_test.cpp` | intent. The baseline's `PolicyPeriod*` construction-validation tests move to the config loader, which is the only place a period can come from here; `PolicyIntervalEquality` is a defaulted `operator<=>` on `config::PolicyPeriod`. The `FiscalPolicy*` and `MarketingPolicy*` tests become `interventions_test.cpp`, which covers all five banded policies and adds the property none of the baseline's checks: a person who moves up an age band ends on the new band's effect rather than on the sum of the two. |
 | `ChannelTest` | 9 | `ScenarioJournalTest` (3) | **not ported by design**: `SyncChannel` is the mechanism behind audit B-01 and the `sync_timeout_ms` config field. Scenarios run sequentially and the figures travel in a journal (ADR 0009), so what is tested is the journal's record-and-replay contract instead. |
 | `TestHealthGPS_EventBus` (14) + `EventMonitor` (1) | 15 | — | **not ported by design**: there is no event bus. The runner hands each result row to a sink, which is the one place output is written (ADR 0020). |
 | `ResultFileWriter` | 5 | `tests/output/result_writer_test.cpp` (8) | value. Writing them found the income-stratum files being named from the layout's short labels, so a four-category run wrote `result_LowerMidIncome.csv` where the baseline writes `result_LowerMiddleIncome.csv`. Plus three added: no timestamp in the CSV (N-15, N-16), the recorded seed is the seed used (B-06), and the row order (B-01). |
@@ -98,24 +99,38 @@ Totals are at the bottom. Verified against `hgps_tests --gtest_list_tests` and t
 | `tests/io/paths_test.cpp` | 6 | `${VAR}` expansion reporting, the cache directory, the one `__APPLE__` branch. |
 | `tests/config/schema_agreement_test.cpp` | 5 | Keeps `schemas/v2/` and the loader from drifting apart (ADR 0022). It has already earned its place: it caught the loader skipping `interventions.types` validation for a baseline-only config. |
 | `tests/config/model_loader_test.cpp` | 13 | The model loaders had no test, so they read the internal member names instead of the ones the fitted files use. One of these asserts the internal names are *rejected*. |
-| `tests/sim/reproducibility_test.cpp` | 5 | The determinism contract end to end: byte-identical twice, byte-identical at 1 and N threads, with and without an intervention. |
+| `tests/sim/reproducibility_test.cpp` | 6 | The determinism contract end to end: byte-identical twice, byte-identical at 1 and N threads, and — added this run — all six interventions run four times each, twice at one thread and twice at four. |
+| `tests/model/static_linear_test.cpp` | 22 | The inverse Box-Cox outside its domain, the max-subtracted softmax over logits that overflow a double, and the rank split that keeps the top income bucket from emptying. The baseline overflows on the first two and has no test of any of them. |
+| `tests/sim/interventions_test.cpp` | 43 | The five banded policies, their parameter validation, and the one-draw-per-person-per-year property that keeps the two scenarios in step on a shared seed. |
+| `tests/config/kevin_hall_loader_test.cpp` | 27 | The Kevin Hall loader against the real FINCH pack, including the row-index column of the quantile CSVs and the three shapes of height file. |
+| `tests/config/static_linear_loader_test.cpp` | 11 | The StaticLinear loader against the real FINCH pack, including the headerless regression files and the region and ethnicity prevalence. |
+| `tests/model/kevin_hall_behaviour_test.cpp` | 7 | The Kevin Hall model driven over a small cohort: quintile height parameters, a child's height following their weight and an adult's not, newborns, and the configured weight range. |
 
 ## Totals
 
 | | Tests |
 |---|---:|
 | Baseline | 471 |
-| Ported, or with a counterpart here | 348 |
-| **not ported** — out of scope for this run (`KevinHall` 30, `StaticLinear`/income strata 16, PIF 18, FINCH parser 3, nutrient tables 2, other interventions 7) | 76 |
-| **not ported by design** — the thing tested does not exist here (`SyncChannel` 9, event bus 15, `CachedRepository` 3, printed summary box 1) | 28 |
-| Added here | 110 |
-| **This implementation** | **433** |
+| Ported, or with a counterpart here | 408 |
+| **not ported** — out of scope for this run (PIF 18, nutrient-table round-trips 0) | 18 |
+| **not ported by design** — the thing tested does not exist here (`SyncChannel` 9, event bus 15, `CachedRepository` 3, printed summary boxes 7) | 34 |
+| Added here | 220 |
+| **This implementation** | **548** |
 
-348 + 76 + 28 = 452, not 471: the difference is the 19 baseline tests that are round-trip halves
+408 + 18 + 34 = 460, not 471: the difference is the 11 baseline tests that are the `to_json` half
 of a `to_json`/`from_json` pair where nothing here writes that structure, counted in `JsonParser`
 above.
 
-Every **not ported** line is a scope decision recorded in an ADR or in
-[docs/backlog.md](backlog.md), not an oversight. The 76 out-of-scope tests are the ones to port
-first when the FINCH surface lands — they are the acceptance criteria for it, and 30 of them are
-tests the baseline itself has never run (B-11).
+**The 35 tests the baseline skips are now 30 tests that run and pass**, and the five that are not
+ported assert the contents of console tables this build does not print. That is the headline of
+this port: `KevinHallHeight`, `KevinHallWeightQuantiles`, `KevinHallWeightValidation` and
+`ModelParserFinch` have never executed in the baseline's CI, on any machine, because the fixture
+path they derive from `__FILE__` does not exist in either upstream data repository (audit B-11).
+Running them for the first time is how four of this run's defects were found.
+
+The only remaining **not ported** group is population impact fraction, which stays out of scope
+([ADR 0021](decisions/0021-scope-finch-and-hlm-france.md)) and is rejected at load with a named
+error. [docs/backlog.md](backlog.md) ranks it.
+
+Counts verified with `hgps_tests --gtest_list_tests` and the baseline's
+`HealthGPS.Tests --gtest_list_tests`, not counted by hand.

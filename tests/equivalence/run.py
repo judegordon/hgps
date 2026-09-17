@@ -243,7 +243,8 @@ def find_result_csv(folder: Path) -> Path:
 
 
 def run(binary: Path, config: Path, extra: list[str], log: Path,
-        attempts: int = 1, retries: list[str] | None = None) -> float:
+        attempts: int = 1, retries: list[str] | None = None,
+        output_folder: Path | None = None) -> float:
     """Runs one binary on one config, and returns how long it took.
 
     `attempts` above one is for the baseline only, and exists for a measured reason: on the FINCH
@@ -254,6 +255,13 @@ def run(binary: Path, config: Path, extra: list[str], log: Path,
     retry is recorded and reported, so the flake is visible rather than smoothed away.
     """
     for attempt in range(1, attempts + 1):
+        # A crashed attempt leaves its part-written result files behind, and the retry would then
+        # add a second set beside them.
+        if output_folder is not None:
+            if output_folder.exists():
+                shutil.rmtree(output_folder)
+            output_folder.mkdir(parents=True)
+
         started = time.monotonic()
         with log.open("w") as stream:
             completed = subprocess.run([str(binary), "--config", str(config), *extra],
@@ -890,7 +898,7 @@ def main() -> int:
                 elapsed = run(binary, config_path, extra,
                               folder.parent / f"log-seed-{seed}.txt",
                               attempts=3 if is_baseline else 1,
-                              retries=outcome.retries)
+                              retries=outcome.retries, output_folder=folder)
                 outcome.timings[label] = outcome.timings.get(label, 0.0) + elapsed
 
                 result = find_result_csv(folder)
