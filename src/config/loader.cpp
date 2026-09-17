@@ -606,6 +606,16 @@ std::optional<InterventionSpec> load_intervention(const JsonCursor &types,
             result.active_period.finish_time = period->integer("finish_time");
         }
 
+        // The baseline's PolicyInterval rejects a negative start in its constructor; here the
+        // config is the only place one can come from, so it is checked here. A year before the
+        // run's start is not an error — an intervention already running when the simulation opens
+        // is a real case — but a negative year is not a year.
+        if (result.active_period.start_time < 0) {
+            period->error("start_time", IssueCode::config_bad_value,
+                          fmt::format("{} is not a calendar year",
+                                      result.active_period.start_time));
+        }
+
         if (result.active_period.finish_time.has_value() &&
             *result.active_period.finish_time < result.active_period.start_time) {
             period->error("finish_time", IssueCode::config_bad_value,

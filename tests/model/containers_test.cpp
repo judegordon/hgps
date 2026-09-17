@@ -8,6 +8,7 @@
 #include "model/containers.h"
 #include "model/life_table.h"
 #include "model/mapping.h"
+#include "model/model_input.h"
 #include "model/results.h"
 
 #include "diagnostics/internal_error.h"
@@ -155,6 +156,27 @@ TEST(TestHealthGPS_MonotonicVector, RejectsNonMonotonicValues) {
                  std::invalid_argument);
 }
 
+TEST(TestHealthGPS_MonotonicVector, AccessByIndexAndByIterator) {
+    // The baseline's AccessMonotonicVectorIndex, AccessMonotonicVectorIterator and
+    // AccessMonotonicVectorThrowsOutOfbound.
+    const MonotonicVector<int> values{std::vector<int>{2, 4, 8, 16}};
+
+    EXPECT_EQ(4U, values.size());
+    EXPECT_FALSE(values.empty());
+    EXPECT_EQ(2, values.at(0));
+    EXPECT_EQ(16, values[3]);
+    EXPECT_THROW(values.at(4), std::out_of_range);
+
+    // The vector is read-only once built, so iteration cannot break the invariant.
+    std::vector<int> seen;
+    for (const auto value : values) {
+        seen.push_back(value);
+    }
+    EXPECT_EQ(std::vector<int>({2, 4, 8, 16}), seen);
+    EXPECT_EQ(values.cbegin(), values.begin());
+    EXPECT_EQ(4, std::distance(values.cbegin(), values.cend()));
+}
+
 TEST(TestHealthGPS_Map2d, CreateEmptyAndInsert) {
     OrderedMap2d<std::string, int, double> table;
 
@@ -220,6 +242,23 @@ TEST(TestHealthGPS_Map2d, EmplaceWholeRow) {
     EXPECT_FALSE(table.empty("bmi"));
 }
 
+TEST(TestHealthGPS_Map2d, HoldsAUserDefinedValueType) {
+    // The baseline's CreateWithUserType: the table is a container, not a numeric table.
+    struct Coefficient {
+        double value{};
+        double std_error{};
+    };
+
+    OrderedMap2d<std::string, hgps::core::Identifier, Coefficient> table;
+    table.emplace("BMI", hgps::core::Identifier{"Age"}, Coefficient{.value = 0.5,
+                                                                    .std_error = 0.1});
+
+    ASSERT_TRUE(table.contains("BMI"));
+    ASSERT_TRUE(table.contains("BMI", hgps::core::Identifier{"Age"}));
+    EXPECT_DOUBLE_EQ(0.5, table.at("BMI", hgps::core::Identifier{"Age"}).value);
+    EXPECT_FALSE(table.contains("BMI", hgps::core::Identifier{"Sex"}));
+}
+
 TEST(TestHealthGPS_Mapping, CreateEntry) {
     const MappingEntry entry{"BMI", 3, hgps::core::DoubleInterval{15.0, 40.0}};
 
@@ -278,6 +317,58 @@ TEST(TestHealthGPS_Mapping, EmptyMappingHasNoLevels) {
     EXPECT_EQ(0U, mapping.size());
     EXPECT_EQ(0, mapping.max_level());
     EXPECT_TRUE(mapping.keys().empty());
+}
+
+TEST(TestHealthGPS_Mapping, IteratesInTheSameOrderAsEntriesAndRejectsAnUnknownKey) {
+    // The baseline's AccessByInterator, AccessByConstInterator and
+    // AccessSingleEntryThrowForUnknowKey.
+    const HierarchicalMapping mapping{std::vector<MappingEntry>{
+        MappingEntry{"Gender", 0},
+        MappingEntry{"BMI", 2},
+        MappingEntry{"Sodium", 1},
+    }};
+
+    std::vector<std::string> by_iterator;
+    for (const auto &entry : mapping) {
+        by_iterator.push_back(entry.name());
+    }
+
+    std::vector<std::string> by_entries;
+    for (const auto &entry : mapping.entries()) {
+        by_entries.push_back(entry.name());
+    }
+    EXPECT_EQ(by_entries, by_iterator);
+
+    // The config's order, untouched — not the baseline's (level, name) sort, which makes the
+    // result file's columns alphabetical within each level (docs/deviations.md). Generation walks
+    // levels through at_level(), so nothing needs the entries themselves to be level-ordered.
+    EXPECT_EQ(std::vector<std::string>({"Gender", "BMI", "Sodium"}), by_iterator);
+    EXPECT_EQ(2, mapping.max_level());
+    EXPECT_EQ(1U, mapping.at_level(1).size());
+
+    EXPECT_THROW(mapping.at(hgps::core::Identifier{"Height"}), std::out_of_range);
+}
+
+TEST(TestHealthGPS_LifeTable, RejectsAHalfOrMismatchedTable) {
+    // The baseline's CreateEmptyBirthMismatchThrow, CreateEmptyDeathsMismatchThrow and
+    // CreateWithTimeRangeMismatchThrow. Without these the table reads as valid and throws
+    // out_of_range from inside the demographic module's year loop instead.
+    const auto births = [] {
+        return std::map<int, Birth>{{2020, Birth{10.0F, 0.9F}}, {2021, Birth{15.0F, 0.9F}}};
+    };
+    const auto deaths_for = [](int year) {
+        std::map<int, std::map<int, Mortality>> deaths;
+        deaths.emplace(year, std::map<int, Mortality>{{1, Mortality{5.0F, 6.0F}}});
+        return deaths;
+    };
+
+    EXPECT_THROW(LifeTable(std::map<int, Birth>{}, deaths_for(2021)), std::invalid_argument);
+    EXPECT_THROW(LifeTable(births(), std::map<int, std::map<int, Mortality>>{}),
+                 std::invalid_argument);
+    EXPECT_THROW(LifeTable(births(), deaths_for(2021)), std::invalid_argument);
+
+    // Neither half is fine: an empty table is a valid empty table.
+    EXPECT_NO_THROW(LifeTable(std::map<int, Birth>{}, std::map<int, std::map<int, Mortality>>{}));
 }
 
 TEST(TestHealthGPS_LifeTable, CreateAndQuery) {
@@ -378,6 +469,30 @@ TEST(TestHealthGPS_DataSeries, IncomeChannelsAreCreatedOnFirstUse) {
     EXPECT_DOUBLE_EQ(0.0, series.at(Gender::female, Income::low, "bmi")[1]);
 }
 
+TEST(TestHealthGPS_DataSeries, CreatingAStratumTwiceDoesNotResetIt) {
+    // The baseline's AddIncomeChannelsForCategoriesIsIdempotent and
+    // HasIncomeChannelReflectsCategorySetup. There, strata are created by an explicit
+    // add_income_channels_for_categories call that had to be made idempotent; here they are
+    // created on first use, so the property to check is that touching a stratum again finds the
+    // values already in it rather than a fresh vector.
+    DataSeries series{3};
+    series.add_channels({"count", "bmi"});
+
+    series.at(Gender::male, Income::low, "bmi")[0] = 22.0;
+    series.at(Gender::male, Income::low, "count")[0] = 7.0;
+
+    EXPECT_DOUBLE_EQ(22.0, series.at(Gender::male, Income::low, "bmi")[0]);
+    EXPECT_DOUBLE_EQ(7.0, series.at(Gender::male, Income::low, "count")[0]);
+
+    // A second stratum does not disturb the first.
+    series.at(Gender::male, Income::high, "bmi")[0] = 31.0;
+    EXPECT_DOUBLE_EQ(22.0, series.at(Gender::male, Income::low, "bmi")[0]);
+    EXPECT_DOUBLE_EQ(31.0, series.at(Gender::male, Income::high, "bmi")[0]);
+
+    // And an unknown channel is still an error inside a stratum.
+    EXPECT_THROW(series.at(Gender::male, Income::low, "weight"), std::out_of_range);
+}
+
 TEST(TestHealthGPS_Metrics, EmplaceAtAndErase) {
     RuntimeMetric metrics;
 
@@ -450,4 +565,75 @@ TEST(TestHealthGPS_Metrics, ModelResultRenders) {
     const auto text = result.to_string();
     EXPECT_NE(std::string::npos, text.find("Population size"));
     EXPECT_NE(std::string::npos, text.find("bmi"));
+}
+
+// --- ModelInput -------------------------------------------------------------------------------
+//
+// Ported from the baseline's ModelInputProjectRequirementsRegionEthnicity,
+// ...TwoStage and ...IncomeAndRiskFactors. There those tests check that the constructor stores
+// what it was handed; here they also check the two things ModelInput *derives* from the
+// requirements, because those are what the rest of the run reads.
+
+TEST(TestHealthGPS_ModelInput, CarriesTheProjectRequirementsAndDerivesTheIncomeLayout) {
+    const auto build = [](hgps::config::ProjectRequirements requirements) {
+        return ModelInput{hgps::core::DataTable{},
+                          Settings{},
+                          RunInfo{},
+                          SesDefinition{},
+                          HierarchicalMapping{std::vector<MappingEntry>{}},
+                          std::vector<hgps::core::DiseaseInfo>{},
+                          std::move(requirements)};
+    };
+
+    {
+        hgps::config::ProjectRequirements requirements;
+        requirements.demographics.region = true;
+        requirements.demographics.ethnicity = true;
+        requirements.demographics.gender2 = "female";
+        const auto inputs = build(requirements);
+
+        EXPECT_TRUE(inputs.project_requirements().demographics.region);
+        EXPECT_TRUE(inputs.project_requirements().demographics.ethnicity);
+        EXPECT_EQ("female", inputs.project_requirements().demographics.gender2);
+    }
+
+    {
+        hgps::config::ProjectRequirements requirements;
+        requirements.two_stage.use_logistic = true;
+        requirements.two_stage.logistic_file = "models/logistic.json";
+        const auto inputs = build(requirements);
+
+        EXPECT_TRUE(inputs.project_requirements().two_stage.use_logistic);
+        EXPECT_EQ("models/logistic.json", inputs.project_requirements().two_stage.logistic_file);
+    }
+
+    {
+        // The layout comes from `income.categories`, and it is what every income-ordered
+        // sampling and every stratum file is built from (audit B-05).
+        hgps::config::ProjectRequirements requirements;
+        requirements.income.categories = "5";
+        requirements.risk_factors.adjust_to_factors_mean = false;
+        requirements.risk_factors.trended = false;
+        const auto inputs = build(requirements);
+
+        EXPECT_EQ(5U, inputs.income_layout().count);
+        EXPECT_EQ(5U, inputs.income_layout().strata.size());
+        EXPECT_EQ(Income::low, inputs.income_layout().strata.front());
+        EXPECT_EQ(Income::high, inputs.income_layout().strata.back());
+        EXPECT_FALSE(inputs.project_requirements().risk_factors.adjust_to_factors_mean);
+    }
+
+    {
+        // The baseline hard-codes the income-stratified output to on; here it follows the two
+        // requirements that say whether those files exist at all.
+        hgps::config::ProjectRequirements requirements;
+        EXPECT_TRUE(build(requirements).income_analysis_enabled());
+
+        requirements.income.income_based_csv_output = false;
+        EXPECT_FALSE(build(requirements).income_analysis_enabled());
+
+        requirements.income.income_based_csv_output = true;
+        requirements.income.enabled = false;
+        EXPECT_FALSE(build(requirements).income_analysis_enabled());
+    }
 }

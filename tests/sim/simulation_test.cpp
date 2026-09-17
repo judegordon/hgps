@@ -143,6 +143,43 @@ TEST(TestSimulation, AChannelExistsOnlyWhenAModelActuallyAssignsIt) {
     }
 }
 
+TEST(TestSimulation, AChannelThatIsBothADeclaredFactorAndAMemberIsCountedOnce) {
+    // The generalised form of the baseline's
+    // AnalysisModuleDoesNotDoubleCountIncomeFieldsWhenMapped, and the regression test for the bug
+    // the equivalence harness found: `gender` is declared as a level-0 risk factor, so it is in
+    // the mapping, but a person carries it in `person.gender` rather than in `risk_factors`. The
+    // sum came from the explicit accumulation and was then divided by the head count twice, once
+    // in the demographic list and once in the mapping walk, so every male band reported 1/count.
+    //
+    // The property that catches the whole class: for a channel whose value is the same for
+    // everyone in a band, the band's mean is that value.
+    const auto outcome = hgps::test::run_simulation(hgps::test::synthetic_config(),
+                                                    hgps::test::scratch_dir("sim_no_double"));
+    ASSERT_TRUE(outcome.succeeded) << outcome.report.to_string();
+
+    const auto rows = read_rows(outcome.csv_path);
+    ASSERT_FALSE(rows.empty());
+
+    std::size_t checked = 0;
+    for (const auto &row : rows) {
+        if (row.values.at("count") <= 0.0) {
+            continue;
+        }
+        ++checked;
+
+        // Everyone in a male band is male, so mean_gender is 1; everyone in a female band is
+        // female, so it is 0. Either way the spread is zero.
+        const double expected_gender = row.gender == "male" ? 1.0 : 0.0;
+        EXPECT_DOUBLE_EQ(expected_gender, row.values.at("mean_gender"));
+        EXPECT_DOUBLE_EQ(0.0, row.values.at("std_gender"));
+
+        // And age, which is the row's own key.
+        EXPECT_DOUBLE_EQ(static_cast<double>(row.index), row.values.at("mean_age"));
+        EXPECT_DOUBLE_EQ(0.0, row.values.at("std_age"));
+    }
+    EXPECT_GT(checked, 100U) << "the fixture should have populated bands to check";
+}
+
 TEST(TestSimulation, RowsAreInSourceRunTimeGenderIndexOrder) {
     // Determinism clause D10 and ADR 0020: the row order is the output contract, and the
     // baseline's is thread-completion order (audit B-01).

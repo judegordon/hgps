@@ -608,6 +608,19 @@ TEST(ConfigParsing, LoadsInterventions) {
     }
 
     {
+        // The baseline's PolicyPeriodNegativeStartThrows, moved to where a period can only come
+        // from: the config.
+        auto document = fixture.document();
+        document["running"]["interventions"]["types"]["simple"]["active_period"]["start_time"] =
+            -1;
+        document["running"]["interventions"]["active_type_id"] = "simple";
+        auto [config, report] = load(fixture, document);
+        EXPECT_FALSE(config.has_value());
+        EXPECT_TRUE(report.contains(IssueCode::config_bad_value));
+        EXPECT_NE(std::string::npos, report.to_string().find("is not a calendar year"));
+    }
+
+    {
         auto document = fixture.document();
         document["running"]["interventions"]["types"]["simple"]["active_period"]["finish_time"] =
             2000;

@@ -147,6 +147,74 @@ TEST(TestRelativeRiskLookup, SizeMismatchThrows) {
     EXPECT_THROW(RelativeRiskLookup(ages, values, FloatArray2D{3, 3}), std::out_of_range);
 }
 
+TEST(TestRelativeRiskLookup, ASingleCellTableIsValid) {
+    // The baseline's CreateEmptyStorage: a 1x1 table is degenerate but well defined, and the
+    // disease data contains them.
+    const MonotonicVector<int> ages{{0}};
+    const MonotonicVector<float> values{{0.0F}};
+    const RelativeRiskLookup lookup{ages, values, FloatArray2D{1, 1}};
+
+    EXPECT_EQ(1U, lookup.rows());
+    EXPECT_EQ(1U, lookup.columns());
+    EXPECT_EQ(1U, lookup.size());
+    EXPECT_FLOAT_EQ(0.0F, lookup(0, 0.0F));
+    // One breakpoint, so every value clamps onto it.
+    EXPECT_FLOAT_EQ(0.0F, lookup(0, 99.0F));
+}
+
+TEST(TestRelativeRiskLookup, ReferenceDataLookup) {
+    // Ported from the baseline with its expected values unchanged: 44 lookups against a real
+    // 7x5 relative-risk table, which is what pins the interpolation arithmetic rather than just
+    // its shape. Age 3's row is {1.0, 4.2, 7.3, 10.5, 13.5} over BMI {18, 25, 30, 35, 40}.
+    const MonotonicVector<int> ages{{0, 1, 2, 3, 4, 5, 7}};
+    const MonotonicVector<float> values{{18.0F, 25.0F, 30.0F, 35.0F, 40.0F}};
+    const std::vector<float> data = {
+        1.0F, 4.5F, 8.0F, 11.6F, 15.0F, // 0
+        1.0F, 4.4F, 7.9F, 11.3F, 14.8F, // 1
+        1.0F, 4.3F, 7.6F, 11.0F, 14.3F, // 2
+        1.0F, 4.2F, 7.3F, 10.5F, 13.5F, // 3
+        1.0F, 3.8F, 6.7F, 9.5F,  12.4F, // 4
+        1.0F, 3.5F, 5.8F, 8.2F,  10.6F, // 5
+        1.0F, 2.7F, 4.5F, 6.2F,  9.7F   // 7
+    };
+
+    const RelativeRiskLookup lookup{ages, values, FloatArray2D{7, 5, data}};
+
+    const std::map<double, double> expected{
+        {16.0, 1.00},                {16.5, 1.00},
+        {17.0, 1.0},                 {17.5, 1.00},
+        {18.0, 1.00},                {18.5, 1.2285714285714286},
+        {19.0, 1.4571428571428573},  {19.5, 1.6857142857142859},
+        {20.0, 1.9142857142857144},  {20.5, 2.1428571428571428},
+        {21.0, 2.3714285714285719},  {21.5, 2.60},
+        {22.0, 2.8285714285714287},  {22.5, 3.0571428571428574},
+        {23.0, 3.2857142857142856},  {23.5, 3.5142857142857147},
+        {24.0, 3.7428571428571433},  {24.5, 3.9714285714285715},
+        {25.0, 4.2},                 {25.5, 4.51},
+        {26.0, 4.82},                {26.5, 5.13},
+        {27.0, 5.440},               {27.5, 5.75},
+        {28.0, 6.06},                {28.5, 6.37},
+        {29.0, 6.68},                {29.5, 6.99},
+        {30.0, 7.30},                {30.5, 7.62},
+        {31.0, 7.94},                {31.5, 8.26},
+        {32.0, 8.58},                {32.5, 8.90},
+        {33.0, 9.22},                {33.5, 9.54},
+        {34.0, 9.86},                {34.5, 10.18},
+        {35.0, 10.5},                {35.5, 10.80},
+        {36.0, 11.10},               {36.5, 11.40},
+        {37.0, 11.7},                {37.5, 12.00},
+        {38.0, 12.3},                {38.5, 12.60},
+        {39.0, 12.90},               {39.5, 13.20},
+        {40.0, 13.5},                {40.5, 13.50},
+        {41.0, 13.5},                {41.5, 13.50}};
+
+    for (const auto &[value, relative_risk] : expected) {
+        EXPECT_FLOAT_EQ(static_cast<float>(relative_risk),
+                        lookup(3, static_cast<float>(value)))
+            << "at BMI " << value;
+    }
+}
+
 TEST(TestHealthGPS_Disease, DiseaseParameterAndDefinition) {
     const ParameterLookup prevalence{{0, {1.0, 1.0}}, {1, {0.5, 0.5}}, {2, {0.25, 0.25}}};
     const ParameterLookup survival{{0, {0.9, 0.95}}};
