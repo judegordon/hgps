@@ -110,6 +110,39 @@ TEST(TestSimulation, RunsTheWholeHorizonAndWritesEveryYear) {
     EXPECT_EQ(5U * 2U * 50U, rows.size());
 }
 
+TEST(TestSimulation, AChannelExistsOnlyWhenAModelActuallyAssignsIt) {
+    // project_requirements defaults switch income and physical activity on for every config,
+    // including this one, whose HLM models assign neither. Emitting the channels anyway put six
+    // columns of zeros in the reference example's output; the baseline instead decides by
+    // sampling the first 1,000 people, so its column set depends on the cohort's contents.
+    // Neither is right: the channel exists when the project asks for the dimension *and* a
+    // loaded model gives it to people.
+    auto document = hgps::test::synthetic_config_document();
+    document["project_requirements"]["income"]["enabled"] = true;
+    document["project_requirements"]["physical_activity"]["enabled"] = true;
+    // region and ethnicity are not switched on here: the run refuses them outright without the
+    // prevalence data, which is a different rule with its own test.
+    const auto config = hgps::test::write_config_variant("sim_channels_config", document);
+
+    const auto outcome = hgps::test::run_simulation(config, hgps::test::scratch_dir("sim_channels"));
+    ASSERT_TRUE(outcome.succeeded) << outcome.report.to_string();
+
+    std::ifstream stream{outcome.csv_path};
+    ASSERT_TRUE(stream.good());
+    std::string header;
+    ASSERT_TRUE(std::getline(stream, header));
+
+    for (const auto *absent : {"mean_income_category", "mean_income", "mean_physical_activity"}) {
+        EXPECT_EQ(std::string::npos, header.find(absent))
+            << absent << " should not be a column: no loaded model assigns it";
+    }
+
+    // What the models do assign is still there.
+    for (const auto *present : {"mean_age", "mean_bmi", "mean_energy", "mean_yll"}) {
+        EXPECT_NE(std::string::npos, header.find(present)) << present;
+    }
+}
+
 TEST(TestSimulation, RowsAreInSourceRunTimeGenderIndexOrder) {
     // Determinism clause D10 and ADR 0020: the row order is the output contract, and the
     // baseline's is thread-completion order (audit B-01).

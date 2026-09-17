@@ -8,6 +8,7 @@
 #include "core/interval.h"
 #include "model/containers.h"
 #include "model/module.h"
+#include "model/riskfactor/risk_factor_model.h"
 #include "model/results.h"
 #include "model/weight_model.h"
 
@@ -68,12 +69,18 @@ class AnalysisModule final : public UpdatableModule {
     /// @brief Whether results are also reported by income category.
     void set_income_analysis_enabled(bool enabled) noexcept { income_analysis_ = enabled; }
 
+    /// @brief What the loaded risk-factor models assign, which decides several output channels.
+    void set_assigned_attributes(AssignedAttributes assigned) noexcept {
+        assigned_ = assigned;
+    }
+
     /// @brief The output channels, in the order the result file's columns follow.
     const std::vector<std::string> &channels() const noexcept { return channels_; }
 
   private:
     AnalysisDefinition definition_;
     WeightModel classifier_;
+    AssignedAttributes assigned_{};
     DoubleAgeGenderTable residual_disability_weight_;
     std::vector<std::string> channels_;
     unsigned int comorbidities_;

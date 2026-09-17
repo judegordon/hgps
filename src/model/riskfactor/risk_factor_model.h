@@ -38,6 +38,28 @@ enum class TrendType : std::uint8_t {
     IncomeTrend,
 };
 
+/// @brief The demographic attributes a risk-factor model gives people, beyond the risk factors
+///        named in the config's `risk_factors` list.
+///
+/// This is what decides whether the corresponding output channels exist, and it is a property of
+/// the model family rather than of the population. The baseline decides by looking at the first
+/// 1,000 people and adding a channel if any of them has the attribute set, so its output's column
+/// set depends on the contents of a sample of the cohort; a project requirement alone is not
+/// enough either, because the defaults switch income and physical activity on for every config
+/// including the HLM ones, whose models assign neither — six columns of zeros.
+struct AssignedAttributes {
+    /// @brief `person.income`, the categorical income band.
+    bool income_category{false};
+    /// @brief A continuous `income` risk factor.
+    bool income{false};
+    /// @brief A `physical_activity` risk factor distinct from the config's `PA`.
+    bool physical_activity{false};
+    bool region{false};
+    bool ethnicity{false};
+    /// @brief `person.sector`, urban or rural.
+    bool sector{false};
+};
+
 /// @brief A risk-factor model: generates factor values, then updates them each year.
 class RiskFactorModel {
   public:
@@ -57,6 +79,9 @@ class RiskFactorModel {
 
     /// @brief Moves them one year.
     virtual void update_risk_factors(RuntimeContext &context, sim::ScenarioJournal &journal) = 0;
+
+    /// @brief What this model assigns besides the declared risk factors. Nothing, by default.
+    virtual AssignedAttributes assigns() const noexcept { return {}; }
 };
 
 /// @brief A model that calibrates simulated means to the FactorsMean tables.

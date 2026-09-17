@@ -12,6 +12,18 @@
 namespace hgps::app {
 namespace {
 
+/// @brief The union of what two models assign: either one giving people an attribute is enough.
+model::AssignedAttributes merge(model::AssignedAttributes left,
+                                const model::AssignedAttributes &right) {
+    left.income_category |= right.income_category;
+    left.income |= right.income;
+    left.physical_activity |= right.physical_activity;
+    left.region |= right.region;
+    left.ethnicity |= right.ethnicity;
+    left.sector |= right.sector;
+    return left;
+}
+
 using diag::IssueCode;
 using diag::IssueLocation;
 
@@ -465,6 +477,10 @@ std::optional<sim::Modules> build_modules(const LoadedInputs &loaded,
         return std::nullopt;
     }
 
+    // What the models assign decides part of the output's column set, so it is read before the
+    // models are handed to the host module.
+    const auto assigned = merge(models->static_model->assigns(), models->dynamic_model->assigns());
+
     modules.risk_factor = std::make_unique<model::RiskFactorHostModule>(
         std::move(models->static_model), std::move(models->dynamic_model), journal);
 
@@ -490,6 +506,7 @@ std::optional<sim::Modules> build_modules(const LoadedInputs &loaded,
         *loaded.analysis, model::WeightModel{loaded.lms}, loaded.inputs->settings().age_range,
         loaded.inputs->run().comorbidities);
     modules.analysis->set_income_analysis_enabled(loaded.inputs->income_analysis_enabled());
+    modules.analysis->set_assigned_attributes(assigned);
 
     if (report.error_count() != before) {
         return std::nullopt;

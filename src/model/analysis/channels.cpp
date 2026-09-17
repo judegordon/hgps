@@ -47,31 +47,38 @@ void AnalysisModule::initialise_output_channels(RuntimeContext &context) {
     // column entirely. The configuration already says which dimensions the project uses.
     const auto &requirements = context.inputs().project_requirements();
 
-    if (requirements.demographics.region) {
+    if (requirements.demographics.region && assigned_.region) {
         add("mean_region");
         add("std_region");
     }
-    if (requirements.demographics.ethnicity) {
+    if (requirements.demographics.ethnicity && assigned_.ethnicity) {
         add("mean_ethnicity");
         add("std_ethnicity");
     }
 
-    // Sector is not a project requirement of its own; it is present when the static model assigns
-    // it, which is exactly when the rural prevalence data exists. The mapping is the reliable
-    // signal, because a factor is only in it if the config declared it.
-    if (context.mapping().contains(core::Identifier{"sector"})) {
+    // Sector is not a project requirement of its own; it is present when a model assigns it,
+    // which is exactly when the rural prevalence data exists.
+    if (assigned_.sector || context.mapping().contains(core::Identifier{"sector"})) {
         add("mean_sector");
         add("std_sector");
     }
 
-    if (requirements.income.enabled) {
+    // A requirement being enabled is not enough: the defaults switch income and physical
+    // activity on for every config, including the HLM ones, whose models assign neither. The
+    // channel exists when the project asks for the dimension *and* a loaded model gives it to
+    // people — otherwise the file gains columns of zeros, which is how the reference example's
+    // output grew six of them.
+    if (requirements.income.enabled && assigned_.income_category) {
         add("mean_income_category");
         add("std_income_category");
+    }
+
+    if (requirements.income.enabled && assigned_.income) {
         add("mean_income");
         add("std_income");
     }
 
-    if (requirements.physical_activity.enabled) {
+    if (requirements.physical_activity.enabled && assigned_.physical_activity) {
         add("mean_physical_activity");
         add("std_physical_activity");
     }
