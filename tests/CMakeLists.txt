@@ -23,11 +23,25 @@ hgps_target_options(hgps_tests)
 target_include_directories(hgps_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(hgps_tests PRIVATE hgps GTest::gtest GTest::gtest_main)
 
+# The synthetic data pack is generated into the build tree at build time rather than committed,
+# so a test never reads a stale copy and the repository holds no generated data
+# (docs/decisions/0011-data-fetched-not-vendored.md).
+set(HGPS_FIXTURE_PACK "${CMAKE_CURRENT_BINARY_DIR}/fixtures/pack")
+add_custom_command(
+    OUTPUT "${HGPS_FIXTURE_PACK}/index.json"
+    COMMAND gen-fixtures --output "${HGPS_FIXTURE_PACK}"
+    DEPENDS gen-fixtures
+    COMMENT "Generating the synthetic data pack"
+    VERBATIM)
+add_custom_target(hgps_fixtures DEPENDS "${HGPS_FIXTURE_PACK}/index.json")
+add_dependencies(hgps_tests hgps_fixtures)
+
 # Paths the tests need, as compile definitions rather than __FILE__ arithmetic. The baseline
 # derives its FINCH fixture path from __FILE__ and silently skips 35 tests when it does not
 # exist (audit B-11); here the path is supplied by the build and a missing fixture fails.
 target_compile_definitions(hgps_tests PRIVATE
-    HGPS_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
+    HGPS_TEST_DATA_DIR="${CMAKE_CURRENT_BINARY_DIR}/fixtures"
+    HGPS_FIXTURE_PACK_DIR="${HGPS_FIXTURE_PACK}"
     HGPS_EXAMPLES_DIR="${CMAKE_SOURCE_DIR}/examples"
     HGPS_UPSTREAM_EXAMPLES_DIR="${CMAKE_SOURCE_DIR}/../hgps_main_examples"
     HGPS_SCHEMAS_DIR="${CMAKE_SOURCE_DIR}/schemas"

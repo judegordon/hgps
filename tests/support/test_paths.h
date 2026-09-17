@@ -11,7 +11,11 @@ namespace hgps::test {
 
 inline std::filesystem::path fixtures_dir() { return std::filesystem::path{HGPS_TEST_DATA_DIR}; }
 
-inline std::filesystem::path synthetic_pack_dir() { return fixtures_dir() / "pack"; }
+/// @brief The generated synthetic data pack. Generated at build time, so a test that cannot find
+///        it should fail rather than skip (audit B-11).
+inline std::filesystem::path synthetic_pack_dir() {
+    return std::filesystem::path{HGPS_FIXTURE_PACK_DIR};
+}
 
 inline std::filesystem::path examples_dir() { return std::filesystem::path{HGPS_EXAMPLES_DIR}; }
 
