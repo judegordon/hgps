@@ -19,7 +19,7 @@ examples now run.
   33,732 comparisons on `HLM_France` and 23,432 on `KevinHall_FINCH`, each at 20 seeds and again at
   60, plus one run per intervention for each of the other five policies. There is **no failure
   budget**: `scripts/check.sh` fails on any out-of-tolerance comparison.
-- **30 ADRs**, one per design decision, each with the alternatives rejected.
+- **31 ADRs**, one per design decision, each with the alternatives rejected.
 - **37 recorded deviations** from the baseline — 19 fixed defects that change the numbers, 10
   design differences that change results or output, 8 internal ones that change nothing — each with
   its audit finding ID and its evidence: [docs/deviations.md](deviations.md).
@@ -34,7 +34,7 @@ examples now run.
 | `tests/` | 47 files, 11,500 lines — 548 tests in 63 suites |
 | `tools/` | `convert-config` (v1→v2, with `--policy-scenario`) and `gen-fixtures` (the synthetic data pack) |
 | `schemas/v2/` | the published config contract, kept in step with the loader by a test |
-| `docs/` | 9 documents and 30 ADRs |
+| `docs/` | 9 documents and 31 ADRs |
 | `examples/` | the six upstream examples, converted |
 | `tests/equivalence/` | the harness, two stored baseline references, and the FINCH intervention set |
 

@@ -229,8 +229,9 @@ their own exposure rules, their own per-person draws and, in `food_labelling` an
 activates them says nothing about them.
 
 So each is compared on its own, 20 seeds, in both implementations, with
-`--intervention NAME`. Each choice hashes to a different config and therefore to a different stored
-reference, so they cannot disturb the reference for `simple`.
+`--intervention NAME` ([ADR 0031](decisions/0031-comparing-one-intervention-at-a-time.md)). Each
+choice hashes to a different config and therefore to a different stored reference, so they cannot
+disturb the reference for `simple`.
 
 On `HLM_France` the definitions are upstream's own: its `config.json` declares all six and the
 harness simply activates one at a time. On `KevinHall_FINCH` they come from
