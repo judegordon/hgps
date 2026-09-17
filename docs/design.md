@@ -73,7 +73,7 @@ graph LR
 | `src/config` | `hgps::config` | The config v2 document: types, loader, validation, `{TIMESTAMP}` and `${VAR}` expansion, the v1→v2 conversion rules used by `tools/convert-config`. | read the data store |
 | `src/data` | `hgps::data` | The back-end data store: `index.json` manifest, per-domain loaders (countries, demographics, diseases, analysis, LMS), disease-registry validation against the directory tree. | know about `Person` |
 | `src/model` | `hgps::model` | The simulation's subject matter: `Person`, `Population`, `RuntimeContext`, the five modules (demographic, SES, risk factor, disease, analysis), the risk-factor models, the disease models. | write files |
-| `src/sim` | `hgps::sim` | Orchestration: `Scenario` (baseline, `simple` intervention), the migration journal, the `Engine` that runs one scenario over the horizon, the `Runner` that runs scenarios sequentially, `ModelResult`. | format output |
+| `src/sim` | `hgps::sim` | Orchestration: `Scenario` (the baseline and the six interventions), the migration and adjustment journal, the `Engine` that runs one scenario over the horizon, the `Runner` that runs scenarios sequentially, `ModelResult`. | format output |
 | `src/output` | `hgps::output` | `ResultCsvWriter`, `RunMetadataJsonWriter`, `IndividualTrackingCsvWriter`. One owner per file, rows in a defined order. | be shared between threads |
 | `src/app` | `hgps::app` | `main`, command-line options, progress reporting, wiring. | contain model logic |
 
@@ -81,13 +81,41 @@ graph LR
 
 | Baseline file | Lines | Here |
 |---|---:|---|
-| `static_linear_model.cpp` | 2,615 | `model/riskfactor/static_linear/` — `model.cpp` (sampling), `init.cpp` (initialisation), `income.cpp`, `physical_activity.cpp`, `region_ethnicity.cpp`, `trend.cpp` |
-| `model_parser.cpp` | 2,252 | `config/models/` — one unit per model family (`hlm.cpp`, `dynamic_hlm.cpp`, `static_linear.cpp`, `kevin_hall.cpp`, `dummy.cpp`) plus `shared.cpp` for the common CSV/JSON readers |
-| `analysis_module.cpp` | 2,202 | `model/analysis/` — `module.cpp` (lifecycle), `prevalence.cpp`, `burden.cpp` (YLL/YLD/DALY), `factors.cpp` (means and standard deviations), `cost.cpp`, `income_strata.cpp` |
-| `datamanager.cpp` | 806 | `data/` — `index.cpp`, `countries.cpp`, `demographics.cpp`, `diseases.cpp`, `relative_risk.cpp`, `analysis.cpp`, `registry.cpp` |
+| `static_linear_model.cpp` | 2,615 | `model/riskfactor/static_linear/` — `model.cpp` (construction and the order the pieces run in), `factors.cpp` (residuals, the two-stage logistic, the inverse Box-Cox), `income.cpp` (sector, both income models, the rank buckets), `physical_activity.cpp`, `policies.cpp`, `trend.cpp` |
+| `kevin_hall_model.cpp` | 1,462 | `model/riskfactor/kevin_hall/` — `model.cpp` (lifecycle and the derived expected values), `energy_balance.cpp` (foods to nutrients to energy to a body), `weight_height.cpp` (the quantile curve and the height regression) |
+| the five intervention scenarios | 1,183 | `sim/interventions.cpp` — one `BandedInterventionScenario` holding the shape they share, and one virtual function per policy ([ADR 0029](decisions/0029-one-banded-intervention-shape.md)) |
+| `model_parser.cpp` | 2,252 | `config/models/` — one unit per model family (`hlm.cpp`, `dynamic_hlm.cpp`, `static_linear.cpp`, `kevin_hall.cpp`) plus `model_loader.cpp` for the shared readers and the name validation |
+| `analysis_module.cpp` | 2,202 | `model/analysis/` — `module.cpp` (lifecycle), `burden.cpp` (YLL/YLD/DALY), `channels.cpp`, `series.cpp`, `income_strata.cpp` |
+| `datamanager.cpp` | 806 | `data/` — `index.cpp`, `store.cpp`, `registry.cpp` |
+
+Roughly 5,300 lines of the baseline's four largest files become nineteen units here, none over 500
+lines, each with a name that says what it holds.
 
 Splitting these is the one structural idea taken wholesale from the earlier rewrite
 ([ADR 0019](decisions/0019-split-the-monolith-translation-units.md)).
+
+### 2.2 The risk-factor model families
+
+Four, in two slots. A run names one static and one dynamic model; the pair must agree about which
+factors exist, and load-time validation checks that they do
+([ADR 0028](decisions/0028-model-files-resolve-their-own-relative-paths.md)).
+
+| `ModelName` | Slot | What it does | Used by |
+|---|---|---|---|
+| `HLM` | static | A fitted regression per factor per hierarchy level, with correlated residuals sampled from an empirical distribution. | HLM_France, HLM_India |
+| `EBHLM` | dynamic | A per-age-band, per-sex regression on last year's values, with a bounded normal residual. | HLM_France, HLM_India |
+| `StaticLinear` | static | A per-factor linear model plus a correlated residual, through an inverse Box-Cox transform, scaled by the expected value. On top: a two-stage logistic first step, income (categorical or continuous), physical activity, sector, and two kinds of time trend. | KevinHall_FINCH, KevinHall_India |
+| `KevinHall` | dynamic | The energy balance: foods to nutrients to energy intake, and the change in intake moves fat, lean tissue, glycogen and fluid to a new steady state, from which weight and BMI follow. | KevinHall_FINCH, KevinHall_India |
+
+`StaticLinear` reads its per-factor parameters in either of two shapes, because both are in use
+upstream: a set of **CSV matrices** whose rows are predictors and columns are risk factors (FINCH),
+or a **JSON object per factor** (India). The factor order is the correlation matrix's column order
+in both, and it is load-bearing — the Cholesky factor and every per-factor vector are indexed by
+it, so a different order is a different model.
+
+Neither family's model is given a 31-argument constructor. Each takes one `shared_ptr<const
+Parameters>` whose fields are named at the call site and validated in one place
+([ADR 0029](decisions/0029-one-banded-intervention-shape.md)).
 
 ---
 
@@ -307,7 +335,10 @@ the upstream format knows this one.
                  "demographic_models": {…} },
   "running":   { "seed": 123456789, "start_time": 2010, "stop_time": 2050, "trial_runs": 1,
                  "diseases": [ … ],
-                 "interventions": { "active_type_id": null | "simple", "types": { … } } },
+                 "interventions": { "active_type_id": null | "simple" | "marketing" |
+                                    "dynamic_marketing" | "fiscal" | "physical_activity" |
+                                    "food_labelling",
+                                    "types": { … } } },
   "output":    { "comorbidities": 5, "folder": "…", "file_name": "result.csv",
                  "individual_id_tracking": {…} }
 }
@@ -391,8 +422,8 @@ Four layers, all under `tests/`, all registered with CTest.
 |---|---|
 | Ported baseline tests | The baseline's 471 tests, adapted to this API, each preserving its intent and expected values. Where a baseline test encodes a baseline bug from `docs/audit/04-baseline-issues.md`, the expectation is changed and the finding ID is named in a comment. |
 | Tests the baseline lacks | Byte-for-byte reproducibility (twice, and 1 vs N threads); modulo-bias regression; ordered-sampling; unseeded-config rejection; RNG-in-parallel-region rejection; disease-registry mismatch diagnostics. |
-| Fixture-dependent tests | The 35 baseline tests that skip on a missing FINCH pack point at the synthetic fixture pack or the converted FINCH example, and **fail** rather than skip when it is missing. |
-| Equivalence harness | `tests/equivalence/` — runs the baseline and this implementation on the same converted configs across ≥20 seeds and compares output distributions within documented tolerances (`docs/equivalence.md`). Not part of the default CTest run; driven by `scripts/check.sh`. |
+| Fixture-dependent tests | The 35 baseline tests that skip on a missing FINCH pack point at the synthetic fixture pack or the real upstream FINCH example, and **fail** rather than skip when it is missing. Thirty of them now run and pass; the five that do not assert the contents of console tables this build does not print ([docs/test-port-map.md](test-port-map.md)). |
+| Equivalence harness | `tests/equivalence/` — runs the baseline and this implementation on the same converted configs across ≥20 seeds and compares output distributions within documented tolerances (`docs/equivalence.md`). Two examples, `HLM_France` and `KevinHall_FINCH`. Not part of the default CTest run; driven by `scripts/check.sh`. There is **no failure budget**: any out-of-tolerance comparison fails ([ADR 0027](decisions/0027-equivalence-excludes-the-bands-only-one-side-fills.md)). |
 
 `scripts/check.sh` configures and builds every preset, runs the tests, runs the equivalence harness,
 and fails on the first error.

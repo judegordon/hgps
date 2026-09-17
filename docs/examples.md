@@ -60,36 +60,80 @@ Measured, not predicted: each row is the result of `healthgps --config examples/
 | Example | Source | Config loads | Models load | Runs | What stops it |
 | --- | --- | :-: | :-: | :-: | --- |
 | **HLM_France** | `config.json` | yes | yes | **yes** | — |
-| HLM_India | `config.json` | no | (HLM, would load) | no | `interventions.active_type_id` is `food_labelling`; this build implements only `simple` |
-| Dummy_disease_test | `config.json` | yes | no | no | model family `dummy` |
-| KevinHall_FINCH | `new_config.json` | yes | no | no | model families `staticlinear` and `kevinhall` |
-| KevinHall_India | `new_config.json` | yes | no | no | model families `staticlinear` and `kevinhall` |
+| **HLM_India** | `config.json` | yes | yes | **yes** | — |
+| **KevinHall_FINCH** | `new_config.json` | yes | yes | **yes** | — |
+| **KevinHall_India** | `new_config.json` | yes | yes | **yes** | — |
+| Dummy_disease_test | `config.json` | yes | no | no | model family `dummy`, which is a test double rather than a model |
 | KevinHall_PIF | `new_config.json` | no | no | no | `population_impact_fraction.enabled` is true |
 
-So one example runs end to end: **HLM_France**, the reference example, which is what
-`tests/equivalence/` compares against the baseline.
+**Four of the six run end to end**, against two at the end of the previous run:
 
 ```
-healthgps: 1 run of 2010–2050, cohort 6244, seed 123456789, 6.7s
+HLM_France       6 diseases, 11 risk factors, cohort of     6,244, 2010–2050
+HLM_India       35 diseases, 11 risk factors, cohort of 1,240,613, 2010–2050
+KevinHall_FINCH 15 diseases, 34 risk factors, cohort of     6,817, 2022–2032
+KevinHall_India  7 diseases, 17 risk factors, cohort of    14,171, 2022–2026
 ```
 
-Every other example stops at a named missing feature with a pointer to
-[docs/backlog.md](backlog.md), never at a crash or a plausible-looking wrong number. The scope for
-this run was the HLM surface end to end plus the `simple` intervention; `StaticLinear`,
-`KevinHall`, the other five interventions and PIF are the backlog's top items, and the examples are
-here so that finishing each one has an acceptance test waiting for it.
+Two of them are compared against the baseline over many seeds: `HLM_France` and `KevinHall_FINCH`
+([docs/equivalence.md](equivalence.md)). The two India examples are run through the loader and the
+engine but not compared, which is this run's scope ruling: what they are for here is to make any
+missing disease directory or data inconsistency surface as a located input issue rather than as a
+mid-run failure, and they do.
 
-### The two near misses
+The two that stop, stop at a named missing feature with a pointer to
+[docs/backlog.md](backlog.md), never at a crash or a plausible-looking wrong number.
 
-**HLM_India** is blocked only by its choice of intervention. Its models are HLM, and with
-`active_type_id` set to `null` it validates against the release data: *35 diseases, 11 risk
-factors, cohort of 1,240,613 people, 2010–2050*. It is not checked in that way, because editing a
-config to make it pass is not a conversion.
+### KevinHall_FINCH and the policy files that are not there
 
-It is also the example that motivated the disease-registry ruling. Its `running.diseases` names
-`pulmonar`. In the 20240624 release the directory is `pulmonar` too, so it agrees. In the newer
-`hgps_main_data` checkout the directory has been renamed `pulmonary` while `Metadata.json` still
-says `pulmonar`, and pointing the same config at that tree gives:
+`KevinHall_FINCH/static_model.json` names two files the pack does not contain:
+
+```json
+"PolicyCovarianceFile":  { "name": "Finch_residual_policy_covariance.csv" }
+"RiskFactorModels": { "policy_coefficients": { "name": "policyeffect_model.csv" } }
+```
+
+What it ships is seven variants of each, `S1_`…`S7_`, one pair per modelled policy scenario. The
+example is broken as shipped — the baseline fails at load on it — and its sibling
+`new_static_model.json` names the `S1_` pair. This is audit finding **D-02**.
+
+The upstream examples are read-only, so the converter resolves it
+([ADR 0030](decisions/0030-policy-scenario-selection-for-the-broken-finch-example.md)). Given
+`--policy-scenario S1..S7`, defaulting to `S1`, it writes a patched copy of the static model beside
+the converted config and points the config at it:
+
+```bash
+out/build/release/tools/convert-config \
+    --input ../hgps_main_examples/KevinHall_FINCH/config.json \
+    --output examples/KevinHall_FINCH_S3/config.json --rebase --policy-scenario S3
+
+warning: the static model's PolicyCovarianceFile names 'Finch_residual_policy_covariance.csv',
+         which the upstream pack does not contain; it ships one file per policy scenario and this
+         conversion uses 'S3_Finch_residual_policy_covariance.csv' (audit D-02, --policy-scenario)
+warning: the static model's RiskFactorModels.policy_coefficients names 'policyeffect_model.csv', …
+note:    wrote static_model.S3.json and pointed the config at it
+```
+
+The checked-in `examples/KevinHall_FINCH/config.json` is converted from `new_config.json`, which
+already names the S1 pair, so it needs no patch. Converting the *legacy* `config.json` does, and
+then reveals a second inconsistency in it — it has no `income_stratum_factors_mean` block while its
+dynamic model ships one weight-quantile file per income quintile, which this build reports as
+
+```
+error [config_bad_value] …/dynamic_model.json (/WeightQuantiles/Male): WeightQuantiles.Male gives
+      one curve per quintile, but baseline_adjustments.income_stratum_factors_mean.enabled is
+      false, so there are no quintiles to give them to
+```
+
+That is the legacy config being older than the model file beside it, and it is why
+`new_config.json` is the source for the checked-in conversion.
+
+### HLM_India and the disease registry
+
+`HLM_India` now runs. It is also the example that motivated the disease-registry ruling. Its
+`running.diseases` names `pulmonar`. In the 20240624 release the directory is `pulmonar` too, so it
+agrees. In the newer `hgps_main_data` checkout the directory has been renamed `pulmonary` while
+`Metadata.json` still says `pulmonar`, and pointing the same config at that tree gives:
 
 ```
 warning [data_disease_not_in_registry] …/diseases/Metadata.json: names disease 'pulmonar', which
@@ -100,12 +144,20 @@ error   [data_disease_not_in_registry] /running/diseases: disease 'pulmonar' is 
 ```
 
 which is the whole point of validating the registry against the tree at load time
-([ADR 0012](decisions/0012-disease-naming-pulmonary.md), deviation D-01). The baseline finds
-out part-way through configuration, with `Disease code: 'pulmonar' not found.`
+([ADR 0012](decisions/0012-disease-naming-pulmonary.md), deviation D-01). The baseline finds out
+part-way through configuration, with `Disease code: 'pulmonar' not found.`
 
-**KevinHall_FINCH** converts with 15 rebased paths, including the five income-quintile FactorsMean
-strata, and its config loads — including the `income_stratum_factors_mean` block, which no test
-data in this repository exercises yet. Only the model families are missing.
+### KevinHall_India and the income trend
+
+`KevinHall_India` is the only example that uses an income trend — `trend.type: income_trend`, with
+`IncomeTrend` equations, an `ExpectedIncomeTrend`, an `IncomeTrendSteps` and an `IncomeDecayFactor`
+per risk factor. It is also the only one whose static model is in the *JSON* shape rather than the
+CSV-matrix one, so between them the two India examples and FINCH exercise both shapes of
+`StaticLinear` and both trend types.
+
+Two things it surfaced, both now handled: its top-level `PhysicalActivityStdDev` is `null` with the
+real value in the model block below it, and its `RiskFactorModels` entries carry five income-trend
+members the schema had no place for.
 
 ## Two things a reader should know before trusting a converted config
 
@@ -139,3 +191,23 @@ warning [csv_bad_value] …/France.DataFile.csv:551 (Age): 80 value(s) in this i
 The file declares `Age` as an integer and 80 of its 40,000 rows are not; its own `Age1` column
 carries `floor(Age)`, so truncation is what the data means. The arithmetic matches the baseline
 exactly — only the silence is gone. See [docs/deviations.md](deviations.md).
+
+`KevinHall_FINCH` reports **855** and `HLM_India` **1,183**, for the same reason and in the same
+proportion: they select fifteen and thirty-five diseases against a release that carries a fraction
+of the relative-risk files those diseases could have. Each line names a disease, a risk factor and
+a sex, and each means that one effect is off. A count in the hundreds is a property of the data
+release, not of the config — but it is worth reading the list once for a new study, because a
+missing file is indistinguishable from an effect somebody meant to switch off.
+
+## One more thing worth knowing about the baseline
+
+Running the baseline on `KevinHall_FINCH` twenty times, the same binary on the same config with the
+same seed, **two of the twenty exited on a signal** — once on `SIGTRAP` and once on `SIGSEGV` — and
+both succeeded when re-run unchanged. That is the concurrency defect the audit recorded (B-01,
+B-02: two scenario threads, and a repository populated lazily from inside a parallel loop, behind a
+lock-free fast path that races a concurrent insert).
+
+The equivalence harness retries a baseline run up to three times for this reason, and prints every
+retry it makes, so the flake is visible rather than smoothed away. It is not something a comparison
+against the baseline can fix, and it is the strongest single argument for the sequential-scenario
+design this implementation uses ([ADR 0009](decisions/0009-sequential-scenarios-and-the-migration-journal.md)).

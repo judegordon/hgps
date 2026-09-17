@@ -243,12 +243,32 @@ sim::AdjustmentTable AdjustableRiskFactorModel::calculate_adjustments(
                 range = (*ranges)[i];
             }
 
+            // Physical activity's *target* is never clamped, even though its adjusted values are.
+            // The two clamps are different things: clamping what a person ends up with keeps them
+            // inside the factor's domain, while clamping the expected value aims the calibration
+            // at a number the data does not say. It matters here because the FINCH FactorsMean
+            // table legitimately puts physical activity at 1.2 for a newborn, below the
+            // configured lower bound of 1.4 — clamping the target to 1.4 leaves the newborn band
+            // a tenth of a unit high and, because the shifted values then clear the bound instead
+            // of piling up on it, noticeably wider. This is the same ruling the risk factors got
+            // in the previous run: the adjustment's target is the table's value.
+            if (factor == kPhysicalActivity) {
+                range.reset();
+            }
+
             std::vector<double> deltas(age_count, 0.0);
             for (int age = age_range.lower(); age <= age_range.upper(); ++age) {
+                // The table, not the virtual get_expected. They differ for exactly one factor:
+                // the Kevin Hall model *derives* an adult's expected weight from a regression on
+                // their expected energy intake, height, age and activity level, and that
+                // regression is a fit **to** the table's own Weight column — 86.1912 against the
+                // table's 86.1864 for a 40-year-old man in the FINCH pack. Calibrating the
+                // population onto the fit rather than onto the measurement it approximates would
+                // be calibrating to the wrong number, by five grams per person. The derived value
+                // is what a person's weight is *generated* from; the measurement is what the
+                // population's mean is calibrated *to*.
                 const double expected =
-                    scope.expected_table != nullptr
-                        ? expected_from(*table, context, sex, age, factor, range, apply_trend)
-                        : get_expected(context, sex, age, factor, range, apply_trend);
+                    expected_from(*table, context, sex, age, factor, range, apply_trend);
                 const double mean = simulated.at(sex, factor).at(static_cast<std::size_t>(age));
 
                 // A NaN mean means nobody of this age and sex has the factor, so there is nothing
