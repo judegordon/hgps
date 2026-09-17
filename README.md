@@ -15,7 +15,9 @@ statement of derivation.
 An audit of the upstream baseline, its data and examples, and an earlier rewrite is in
 [docs/audit/](docs/audit) — start with [SUMMARY.md](docs/audit/SUMMARY.md). It found 19 confirmed
 defects in the baseline, six of them high severity, and a rewrite that fixed twelve of them while
-deleting the 471-test suite that was the only evidence any of it was correct.
+deleting the 471-test suite that was the only evidence any of it was correct. Four more baseline
+defects were found here, by running code the baseline's own tests never reach; they are in
+[docs/deviations.md](docs/deviations.md) as B-21 to B-24.
 
 The one requirement that shapes everything here follows from what the model is *for*. A comparison
 you cannot reproduce is not evidence, so:
@@ -78,6 +80,11 @@ implemented here, and HTTP download and zip extraction are delegated to `curl` a
 `--threads N` sets the worker count for the RNG-free parallel sections; the default is one, and the
 output is byte-identical either way. `--help` lists the rest.
 
+`convert-config` also takes `--policy-scenario S1..S7`, which selects one of the seven modelled
+policy scenarios the FINCH data pack ships. It matters for exactly one example, whose static model
+names a policy file the pack does not contain
+([ADR 0030](docs/decisions/0030-policy-scenario-selection-for-the-broken-finch-example.md)).
+
 Disease data is **not** vendored here: it is CC BY-NC-ND and is fetched on demand from a release
 URL with a required SHA-256 checksum, then cached content-addressed
 ([ADR 0011](docs/decisions/0011-data-fetched-not-vendored.md)). A local data directory works too.
@@ -103,15 +110,19 @@ Validation has two layers ([ADR 0006](docs/decisions/0006-validation-strategy.md
 - **The baseline's test suite, ported.** Its 471 tests were gone through one by one, keeping each
   test's intent and — wherever the numbers are the point — its expected values unchanged. Where a
   baseline test encoded one of the audit's findings, the expectation is changed and the finding ID
-  is named in the test. 348 have a counterpart here; the other 104 do not, and
-  [docs/test-port-map.md](docs/test-port-map.md) says of each whether that is scope (76, all in the
-  backlog — `KevinHall`, `StaticLinear`, PIF) or design (28, where the thing tested does not exist
-  here: the event bus, the sync channel, the lazy repository). 110 tests are new, including
-  byte-for-byte reproducibility at one thread and at N, a modulo-bias regression test,
-  ordered-sampling tests, and a test that an unseeded config is rejected. 433 in total.
-- **Statistical equivalence against the baseline** on the reference examples over at least 20 seeds,
-  comparing means, standard deviations and percentiles per output variable per year per scenario per
-  sex, within tolerances argued for in [docs/equivalence.md](docs/equivalence.md).
+  is named in the test. 408 have a counterpart here; 18 do not because population impact fraction
+  is out of scope, and 34 do not because the thing they test does not exist here by design — the
+  event bus, the sync channel, the lazy repository, the printed summary boxes.
+  [docs/test-port-map.md](docs/test-port-map.md) says which, suite by suite. **The 35 tests the
+  baseline skips run here**, and finding out whether they pass is how four defects were found. 220
+  tests are new, including byte-for-byte reproducibility at one thread and at N for every
+  intervention, a modulo-bias regression test, ordered-sampling tests, and a test that an unseeded
+  config is rejected. 548 in total.
+- **Statistical equivalence against the baseline** on both reference examples — `HLM_France` for
+  the HLM surface and `KevinHall_FINCH` for the FINCH one — over at least 20 seeds, comparing
+  means, standard deviations and percentiles per output variable per year per scenario per sex,
+  within tolerances argued for in [docs/equivalence.md](docs/equivalence.md). Any divergence that
+  is not explained by a recorded deviation fails the check; there is no failure budget.
 
 Bit-exact agreement with the baseline is deliberately **not** a goal: it would require reproducing
 four of the audit's confirmed defects on purpose.

@@ -6,89 +6,54 @@ complete.
 
 Tags:
 
-- `scope` — deliberately left out of this run ([ADR 0021](decisions/0021-scope-finch-and-hlm-france.md)).
+- `scope` — deliberately left out ([ADR 0021](decisions/0021-scope-finch-and-hlm-france.md)).
 - `correctness` — something could produce a wrong number or refuse a valid input.
 - `validation` — makes an existing claim checkable, or checks it harder.
 - `platform` — build, CI, packaging.
 - `cleanup` — internal, no behaviour change.
 - `docs`
 
+The previous run's first three items — `StaticLinear`, `KevinHall`, the other five interventions —
+are done, and with them the FINCH surface end to end. What is left is smaller and more varied.
+
 ## Do these first
 
-### 1. `StaticLinear`, and with it region, ethnicity, income and physical activity — `scope`
+### 1. A CI workflow — `platform`
 
-**Value: high. Effort: high** (the baseline's `static_linear_model.cpp` is 2,615 lines.)
-
-This is the single item everything else in the FINCH surface waits on. It brings:
-
-- the continuous income model and income-quintile FactorsMean strata (16 baseline tests,
-  `IncomeStratumAdjustment` and part of `ModelParserFinch`);
-- region and ethnicity assignment, including **loading their prevalence data**, which nothing does
-  today. `DemographicModule::set_region_prevalence` exists and is never called, so a config with
-  `demographics.region: true` is accepted and then refused at run time with *"the project requires
-  regions but no region prevalence data was loaded"*. That refusal is honest but it is a hole, and
-  `KevinHall_FINCH` needs both flags true;
-- the continuous physical-activity model;
-- the two-stage logistic option (`project_requirements.two_stage`), which is parsed and validated
-  and consumed nowhere;
-- the trend types other than `null` — `upf_trend` and `income_trend` are implemented in the
-  adjustment path but no static model sets up the trend tables they read.
-
-Unblocks: `KevinHall_India` and, with the next item, `KevinHall_FINCH`.
-
-### 2. `KevinHall` — `scope`
-
-**Value: high. Effort: high** (1,462 lines, plus the nutrient tables and weight quantiles.)
-
-The energy-balance model. Brings 30 baseline tests — `KevinHallHeight`,
-`KevinHallWeightQuantiles`, `KevinHallWeightValidation` — which are **30 of the baseline's own 35
-skips** (audit B-11): they have never run in the baseline's CI, so porting them is the first time
-anyone finds out whether they pass. Point them at the synthetic pack or the converted FINCH
-example and make them fail rather than skip, which is what the test fixture is set up to do.
-
-Unblocks: the equivalence harness's second example, which is already defined in
-`tests/equivalence/run.py` and reports that this build cannot run it.
-
-### 3. The other five interventions — `scope`
-
-**Value: medium. Effort: medium.** `marketing`, `dynamic_marketing`, `food_labelling`,
-`physical_activity`, `fiscal`. Each is a small scenario class; `fiscal` is the largest because of
-its impact-type variants. Brings seven baseline tests and makes `HLM_India` run (it is blocked
-*only* by selecting `food_labelling`) and `KevinHall_PIF`'s scenario set usable.
-
-`docs/examples.md` has the current state: four of six converted examples load, one runs.
-
-### 4. Population impact fraction — `scope`
-
-**Value: medium. Effort: medium.** 18 baseline tests across seven suites. The config block is
-carried through the converter and rejected at load with a named error, so the shape is known. It
-needs the PIF data tables and the disease-model hook.
-
-## Worth doing soon
-
-### 5. Equivalence for the FINCH surface — `validation`
-
-**Value: high once (2) lands. Effort: low.** The harness already defines the example; nothing in
-it needs to change. Until then the comparison covers one of two in-scope surfaces.
-
-### 6. More seeds in the checked-in reference — `validation`
-
-**Value: medium. Effort: low.** The checked-in baseline reference is 20 seeds (1.6 MB gzipped).
-[docs/equivalence.md](equivalence.md) shows the standard-deviation comparison is the weak point at
-n = 20 — its standard error is 16% of the standard deviation — and that 29 of the 54 failures are
-standard deviations. Sixty seeds is about 5 MB and fifteen minutes; the decision is whether that
-belongs in the repository or in CI artefacts.
-
-### 7. A CI workflow — `platform`
-
-**Value: high. Effort: low.** `scripts/check.sh` is the whole of it: configure, build and test
-four presets, then the equivalence harness against the stored reference. What is missing is the
-workflow file, a Linux runner (this run was developed and measured on macOS only, though the code
-targets both — [ADR 0013](decisions/0013-platforms-linux-and-macos.md)) and a decision about
+**Value: high. Effort: low.** `scripts/check.sh` is the whole of it: configure, build and test the
+four presets, then the equivalence harness against both stored references. What is missing is the
+workflow file, a Linux runner — everything here was developed and measured on macOS, though the
+code targets both ([ADR 0013](decisions/0013-platforms-linux-and-macos.md)) — and a decision about
 whether the disease-data fetch happens in CI or whether CI runs only against the synthetic pack.
 The synthetic pack exists precisely so that it can.
 
-### 8. Individual-level tracking output — `scope`
+This is first because the two equivalence references are checked in and nothing runs them
+automatically. A harness nobody runs is a document.
+
+### 2. Population impact fraction — `scope`
+
+**Value: medium-high. Effort: medium.** 18 baseline tests across seven suites, and the last model
+feature of the upstream surface that is refused rather than implemented. The config block is
+carried through the converter and rejected at load with a named error, so the shape is known
+(`src/config/loader.cpp:1001`). It needs the PIF data tables and the disease-model hook.
+
+Unblocks `KevinHall_PIF`, the one converted example that does not load.
+
+### 3. Resolve factor and channel names to indices once per run — `cleanup`
+
+**Value: medium-high. Effort: medium.** [docs/performance.md](performance.md) profiles both
+examples and finds the same thing in each: the program is dominated by `std::map` lookups keyed by
+strings, not by arithmetic. `core::Identifier` compares by string — deliberately, because
+comparing by the cached hash is audit finding B-04 — and every risk-factor read on every person in
+every year is such a comparison.
+
+The change is contained to `Person::risk_factors` and `DataSeries`: resolve each name to an index
+at start-up and use the index on the hot path. It is worth doing carefully rather than quickly,
+because an index-keyed store is exactly the kind of change that can reorder a reduction without
+anyone noticing. Doing it wants both equivalence references re-run, which is an hour, and the
+determinism tests to stay green, which they should.
+
+### 4. Individual-level tracking output — `scope`
 
 **Value: medium. Effort: low-medium.** `output.individual_tracking` is parsed, validated and
 carried in `config::IndividualTracking`, and nothing writes the file. The baseline's
@@ -97,41 +62,76 @@ baseline's person IDs matter, and it is why this implementation kept the monoton
 counter rather than the earlier rewrite's slot reuse
 ([ADR 0017](decisions/0017-person-ids-monotonic-and-free-slots.md)).
 
-### 9. Give the age-band immigration a fallback donor — `correctness`
+## Worth doing soon
+
+### 5. Equivalence for the two India examples — `validation`
+
+**Value: medium. Effort: low-medium.** `HLM_India` and `KevinHall_India` load and run in both
+implementations; this run's ruling was to put them through the loader so that data
+inconsistencies surface as located input issues, and not to compare them. The harness needs only a
+new entry in its example table.
+
+The cost is not the harness, it is the runs: `HLM_India`'s cohort is 1,240,613 people against
+France's 6,244, so twenty seeds of both implementations is hours rather than minutes, and its
+stored reference would be large. A sampled cohort would make it cheap and would no longer be the
+example anyone ships.
+
+### 6. A second country for the FINCH surface — `validation`
+
+**Value: medium. Effort: low.** The FINCH equivalence evidence is one pack, one country. The same
+static-linear and Kevin Hall code paths run `KevinHall_India` with a different factor set,
+different food groups and a different cohort. Item 5 covers the mechanics; this is the reason to
+prioritise `KevinHall_India` over `HLM_India` within it.
+
+### 7. A fallback donor for immigration into an empty band — `correctness`
 
 **Value: low-medium. Effort: low.** When an age-sex band is empty there is nobody to clone an
-immigrant from, so both implementations skip it and the cohort falls short of the projected total
-by a few people. [docs/equivalence.md](equivalence.md) shows this is the single mechanism behind
-all 54 out-of-tolerance comparisons. The baseline has a nearest-age search in its demographic
-module (`demographic.cpp:662`) that it does not use for this; using the nearest non-empty band
-would make the target always achievable. It changes results, so it needs a deviation entry and a
-re-run of the harness.
+immigrant from, so both implementations skip it and the cohort falls short of the demographic
+projection by a few people. It is recorded as **B-21**, reported per year as
+`ImmigrationShortfallPeople` and `ImmigrationShortfallBands`, and it is the mechanism behind the
+equivalence harness's one exclusion rule.
 
-### 10. Windows — `platform`
+Keeping the baseline's rule was the right call for a comparison, but the shortfall is still a run
+that misses its own target. The baseline has a nearest-age search in its demographic module
+(`demographic.cpp:662`) that it does not use for this. Using it would make the target always
+achievable, at the cost of nudging the age distribution. It changes results, so it needs a
+deviation entry, an ADR and a re-run of both references.
 
-**Value: unknown. Effort: medium.** Not targeted ([ADR 0013](decisions/0013-platforms-linux-and-macos.md)).
-The code avoids PSTL and `<syncstream>` and has one `__APPLE__` branch, so the likely work is the
-executable-path lookup, `posix_spawn` (used for `curl` and `unzip`), and the file-system
-assumptions in the cache. Only worth doing if someone needs it.
+### 8. More seeds, and a smaller stored reference — `validation`
+
+**Value: low-medium. Effort: low.** Both references are 20 seeds, confirmed at 60 and then
+discarded. Keeping the 60-seed references would be about 12 MB gzipped. The alternative is to
+store the reduction rather than the raw results — the harness reduces to (scenario, year, sex,
+variable) before it compares anything, and the reduction is two orders of magnitude smaller — at
+the cost of not being able to change the reduction without a re-run.
+
+### 9. Windows — `platform`
+
+**Value: unknown. Effort: medium.** Not targeted
+([ADR 0013](decisions/0013-platforms-linux-and-macos.md)). The code avoids PSTL and
+`<syncstream>` and has one `__APPLE__` branch, so the likely work is the executable-path lookup,
+`posix_spawn` (used for `curl` and `unzip`), and the file-system assumptions in the cache. Only
+worth doing if someone needs it.
 
 ## Smaller things
 
-### 11. A schema for the model definition files — `docs`
+### 10. A schema for the model definition files — `docs`
 
 **Value: medium. Effort: low.** `schemas/v2/` covers the config. The static and dynamic model
-files have no published schema, which is exactly why their member names were wrong for a week:
-`m`, `w`, `s`, `residualsStandardDeviation`, `rSquared` are documented only in
-`src/config/models/*.cpp` and in `tests/config/model_loader_test.cpp`. Write them, and extend
-`schema_agreement_test.cpp` to cover them the way it covers the config.
+files have no published schema, which is why their member names were wrong for a week in the
+previous run and why this run spent an afternoon on the FINCH pack's headerless two-column CSVs
+and its R row-index columns. The shapes are documented only in `src/config/models/*.cpp` and in
+the three loader test files. Write them, and extend `schema_agreement_test.cpp` to cover them the
+way it covers the config.
 
-### 12. Sector, and `demographic_models` — `scope`
+### 11. Sector, and `demographic_models` — `scope`
 
 **Value: low. Effort: low.** `person.sector` (urban/rural) is assigned nowhere; the channel
 appears if the mapping declares the factor. `modelling.demographic_models` is carried through as
 opaque JSON, deliberately — its shape belongs to the model family that reads it — and no model
 family reads it yet.
 
-### 13. The fixture pack's top-age artefact — `validation`
+### 12. The fixture pack's top-age artefact — `validation`
 
 **Value: low. Effort: low.** The synthetic pack's population table stops at the same age as the
 config's `age_range`, so anyone reaching the top age leaves the cohort and the pack's simulated
@@ -139,16 +139,20 @@ death rate runs above what its mortality table implies. Recorded in the pack's o
 Extending the pack's age range by a few years above the configured one would remove the artefact;
 nothing depends on it, because no test reads the pack's death rates as a check on anything.
 
-### 14. Profile the disease module — `cleanup`
+### 13. Report the baseline's FINCH crash upstream — `docs`
 
-**Value: low. Effort: low.** [docs/performance.md](performance.md) has where the time goes. The
-one clear candidate is the per-person, per-disease relative-risk lookup, which dominates and is
-pure arithmetic over tables that never change during a run.
+**Value: low here, high upstream. Effort: low.** Running the baseline twenty times on
+`KevinHall_FINCH` — same binary, same config, same seed — produced two runs that exited on a
+signal, once `SIGTRAP` and once `SIGSEGV`, both of which succeeded when re-run unchanged. That is
+audit findings B-01 and B-02 (concurrent scenarios, lazily-populated repository) showing up as a
+crash rather than as a reordering. The equivalence harness retries up to three times and prints
+every retry, so it is visible rather than smoothed away; what is not done is telling upstream.
 
 ## Explicitly not planned
 
 - **Reintroducing the event bus.** Fifteen baseline tests, no purpose here: the runner hands each
-  row to a sink, which is the one place output is written ([ADR 0020](decisions/0020-output-single-owner-defined-row-order.md)).
+  row to a sink, which is the one place output is written
+  ([ADR 0020](decisions/0020-output-single-owner-defined-row-order.md)).
 - **Reintroducing `SyncChannel`.** Nine baseline tests, and the mechanism behind audit B-01
   ([ADR 0009](decisions/0009-sequential-scenarios-and-the-migration-journal.md)).
 - **A lazy, cached data repository.** Three baseline tests, and the mechanism behind audit B-02.
@@ -159,3 +163,5 @@ pure arithmetic over tables that never change during a run.
   ([ADR 0008](decisions/0008-determinism-contract-enforced-by-types.md)). The determinism
   contract is per-binary, and the cheap wins that happen to help across platforms — no unordered
   CDF, pinned floating-point contraction, no `std::generate_canonical` — are in it anyway.
+- **The `dummy` model family.** `Dummy_disease_test` selects it. It is a test double that upstream
+  ships as an example; this implementation has its own fixtures for that job.

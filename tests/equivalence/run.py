@@ -54,6 +54,20 @@ for both sexes, at every seed.
 
 If a run finds an empty band outside the recorded set, the stored reduction is no longer the right
 one and the harness says so and fails, rather than quietly widening the exclusion.
+
+Comparing one intervention at a time
+------------------------------------
+
+`--intervention NAME` activates a different policy in both implementations. Each choice is a
+different scenario and therefore a different stored reference, because the reference is keyed by
+the hash of the config that produced it, so the five extra policies do not disturb the reference
+for `simple`.
+
+    tests/equivalence/run.py --example HLM_France --seeds 20 --intervention fiscal
+
+`KevinHall_FINCH` ships only `simple`, and its impact list is empty, so the definitions for the
+other five come from `tests/equivalence/interventions/KevinHall_FINCH.json`. See
+`intervention_overlay` for exactly what is in that file and what was changed.
 """
 
 from __future__ import annotations
@@ -72,7 +86,7 @@ import statistics
 import subprocess
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -173,8 +187,35 @@ def absolutise(document: dict, base: Path) -> None:
     fix(two_stage, "logistic_file")
 
 
+INTERVENTION_OVERLAYS = Path(__file__).resolve().parent / "interventions"
+
+
+def intervention_overlay(example_name: str) -> dict:
+    """The intervention definitions an example does not ship but the comparison needs.
+
+    `KevinHall_FINCH` declares exactly one intervention, `simple`, and its impact list is
+    **empty** — so activating it compares the baseline scenario against a copy of itself. That
+    still exercises the whole FINCH model surface, but it exercises none of the five age-banded
+    policies against the FINCH surface, where an energy impact propagates through the Kevin Hall
+    energy balance into weight and BMI rather than being a shift in a static factor.
+
+    `tests/equivalence/interventions/KevinHall_FINCH.json` is HLM_France's own five definitions,
+    verbatim from the upstream example, with two substitutions and nothing else:
+
+      * the active period becomes FINCH's own — 2025 onwards, which is what its `simple`
+        declares — because HLM_France's runs to 2050 and the FINCH horizon ends in 2032;
+      * the risk factor `Energy` becomes `EnergyIntake`, which is FINCH's name for it.
+
+    The numbers are France's and mean nothing for Finland. That does not matter for what they are
+    used for: both implementations get the identical definition, and the question asked is whether
+    they apply it identically.
+    """
+    path = INTERVENTION_OVERLAYS / f"{example_name}.json"
+    return json.loads(path.read_text()) if path.is_file() else {}
+
+
 def derive_config(source: Path, seed: int, output_folder: Path, intervention: str | None,
-                  stop_time: int | None, is_baseline: bool) -> dict:
+                  stop_time: int | None, is_baseline: bool, overlay: dict | None = None) -> dict:
     document = json.loads(source.read_text())
 
     # The baseline reads a seed array; config v2 requires a scalar.
@@ -184,6 +225,9 @@ def derive_config(source: Path, seed: int, output_folder: Path, intervention: st
         document["running"]["stop_time"] = stop_time
 
     if intervention is not None:
+        types = document["running"]["interventions"].setdefault("types", {})
+        if intervention not in types and overlay and intervention in overlay:
+            types[intervention] = overlay[intervention]
         document["running"]["interventions"]["active_type_id"] = intervention
 
     document["output"]["folder"] = str(output_folder)
@@ -777,6 +821,11 @@ def main() -> int:
                              "run is reproducible from these two numbers alone")
     parser.add_argument("--stop-time", type=int, default=None,
                         help="override running.stop_time in both, for a quicker check")
+    parser.add_argument("--intervention", default=None,
+                        help="override which intervention is active in both implementations. The "
+                             "default is the example's own, which is `simple`. Each choice is a "
+                             "different scenario and therefore a different stored reference, "
+                             "because the reference is keyed by the config that produced it.")
     parser.add_argument("--baseline", type=Path,
                         default=Path("/tmp/hgps-build/baseline-release/src/HealthGPS.Console/"
                                      "HealthGPS.Console"),
@@ -813,6 +862,9 @@ def main() -> int:
     for name in names:
         if name not in available:
             parser.error(f"unknown example '{name}'; known: {', '.join(available)}")
+    if arguments.intervention is not None:
+        for name in names:
+            available[name] = replace(available[name], intervention=arguments.intervention)
 
     seeds = list(range(arguments.first_seed, arguments.first_seed + arguments.seeds))
     if len(seeds) < 3:
@@ -834,9 +886,11 @@ def main() -> int:
 
         # The config hash is over the derived config with the seed removed, so it identifies the
         # scenario rather than one run of it, and a stored reference can be matched to it.
+        overlay = intervention_overlay(name)
+
         def hash_of(source: Path, is_baseline: bool) -> str:
             document = derive_config(source, 0, Path("/results"), example.intervention,
-                                     arguments.stop_time, is_baseline)
+                                     arguments.stop_time, is_baseline, overlay)
             document["running"].pop("seed", None)
             return sha256_of(json.dumps(document, sort_keys=True))
 
@@ -889,7 +943,7 @@ def main() -> int:
                 folder.mkdir(parents=True)
 
                 document = derive_config(source, seed, folder, example.intervention,
-                                         arguments.stop_time, is_baseline)
+                                         arguments.stop_time, is_baseline, overlay)
                 config_path = folder.parent / f"config-seed-{seed}.json"
                 link_example_files(source.parent, config_path.parent)
                 config_path.write_text(json.dumps(document, indent=1))
