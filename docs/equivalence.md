@@ -249,6 +249,18 @@ evidence is not one config.
 
 ## Reproducing this
 
+### The failure budget
+
+54 out-of-tolerance comparisons, documented and traced to one cause, must not leave a permanently
+red check that nobody reads — and must not hide a regression either. So the harness takes
+`--max-failures N`, defaulting to **none**, and `scripts/check.sh` passes **60**: the recorded
+residual with a little headroom. Anything beyond that fails the build, and the count is printed
+either way, so a rise from 54 to 59 is visible even though it passes. A series that only one
+implementation reports at all always fails, whatever the budget.
+
+The number to change when the last cause is fixed — giving the age-band immigration a fallback
+donor, item 9 in [docs/backlog.md](backlog.md) — is that 60, down to 0.
+
 ```bash
 # The full check, running the baseline binary as well (about five minutes).
 tests/equivalence/run.py --example HLM_France --seeds 20 --refresh-reference
