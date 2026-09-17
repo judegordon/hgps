@@ -318,6 +318,47 @@ Build status is recorded in `08-rewrite-issues.md` alongside the compile diagnos
 Per the audit rules, all tool output was treated as leads only; nothing appears as a finding in
 `04-baseline-issues.md` or `08-rewrite-issues.md` without confirmation by reading the code.
 
+### 4.5b Deviation from the read-only rule — four example files were modified
+
+The four source folders were to be treated as read-only. **Four files in `hgps_main_examples` were
+inadvertently modified** during the example dry-run sweep and are recorded here rather than left
+unmentioned:
+
+```
+hgps_main_examples/Dummy_disease_test/config.json
+hgps_main_examples/KevinHall_India/config.json
+hgps_main_examples/KevinHall_PIF/config.json
+hgps_main_examples/KevinHall_FINCH/config.json
+```
+
+**Cause.** A scratch directory under `/tmp` was populated by symlinking every file from the example
+pack, including `config.json`. A later step re-serialised `<scratch>/config.json` in place; because
+that path was a symlink, the write followed it back into the source tree.
+
+**Extent — whitespace only.** Verified after the fact:
+
+- Indentation changed from 4 spaces to 2, and compact inline arrays (`"age_range": [0, 110]`) were
+  expanded across multiple lines.
+- **No semantic change.** The `data` block (release URL and checksum) and the `output` block
+  (`${HOME}/…` folder, `{TIMESTAMP}` file name) in all four files still hold their upstream values,
+  matching their untouched sibling configs in the same directories. A grep confirms none of the
+  audit's substituted values (`/tmp/hgps-audit-build/…`, the local data path) is present in any of
+  them.
+- No numeric reformatting occurred, and all four remain valid JSON with every required top-level
+  key.
+
+**Not restorable byte-exactly.** The examples repository is not under version control, and
+re-serialising with 4-space indentation does not reproduce the originals: the upstream style uses
+compact inline arrays that a JSON serialiser expands. Round-tripping an *untouched* file through
+`json.load`/`json.dump(indent=4)` was tested and does not return the original bytes, so no
+reconstruction would either.
+
+**State left.** The files were left as they are rather than partially rewritten again, since a
+second in-place edit could not restore the originals and would add a further unrecorded change. The
+analysis in `02-data-and-examples.md` is unaffected — it depends on the parsed values, which are
+intact, and the dry-run evidence for D-01 and D-02 was gathered from the file contents, not their
+formatting.
+
 ### 4.6 Reference run — reproducibility check
 
 A reference configuration derived from `hgps_main_examples/HLM_France/config.json` was run
