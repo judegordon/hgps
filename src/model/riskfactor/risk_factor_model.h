@@ -82,6 +82,36 @@ class RiskFactorModel {
 
     /// @brief What this model assigns besides the declared risk factors. Nothing, by default.
     virtual AssignedAttributes assigns() const noexcept { return {}; }
+
+    /// @brief Risk factors this model creates that `modelling.risk_factors` does not declare.
+    ///
+    /// The FINCH static model generates twenty-one *food group* intakes — `FoodCarbohydrate` and
+    /// the rest — which the config's risk factor list does not mention, because what it declares
+    /// are the *nutrients* the Kevin Hall model derives from them. They are real risk factors on
+    /// a person all the same, so a later model's coefficients may name them, and load-time
+    /// validation has to know about them or it would reject a correct model file.
+    virtual std::vector<core::Identifier> generated_factors() const { return {}; }
+};
+
+/// @brief Which people a calibration pass covers, and against which expected values.
+///
+/// The FINCH shape calibrates each income quintile against its own FactorsMean tables, so a pass
+/// needs both an alternative expected table and a filter. The defaults give the ordinary
+/// whole-population pass against the model's own table.
+///
+/// At namespace scope rather than nested in the model, because a default argument of a member
+/// function may not use a nested class's default member initialiser.
+struct AdjustmentScope {
+    /// @brief An expected table to use instead of the model's own, or null.
+    const SexAgeFactorTable *expected_table{nullptr};
+
+    /// @brief When set, only people carrying this adjustment stratum take part — both in the
+    ///        simulated mean and in the shift.
+    ///
+    /// The deltas travel to the intervention through the journal, which replays a year's passes
+    /// in the order they were recorded; membership of a stratum is decided locally in each
+    /// scenario, exactly as in the baseline.
+    std::optional<std::size_t> income_stratum;
 };
 
 /// @brief A model that calibrates simulated means to the FactorsMean tables.
@@ -91,17 +121,30 @@ class RiskFactorModel {
 /// it goes in the journal (ADR 0009).
 class AdjustableRiskFactorModel : public RiskFactorModel {
   public:
-    AdjustableRiskFactorModel(std::shared_ptr<const SexAgeFactorTable> expected,
-                              std::shared_ptr<const std::map<core::Identifier, double>> trend,
-                              std::shared_ptr<const std::map<core::Identifier, int>> trend_steps,
-                              TrendType trend_type = TrendType::Null);
+    /// @param trend       For the UPF trend, `ExpectedTrend` per factor; for the income trend,
+    ///                     `ExpectedIncomeTrend`.
+    /// @param trend_steps  How many years the UPF trend keeps compounding for. Unused by the
+    ///                     income trend, which decays instead of stopping.
+    /// @param decay        The income trend's per-factor exponential decay. Null otherwise.
+    AdjustableRiskFactorModel(
+        std::shared_ptr<const SexAgeFactorTable> expected,
+        std::shared_ptr<const std::map<core::Identifier, double>> trend,
+        std::shared_ptr<const std::map<core::Identifier, int>> trend_steps,
+        TrendType trend_type = TrendType::Null,
+        std::shared_ptr<const std::map<core::Identifier, double>> decay = nullptr);
 
     /// @brief The expected value of a factor for a sex and age, with any trend applied.
+    ///
+    /// Virtual because the Kevin Hall model derives some of its expected values rather than
+    /// reading them: a nutrient's from the expected food intakes, a weight's from the expected
+    /// energy intake, height and physical activity.
+    ///
     /// @throws diag::InternalError if the FactorsMean table has no column for the factor — which
     ///         is a model definition that names a factor its own calibration data lacks.
-    double get_expected(RuntimeContext &context, core::Gender sex, int age,
-                        const core::Identifier &factor,
-                        std::optional<core::DoubleInterval> range, bool apply_trend) const;
+    virtual double get_expected(RuntimeContext &context, core::Gender sex, int age,
+                                const core::Identifier &factor,
+                                std::optional<core::DoubleInterval> range,
+                                bool apply_trend) const;
 
     /// @brief The number of years a factor's trend keeps being applied for.
     int get_trend_steps(const core::Identifier &factor) const;
@@ -109,8 +152,8 @@ class AdjustableRiskFactorModel : public RiskFactorModel {
     /// @brief Shifts every person's factors so the simulated means match the expected ones.
     void adjust_risk_factors(RuntimeContext &context, sim::ScenarioJournal &journal,
                              const std::vector<core::Identifier> &factors,
-                             const std::vector<core::DoubleInterval> *ranges,
-                             bool apply_trend) const;
+                             const std::vector<core::DoubleInterval> *ranges, bool apply_trend,
+                             const AdjustmentScope &scope = {}) const;
 
     /// @brief The factors whose zeros are excluded from the simulated mean, because a two-stage
     ///        model treats zero as "not applicable" rather than as a low value.
@@ -119,23 +162,33 @@ class AdjustableRiskFactorModel : public RiskFactorModel {
   protected:
     const SexAgeFactorTable &expected() const noexcept { return *expected_; }
 
+    /// @brief The same lookup against an arbitrary table — an income stratum's, say.
+    double expected_from(const SexAgeFactorTable &table, RuntimeContext &context,
+                         core::Gender sex, int age, const core::Identifier &factor,
+                         std::optional<core::DoubleInterval> range, bool apply_trend) const;
+
+    TrendType trend_type() const noexcept { return trend_type_; }
+
     /// @brief The simulated mean of each factor by sex and age. NaN where nobody contributed.
     static SexAgeFactorTable
     calculate_simulated_mean(const Population &population, core::IntegerInterval age_range,
                              const std::vector<core::Identifier> &factors,
-                             const std::vector<core::Identifier> &logistic_factors);
+                             const std::vector<core::Identifier> &logistic_factors,
+                             std::optional<std::size_t> income_stratum = std::nullopt);
 
   private:
     std::shared_ptr<const SexAgeFactorTable> expected_;
     std::shared_ptr<const std::map<core::Identifier, double>> trend_;
     std::shared_ptr<const std::map<core::Identifier, int>> trend_steps_;
+    std::shared_ptr<const std::map<core::Identifier, double>> decay_;
     TrendType trend_type_{TrendType::Null};
     std::vector<core::Identifier> logistic_factors_;
 
     sim::AdjustmentTable calculate_adjustments(RuntimeContext &context,
                                                 const std::vector<core::Identifier> &factors,
                                                 const std::vector<core::DoubleInterval> *ranges,
-                                                bool apply_trend) const;
+                                                bool apply_trend,
+                                                const AdjustmentScope &scope) const;
 };
 
 /// @brief Hosts the static and dynamic models, and runs whichever the year calls for.

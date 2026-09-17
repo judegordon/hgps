@@ -155,8 +155,24 @@ double SimplePolicyScenario::apply(rng::RandomSource & /*random*/, model::Person
 
 std::unique_ptr<Scenario>
 create_intervention_scenario(const config::InterventionSpec &definition) {
+    // The six upstream identifiers, spelled as upstream spells them.
     if (definition.identifier == "simple") {
         return std::make_unique<SimplePolicyScenario>(definition);
+    }
+    if (definition.identifier == "marketing") {
+        return std::make_unique<MarketingScenario>(definition);
+    }
+    if (definition.identifier == "dynamic_marketing") {
+        return std::make_unique<DynamicMarketingScenario>(definition);
+    }
+    if (definition.identifier == "fiscal") {
+        return std::make_unique<FiscalScenario>(definition);
+    }
+    if (definition.identifier == "physical_activity") {
+        return std::make_unique<PhysicalActivityScenario>(definition);
+    }
+    if (definition.identifier == "food_labelling") {
+        return std::make_unique<FoodLabellingScenario>(definition);
     }
 
     throw diag::InternalError(

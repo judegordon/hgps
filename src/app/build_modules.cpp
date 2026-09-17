@@ -459,8 +459,8 @@ std::optional<sim::Modules> build_modules(const LoadedInputs &loaded,
 
     sim::Modules modules;
 
-    modules.demographic = std::make_unique<model::DemographicModule>(loaded.population_data,
-                                                                      *loaded.life_table);
+    auto demographic = std::make_unique<model::DemographicModule>(loaded.population_data,
+                                                                   *loaded.life_table);
 
     modules.ses = std::make_unique<model::SesNoiseModule>(
         loaded.inputs->ses_definition().function_name,
@@ -470,12 +470,26 @@ std::optional<sim::Modules> build_modules(const LoadedInputs &loaded,
     // two futures through something other than the journal.
     const config::models::LoadContext context{.mapping = &loaded.inputs->risk_mapping(),
                                                .expected = loaded.expected,
-                                               .config = &config};
+                                               .config = &config,
+                                               .trend = loaded.trend,
+                                               .trend_steps = loaded.trend_steps};
 
     auto models = config::models::load_risk_factor_models(context, report);
     if (!models.has_value()) {
         return std::nullopt;
     }
+
+    // Region and ethnicity come out of the static model's own file but are assigned by the
+    // demographic module, which is the only thing that sees a person before their risk factors
+    // exist.
+    if (!models->prevalence.region.empty()) {
+        demographic->set_region_prevalence(std::move(models->prevalence.region));
+    }
+    if (!models->prevalence.ethnicity.empty()) {
+        demographic->set_ethnicity_prevalence(std::move(models->prevalence.ethnicity));
+    }
+
+    modules.demographic = std::move(demographic);
 
     // What the models assign decides part of the output's column set, so it is read before the
     // models are handed to the host module.

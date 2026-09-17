@@ -105,18 +105,25 @@ ModelResult AnalysisModule::analyse(RuntimeContext &context) const {
 
 void AnalysisModule::calculate_historical_statistics(RuntimeContext &context,
                                                      ModelResult &result) const {
+    // Both sexes are present in every accumulator from the start, and the accumulators are
+    // GenderValue rather than a map keyed by sex. A map filled in as people are walked has an
+    // entry only for the sexes that actually occurred, so reading it back for the other one
+    // throws — which is a crash that appears only when a disease, or a whole sex, happens to be
+    // absent from the cohort. Pinned by
+    // `TestSimulation.ReportsAStatisticForBothSexesEvenWhenOneHasNobody`.
+
     // Every level-1-and-above factor is reported as a mean; level 0 factors are the demographic
     // ones, reported from their own members.
-    std::map<core::Identifier, std::map<core::Gender, double>> risk_factors;
+    std::map<core::Identifier, GenderValue<double>> risk_factors;
     for (const auto &entry : context.mapping()) {
         if (entry.level() > 0) {
-            risk_factors.emplace(entry.key(), std::map<core::Gender, double>{});
+            risk_factors.emplace(entry.key(), GenderValue<double>{});
         }
     }
 
-    std::map<core::Identifier, std::map<core::Gender, int>> prevalence;
+    std::map<core::Identifier, GenderValue<int>> prevalence;
     for (const auto &disease : context.diseases()) {
-        prevalence.emplace(disease.code, std::map<core::Gender, int>{});
+        prevalence.emplace(disease.code, GenderValue<int>{});
     }
 
     std::map<unsigned int, ResultByGender> comorbidity;
@@ -124,8 +131,8 @@ void AnalysisModule::calculate_historical_statistics(RuntimeContext &context,
         comorbidity.emplace(i, ResultByGender{});
     }
 
-    std::map<core::Gender, int> age_sum;
-    std::map<core::Gender, int> counts;
+    GenderValue<int> age_sum{};
+    GenderValue<int> counts{};
 
     const auto analysis_time = static_cast<unsigned int>(context.time_now());
     const auto max_age = static_cast<unsigned int>(context.age_range().upper());
@@ -146,15 +153,15 @@ void AnalysisModule::calculate_historical_statistics(RuntimeContext &context,
             continue;
         }
 
-        age_sum[person.gender] += static_cast<int>(person.age);
-        counts[person.gender] += 1;
+        age_sum.at(person.gender) += static_cast<int>(person.age);
+        counts.at(person.gender) += 1;
 
         for (auto &[factor, by_gender] : risk_factors) {
             const auto value = person.risk_factors.find(factor);
             const double factor_value =
                 value == person.risk_factors.end() || std::isnan(value->second) ? 0.0
                                                                                : value->second;
-            by_gender[person.gender] += factor_value;
+            by_gender.at(person.gender) += factor_value;
         }
 
         unsigned int active_diseases = 0;
@@ -163,7 +170,7 @@ void AnalysisModule::calculate_historical_statistics(RuntimeContext &context,
                 ++active_diseases;
                 const auto counted = prevalence.find(disease);
                 if (counted != prevalence.end()) {
-                    counted->second[person.gender] += 1;
+                    counted->second.at(person.gender) += 1;
                 }
             }
         }
@@ -172,29 +179,28 @@ void AnalysisModule::calculate_historical_statistics(RuntimeContext &context,
     }
 
     // Guarded against zero, so an empty sex reports zeros rather than NaNs.
-    const auto males = std::max(1, counts[core::Gender::male]);
-    const auto females = std::max(1, counts[core::Gender::female]);
+    const auto males = std::max(1, counts.male);
+    const auto females = std::max(1, counts.female);
 
     result.population_size = static_cast<int>(population.size());
     result.number_alive = GenderValue<int>{males, females};
     result.number_dead = dead;
     result.number_emigrated = migrated;
-    result.average_age.male = age_sum[core::Gender::male] * 1.0 / males;
-    result.average_age.female = age_sum[core::Gender::female] * 1.0 / females;
+    result.average_age.male = age_sum.male * 1.0 / males;
+    result.average_age.female = age_sum.female * 1.0 / females;
 
     for (const auto &[factor, by_gender] : risk_factors) {
         const auto &name = context.mapping().at(factor).name();
         result.risk_factor_average.emplace(
-            name, ResultByGender{.male = by_gender.at(core::Gender::male) / males,
-                                 .female = by_gender.at(core::Gender::female) / females});
+            name, ResultByGender{.male = by_gender.male / males,
+                                 .female = by_gender.female / females});
     }
 
     for (const auto &disease : context.diseases()) {
         result.disease_prevalence.emplace(
             disease.code.to_string(),
-            ResultByGender{
-                .male = prevalence.at(disease.code).at(core::Gender::male) * 100.0 / males,
-                .female = prevalence.at(disease.code).at(core::Gender::female) * 100.0 / females});
+            ResultByGender{.male = prevalence.at(disease.code).male * 100.0 / males,
+                           .female = prevalence.at(disease.code).female * 100.0 / females});
     }
 
     for (const auto &[metric, value] : context.metrics()) {

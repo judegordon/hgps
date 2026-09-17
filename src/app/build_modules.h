@@ -35,6 +35,11 @@ struct LoadedInputs {
 
     model::LmsDefinition lms;
     std::shared_ptr<const model::SexAgeFactorTable> expected;
+
+    /// @brief The expected-value trend and its per-factor step counts, when the project has a
+    ///        trend. Null otherwise, which is the same as "no trend" to every model.
+    std::shared_ptr<const std::map<core::Identifier, double>> trend;
+    std::shared_ptr<const std::map<core::Identifier, int>> trend_steps;
     std::optional<model::AnalysisDefinition> analysis;
 
     /// @brief The population series and life table the demographic module needs.

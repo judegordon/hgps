@@ -389,4 +389,138 @@ void rebase_input_paths(json &document, const std::filesystem::path &from_direct
                                rewritten, from.string())});
 }
 
+
+std::optional<std::filesystem::path>
+apply_policy_scenario(json &document, const std::filesystem::path &source_model,
+                      const std::string &scenario, const std::filesystem::path &output_dir,
+                      std::vector<ConversionNote> &notes) {
+    static const std::vector<std::string> kScenarios{"S1", "S2", "S3", "S4", "S5", "S6", "S7"};
+    if (std::find(kScenarios.begin(), kScenarios.end(), scenario) == kScenarios.end()) {
+        notes.push_back(ConversionNote{
+            .level = ConversionNote::Level::error,
+            .message = fmt::format("--policy-scenario must be one of {}, not '{}'",
+                                   fmt::join(kScenarios, ", "), scenario)});
+        return std::nullopt;
+    }
+
+    std::ifstream stream{source_model};
+    if (!stream) {
+        return std::nullopt;
+    }
+
+    json model;
+    try {
+        model = json::parse(stream);
+    } catch (const json::parse_error &) {
+        // Not this function's business to report: the loader will say so with a location.
+        return std::nullopt;
+    }
+
+    const auto directory = source_model.parent_path();
+    bool patched = false;
+
+    // The two members that name a policy-scenario file.
+    const auto patch = [&](json *parent, const char *key, const char *what) {
+        if (parent == nullptr || !parent->is_object() || !parent->contains(key) ||
+            !(*parent)[key].is_string()) {
+            return;
+        }
+
+        const auto name = (*parent)[key].get<std::string>();
+        if (std::filesystem::exists(directory / name)) {
+            return;
+        }
+
+        const auto prefixed = scenario + "_" + name;
+        if (!std::filesystem::exists(directory / prefixed)) {
+            notes.push_back(ConversionNote{
+                .level = ConversionNote::Level::error,
+                .message = fmt::format("the static model's {} names '{}', which does not exist, "
+                                       "and neither does '{}'",
+                                       what, name, prefixed)});
+            return;
+        }
+
+        (*parent)[key] = prefixed;
+        patched = true;
+        notes.push_back(ConversionNote{
+            .level = ConversionNote::Level::warning,
+            .message = fmt::format("the static model's {} names '{}', which the upstream pack does "
+                                   "not contain; it ships one file per policy scenario and this "
+                                   "conversion uses '{}' (audit D-02, --policy-scenario)",
+                                   what, name, prefixed)});
+    };
+
+    const auto member = [](json &node, const char *key) -> json * {
+        return node.contains(key) && node[key].is_object() ? &node[key] : nullptr;
+    };
+
+    patch(member(model, "PolicyCovarianceFile"), "name", "PolicyCovarianceFile");
+    if (auto *models = member(model, "RiskFactorModels")) {
+        patch(member(*models, "policy_coefficients"), "name",
+              "RiskFactorModels.policy_coefficients");
+    }
+
+    if (!patched) {
+        return std::nullopt;
+    }
+
+    // A copy beside the converted config, because the upstream example is read-only (ADR 0003).
+    // Its own relative file names still resolve, because the model loader resolves them against
+    // the model file's directory — so the copy names the upstream directory explicitly.
+    for (const auto *key : {"RegionFile", "EthnicityFile", "RiskFactorCorrelationFile",
+                            "PolicyCovarianceFile"}) {
+        if (auto *block = member(model, key)) {
+            if (block->contains("name") && (*block)["name"].is_string()) {
+                (*block)["name"] =
+                    (directory / (*block)["name"].get<std::string>()).generic_string();
+            }
+        }
+    }
+    if (auto *models = member(model, "RiskFactorModels")) {
+        for (const auto *key : {"boxcox_coefficients", "policy_coefficients",
+                                "logistic_regression"}) {
+            if (auto *block = member(*models, key)) {
+                if (block->contains("name") && (*block)["name"].is_string()) {
+                    (*block)["name"] =
+                        (directory / (*block)["name"].get<std::string>()).generic_string();
+                }
+            }
+        }
+    }
+    for (const auto *key : {"IncomeModels", "PhysicalActivityModels"}) {
+        if (auto *group = member(model, key)) {
+            for (auto &entry : group->items()) {
+                if (entry.value().is_object() && entry.value().contains("csv_file") &&
+                    entry.value()["csv_file"].is_string()) {
+                    entry.value()["csv_file"] =
+                        (directory / entry.value()["csv_file"].get<std::string>())
+                            .generic_string();
+                }
+            }
+        }
+    }
+
+    std::filesystem::create_directories(output_dir);
+    const auto target =
+        output_dir / fmt::format("{}.{}.json", source_model.stem().string(), scenario);
+
+    std::ofstream out{target};
+    if (!out) {
+        notes.push_back(ConversionNote{
+            .level = ConversionNote::Level::error,
+            .message = fmt::format("cannot write the patched static model to {}", target.string())});
+        return std::nullopt;
+    }
+    out << model.dump(1) << '\n';
+    out.close();
+
+    document["modelling"]["risk_factor_models"]["static"] = target.filename().generic_string();
+    notes.push_back(ConversionNote{
+        .level = ConversionNote::Level::info,
+        .message = fmt::format("wrote {} and pointed the config at it", target.filename().string())});
+
+    return target;
+}
+
 } // namespace hgps::config

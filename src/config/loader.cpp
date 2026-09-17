@@ -802,16 +802,22 @@ bool load_running(const JsonCursor &root, Config &config, diag::IssueReport &rep
                 } else {
                     config.running.active_intervention = load_intervention(*types, matched);
 
-                    // Scope for this run: only the `simple` intervention is implemented
-                    // (ADR 0021). Anything else stops the run with a sentence rather than being
-                    // silently ignored.
+                    // The six upstream identifiers. An identifier outside this set stops the run
+                    // with a sentence rather than being silently ignored (ADR 0021).
+                    static const std::vector<std::string> implemented{
+                        "simple",   "marketing",         "dynamic_marketing",
+                        "fiscal",   "physical_activity", "food_labelling"};
+
                     if (config.running.active_intervention.has_value() &&
-                        config.running.active_intervention->identifier != "simple") {
+                        std::find(implemented.begin(), implemented.end(),
+                                  config.running.active_intervention->identifier) ==
+                            implemented.end()) {
                         interventions->error(
                             "active_type_id", IssueCode::feature_not_implemented,
-                            fmt::format("intervention '{}' is not implemented in this build; only "
-                                        "'simple' is. See docs/backlog.md",
-                                        config.running.active_intervention->identifier));
+                            fmt::format("intervention '{}' is not implemented in this build; the "
+                                        "six that are: {}. See docs/backlog.md",
+                                        config.running.active_intervention->identifier,
+                                        fmt::join(implemented, ", ")));
                     }
                 }
             }

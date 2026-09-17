@@ -17,7 +17,7 @@ void print_usage() {
     std::cout << R"(convert-config — upstream Health-GPS config v1 to config v2
 
 Usage:
-  convert-config --input FILE --output FILE [--check]
+  convert-config --input FILE --output FILE [--policy-scenario S1] [--check]
 
 Options:
   -i, --input FILE   The upstream config to read. Both variants work: a legacy config.json or a
@@ -26,6 +26,13 @@ Options:
   -r, --rebase       Rewrite the config's relative input paths so they still name the same files
                      from the output's directory. Use this when the converted config lives
                      somewhere other than beside the model CSVs and JSONs it names.
+      --policy-scenario S1..S7
+                     Which of the seven modelled policy scenarios to take the policy covariance
+                     and policy-effect files from. Only KevinHall_FINCH needs it: its
+                     static_model.json names two files that the data pack does not contain,
+                     shipping S1_… to S7_… variants instead (audit D-02). The converter writes a
+                     patched copy of the static model beside the output and points the config at
+                     it. Default: S1, which is what the pack's own new_static_model.json uses.
       --check        Also load the result with this build's config loader and report what it
                      says. Recommended: a conversion that does not load is not a conversion.
   -h, --help         Print this and exit.
@@ -45,6 +52,7 @@ int main(int argc, char **argv) {
     std::filesystem::path output;
     bool check = false;
     bool rebase = false;
+    std::string policy_scenario = "S1";
 
     const std::vector<std::string> arguments(argv + 1, argv + argc);
     for (std::size_t i = 0; i < arguments.size(); ++i) {
@@ -64,6 +72,8 @@ int main(int argc, char **argv) {
                 output = next();
             } else if (argument == "-r" || argument == "--rebase") {
                 rebase = true;
+            } else if (argument == "--policy-scenario") {
+                policy_scenario = next();
             } else if (argument == "--check") {
                 check = true;
             } else if (argument == "-h" || argument == "--help") {
@@ -108,6 +118,24 @@ int main(int argc, char **argv) {
         }
         hgps::config::rebase_input_paths(*result.document, input.parent_path(), output_directory,
                                         result.notes);
+    }
+
+    // The policy-scenario patch happens after rebasing, so the patched copy's own paths are
+    // already absolute and it can live anywhere.
+    if (result.document.has_value()) {
+        const auto &models = (*result.document)["modelling"]["risk_factor_models"];
+        if (models.contains("static") && models["static"].is_string()) {
+            const std::filesystem::path named{models["static"].get<std::string>()};
+            auto output_directory = output.parent_path();
+            if (output_directory.empty()) {
+                output_directory = ".";
+            }
+            const auto absolute_model =
+                named.is_absolute() ? named : std::filesystem::weakly_canonical(
+                                                  output_directory / named);
+            hgps::config::apply_policy_scenario(*result.document, absolute_model, policy_scenario,
+                                                output_directory, result.notes);
+        }
     }
 
     for (const auto &note : result.notes) {

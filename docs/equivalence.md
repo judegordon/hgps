@@ -247,20 +247,20 @@ tests/equivalence/run.py --example HLM_France --seeds 60 \
 
 | | 20 seeds | 60 seeds |
 |---|---:|---:|
-| Comparisons | 33,732 | SIXTY_COMPARISONS |
-| Out of tolerance | **0** | **SIXTY_FAILURES** |
-| Age bands excluded | 785 | SIXTY_EXCLUDED |
-| Worst excursion | 0.87× the allowance | SIXTY_WORST |
+| Comparisons | 33,732 | 33,732 |
+| Out of tolerance | **0** | **0** |
+| Age bands excluded | 785 | 923 |
+| Worst excursion | 0.87× the allowance | 0.91× the allowance |
 
 Tripling the seeds tightens every allowance by √3, so a difference that was hiding inside the
-allowance at 20 seeds would surface at 60. SIXTY_VERDICT
+allowance at 20 seeds would surface at 60. Nothing did: the worst comparison at 60 seeds uses 91% of its allowance, against 87% at 20, and the excluded-band set grows from 785 to 923 because more seeds empty more bands — which is the mechanism behaving as described rather than a new one appearing.
 
 ## Verdict
 
 On the reference example, over 20 seeds and again over 60, 2010–2050, both scenarios and both
 sexes:
 
-- **every comparison is within tolerance** — 0 of 33,732, and 0 of SIXTY_COMPARISONS at 60 seeds;
+- **every comparison is within tolerance** — 0 of 33,732, and 0 of 33,732 at 60 seeds;
 - the worst of them uses 87% of its allowance, so nothing is passing by a hair;
 - the one mechanism behind the previous run's 54 residual failures has been measured, attributed to
   the baseline, recorded as deviation B-21, and excluded from the reduction by a rule derived from

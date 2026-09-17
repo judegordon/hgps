@@ -3,6 +3,8 @@
 // throw per problem. docs/test-port-map.md records the mapping suite by suite.
 #include "config/loader.h"
 
+#include "sim/scenario.h"
+
 #include "support/config_fixture.h"
 
 #include <gtest/gtest.h>
@@ -578,17 +580,82 @@ TEST(ConfigParsing, LoadsInterventions) {
     }
 
     {
-        // An intervention that exists but is not implemented in this build stops the run with a
-        // sentence rather than being silently ignored (ADR 0021).
+        // All six upstream identifiers are implemented, so an identifier outside that set is what
+        // the "not implemented" gate is now for. It still stops the run with a sentence rather
+        // than being silently ignored (ADR 0021).
         auto document = fixture.document();
-        document["running"]["interventions"]["types"]["marketing"] =
+        document["running"]["interventions"]["types"]["subsidy"] =
             document["running"]["interventions"]["types"]["simple"];
-        document["running"]["interventions"]["active_type_id"] = "marketing";
+        document["running"]["interventions"]["active_type_id"] = "subsidy";
         auto [config, report] = load(fixture, document);
 
         EXPECT_FALSE(config.has_value());
         ASSERT_TRUE(report.contains(IssueCode::feature_not_implemented));
         EXPECT_NE(std::string::npos, report.to_string().find("backlog"));
+        // The message names what there is, so a typo is fixable from the error alone.
+        EXPECT_NE(std::string::npos, report.to_string().find("food_labelling"));
+    }
+
+    {
+        // Each of the six, selected and loaded. The definitions come from the upstream examples'
+        // own shapes, because an intervention's parameters are validated when it is built.
+        const std::vector<std::pair<std::string, nlohmann::json>> definitions{
+            {"marketing",
+             {{"active_period", {{"start_time", 2022}, {"finish_time", 2050}}},
+              {"impacts", {{{"risk_factor", "BMI"}, {"impact_value", -0.12}, {"from_age", 5},
+                            {"to_age", 12}},
+                           {{"risk_factor", "BMI"}, {"impact_value", -0.31}, {"from_age", 13},
+                            {"to_age", 18}},
+                           {{"risk_factor", "BMI"}, {"impact_value", -0.16}, {"from_age", 19},
+                            {"to_age", nullptr}}}}}},
+            {"dynamic_marketing",
+             {{"active_period", {{"start_time", 2022}, {"finish_time", 2050}}},
+              {"dynamics", {0.15, 0.0, 0.0}},
+              {"impacts", {{{"risk_factor", "BMI"}, {"impact_value", -0.12}, {"from_age", 5},
+                            {"to_age", 12}},
+                           {{"risk_factor", "BMI"}, {"impact_value", -0.31}, {"from_age", 13},
+                            {"to_age", 18}},
+                           {{"risk_factor", "BMI"}, {"impact_value", -0.16}, {"from_age", 19},
+                            {"to_age", nullptr}}}}}},
+            {"fiscal",
+             {{"active_period", {{"start_time", 2022}, {"finish_time", 2050}}},
+              {"impact_type", "optimist"},
+              {"impacts", {{{"risk_factor", "Energy"}, {"impact_value", -0.017}, {"from_age", 5},
+                            {"to_age", 9}},
+                           {{"risk_factor", "Energy"}, {"impact_value", -0.018}, {"from_age", 10},
+                            {"to_age", 17}},
+                           {{"risk_factor", "Energy"}, {"impact_value", -0.019}, {"from_age", 18},
+                            {"to_age", nullptr}}}}}},
+            {"physical_activity",
+             {{"active_period", {{"start_time", 2022}, {"finish_time", 2050}}},
+              {"coverage_rates", {0.6}},
+              {"impacts", {{{"risk_factor", "PA"}, {"impact_value", 40.0}, {"from_age", 6},
+                            {"to_age", 11}},
+                           {{"risk_factor", "PA"}, {"impact_value", 20.0}, {"from_age", 12},
+                            {"to_age", nullptr}}}}}},
+            {"food_labelling",
+             {{"active_period", {{"start_time", 2022}, {"finish_time", 2050}}},
+              {"coverage_rates", {0.3, 0.6}},
+              {"coverage_cutoff_time", 5},
+              {"child_cutoff_age", 18},
+              {"coefficients", {0.1, 0.11, 0.12, 0.13}},
+              {"adjustments", {{{"risk_factor", "Energy"}, {"value", 0.25}}}},
+              {"impacts", {{{"risk_factor", "BMI"}, {"impact_value", -0.05}, {"from_age", 5},
+                            {"to_age", nullptr}}}}}},
+        };
+
+        for (const auto &[identifier, definition] : definitions) {
+            auto document = fixture.document();
+            document["running"]["interventions"]["types"][identifier] = definition;
+            document["running"]["interventions"]["active_type_id"] = identifier;
+            auto [config, report] = load(fixture, document);
+
+            ASSERT_TRUE(config.has_value()) << identifier << ":\n" << report.to_string();
+            EXPECT_EQ(identifier, config->running.active_intervention->identifier);
+            EXPECT_NO_THROW(
+                hgps::sim::create_intervention_scenario(*config->running.active_intervention))
+                << identifier;
+        }
     }
 
     {

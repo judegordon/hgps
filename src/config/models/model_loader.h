@@ -5,9 +5,12 @@
 
 #include "config/types.h"
 #include "diagnostics/issue_report.h"
+#include "model/demographic.h"
 #include "model/mapping.h"
 #include "model/riskfactor/hlm_model.h"
 #include "model/riskfactor/risk_factor_model.h"
+#include "model/riskfactor/kevin_hall/kevin_hall_model.h"
+#include "model/riskfactor/static_linear/static_linear_model.h"
 
 #include <filesystem>
 #include <map>
@@ -28,12 +31,32 @@ struct LoadContext {
 
     /// @brief The config, for the files a model refers to and the project's requirements.
     const Config *config{};
+
+    /// @brief The expected-value trend and its per-factor step counts, shared by every adjusting
+    ///        model. Null when the project has no trend.
+    std::shared_ptr<const std::map<core::Identifier, double>> trend;
+    std::shared_ptr<const std::map<core::Identifier, int>> trend_steps;
+
+    /// @brief Factors an already-loaded model generates that the config does not declare, which
+    ///        count as known names for the models loaded after it.
+    std::vector<core::Identifier> extra_factors;
 };
 
-/// @brief The two models a run needs.
+/// @brief Region and ethnicity shares, read from the static model file and given to the
+///        demographic module, which is what assigns them.
+struct RegionEthnicityPrevalence {
+    model::RegionPrevalence region;
+    model::EthnicityPrevalence ethnicity;
+};
+
+/// @brief The two models a run needs, and what the static model's file said about the population.
 struct RiskFactorModels {
     std::unique_ptr<model::RiskFactorModel> static_model;
     std::unique_ptr<model::RiskFactorModel> dynamic_model;
+
+    /// @brief From the static model's `RegionFile` and `EthnicityFile`, when the project asks for
+    ///        them. Empty otherwise.
+    RegionEthnicityPrevalence prevalence;
 };
 
 /// @brief Loads the FactorsMean tables named by `modelling.baseline_adjustments`.
@@ -70,6 +93,26 @@ std::unique_ptr<model::RiskFactorModel> load_ebhlm(const nlohmann::json &documen
                                                     const std::filesystem::path &path,
                                                     const LoadContext &context,
                                                     diag::IssueReport &report);
+
+/// @brief Loads the `StaticLinear` static model, in either its CSV-matrix or its JSON form.
+std::unique_ptr<model::RiskFactorModel> load_static_linear(const nlohmann::json &document,
+                                                            const std::filesystem::path &path,
+                                                            const LoadContext &context,
+                                                            diag::IssueReport &report);
+
+/// @brief Loads the `KevinHall` dynamic model.
+std::unique_ptr<model::RiskFactorModel> load_kevin_hall(const nlohmann::json &document,
+                                                         const std::filesystem::path &path,
+                                                         const LoadContext &context,
+                                                         diag::IssueReport &report);
+
+/// @brief Reads the static model's region and ethnicity prevalence files.
+///
+/// Only when `project_requirements.demographics` asks for them, and an error if it asks and the
+/// file is not there — the alternative is a run that starts and then refuses at the first person.
+std::optional<RegionEthnicityPrevalence>
+load_region_and_ethnicity(const nlohmann::json &document, const std::filesystem::path &path,
+                          const LoadContext &context, diag::IssueReport &report);
 
 /// @brief Checks a coefficient name against the declared factors and the derived predictors.
 /// @return true if it resolves; otherwise records a located error and returns false.

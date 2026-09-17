@@ -8,9 +8,11 @@
 #include "model/person.h"
 #include "random/source.h"
 
+#include <array>
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -149,6 +151,148 @@ class SimplePolicyScenario final : public Scenario {
     std::map<core::Identifier, std::vector<config::PolicyImpact>> impacts_by_factor_;
 
     bool is_active(int time) const noexcept;
+};
+
+/// @brief The shared machinery of the age-banded interventions.
+///
+/// `marketing`, `dynamic_marketing`, `food_labelling`, `physical_activity` and `fiscal` all work
+/// the same way: they carry ordered, non-overlapping age bands of impacts, they remember what
+/// they have already done to each person, and they apply the *difference* when a person moves
+/// from one band to the next rather than the whole new impact. What differs between them is the
+/// rule for deciding whether a person is exposed at all, which is the one virtual function below.
+class BandedInterventionScenario : public Scenario {
+  public:
+    explicit BandedInterventionScenario(config::InterventionSpec definition,
+                                        std::size_t required_bands);
+
+    ScenarioType type() const noexcept override { return ScenarioType::intervention; }
+    const std::string &name() const noexcept override { return name_; }
+
+    double apply(rng::RandomSource &random, model::Person &person, int time,
+                 const core::Identifier &risk_factor_key, double value) override;
+
+    /// @brief Forgets who has been exposed. Called at the start of each run.
+    void clear() noexcept override { book_.clear(); }
+
+    const config::InterventionSpec &definition() const noexcept { return definition_; }
+
+  protected:
+    /// @brief What the policy does to `value` for this person this year.
+    virtual double impact_for(rng::RandomSource &random, model::Person &person, int time,
+                              const core::Identifier &risk_factor_key, double value) = 0;
+
+    bool is_active(int time) const noexcept;
+    bool affects(const core::Identifier &risk_factor_key) const noexcept;
+
+    /// @brief The index of the impact band containing an age, or -1.
+    int band_of(unsigned int age) const noexcept;
+
+    const std::vector<config::PolicyImpact> &impacts() const noexcept {
+        return definition_.impacts;
+    }
+
+    /// @brief Sentinels for the exposure book, chosen so they can never be a band index.
+    static constexpr int kNeverExposed = -1;
+    static constexpr int kNoEffect = -2;
+    static constexpr int kFormerlyExposed = -3;
+
+    /// @brief What has already been done to a person: a band index, or one of the sentinels.
+    std::map<std::size_t, int> book_;
+
+    /// @brief The impact of band `index`, or 0 for a sentinel.
+    double impact_value(int index) const noexcept;
+
+  private:
+    config::InterventionSpec definition_;
+    std::set<core::Identifier> factors_;
+    std::string name_{"Intervention"};
+};
+
+/// @brief `marketing`: a one-off shift when a person first enters an age band, and the difference
+///        when they move up to the next one. Everybody is exposed.
+class MarketingScenario final : public BandedInterventionScenario {
+  public:
+    explicit MarketingScenario(config::InterventionSpec definition);
+
+  protected:
+    double impact_for(rng::RandomSource &random, model::Person &person, int time,
+                      const core::Identifier &risk_factor_key, double value) override;
+};
+
+/// @brief `dynamic_marketing`: `marketing` with three transition probabilities — alpha to become
+///        exposed, beta to lapse, gamma to take it up again after lapsing.
+class DynamicMarketingScenario final : public BandedInterventionScenario {
+  public:
+    explicit DynamicMarketingScenario(config::InterventionSpec definition);
+
+  protected:
+    double impact_for(rng::RandomSource &random, model::Person &person, int time,
+                      const core::Identifier &risk_factor_key, double value) override;
+
+  private:
+    double alpha_{1.0};
+    double beta_{0.0};
+    double gamma_{0.0};
+};
+
+/// @brief `fiscal`: `marketing`, but the impact is a *proportion* of the person's own current
+///        value rather than a fixed amount — a tax changes what you buy in proportion to what you
+///        were buying.
+class FiscalScenario final : public BandedInterventionScenario {
+  public:
+    /// @brief What happens when somebody who was exposed as an adolescent becomes an adult.
+    ///        `pessimist` applies the difference; `optimist` keeps the adolescent effect.
+    enum class ImpactType : std::uint8_t { pessimist, optimist };
+
+    explicit FiscalScenario(config::InterventionSpec definition);
+
+  protected:
+    double impact_for(rng::RandomSource &random, model::Person &person, int time,
+                      const core::Identifier &risk_factor_key, double value) override;
+
+  private:
+    ImpactType impact_type_{ImpactType::pessimist};
+};
+
+/// @brief `physical_activity`: a coverage-rate draw decides once, in childhood, whether a person
+///        is ever affected; those who are get the child effect and later the adult one.
+class PhysicalActivityScenario final : public BandedInterventionScenario {
+  public:
+    explicit PhysicalActivityScenario(config::InterventionSpec definition);
+
+  protected:
+    double impact_for(rng::RandomSource &random, model::Person &person, int time,
+                      const core::Identifier &risk_factor_key, double value) override;
+
+  private:
+    double coverage_rate_{0.0};
+};
+
+/// @brief `food_labelling`: a coverage-rate draw decides whether a person notices the label, with
+///        a higher rate in the policy's first years than afterwards; the impact is a product of
+///        the effect, an adjustment factor, the person's value of an adjusted risk factor, and a
+///        transfer coefficient that depends on their sex and whether they are a child.
+class FoodLabellingScenario final : public BandedInterventionScenario {
+  public:
+    explicit FoodLabellingScenario(config::InterventionSpec definition);
+
+  protected:
+    double impact_for(rng::RandomSource &random, model::Person &person, int time,
+                      const core::Identifier &risk_factor_key, double value) override;
+
+  private:
+    double short_term_rate_{0.0};
+    double long_term_rate_{0.0};
+    unsigned int cutoff_time_{0};
+    unsigned int child_cutoff_age_{0};
+
+    core::Identifier adjustment_factor_;
+    double adjustment_value_{0.0};
+
+    /// @brief Child male, child female, adult male, adult female.
+    std::array<double, 4> transfer_{};
+
+    double transfer_for(const model::Person &person) const noexcept;
 };
 
 /// @brief Builds the scenario an intervention specification names.

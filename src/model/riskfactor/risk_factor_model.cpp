@@ -61,20 +61,24 @@ std::optional<double> factor_value(const Person &person, const core::Identifier 
 AdjustableRiskFactorModel::AdjustableRiskFactorModel(
     std::shared_ptr<const SexAgeFactorTable> expected,
     std::shared_ptr<const std::map<core::Identifier, double>> trend,
-    std::shared_ptr<const std::map<core::Identifier, int>> trend_steps, TrendType trend_type)
+    std::shared_ptr<const std::map<core::Identifier, int>> trend_steps, TrendType trend_type,
+    std::shared_ptr<const std::map<core::Identifier, double>> decay)
     : expected_{std::move(expected)}, trend_{std::move(trend)},
-      trend_steps_{std::move(trend_steps)}, trend_type_{trend_type} {
+      trend_steps_{std::move(trend_steps)}, decay_{std::move(decay)}, trend_type_{trend_type} {
     if (!expected_ || expected_->empty()) {
         throw diag::InternalError("the risk factor expected-value table is empty");
     }
 
-    if (trend_type_ != TrendType::Null) {
-        if (!trend_ || trend_->empty()) {
-            throw diag::InternalError("a trend is configured but the trend table is empty");
-        }
-        if (!trend_steps_ || trend_steps_->empty()) {
-            throw diag::InternalError("a trend is configured but the trend steps table is empty");
-        }
+    if (trend_type_ != TrendType::Null && (!trend_ || trend_->empty())) {
+        throw diag::InternalError("a trend is configured but the trend table is empty");
+    }
+    if (trend_type_ == TrendType::UpfTrend && (!trend_steps_ || trend_steps_->empty())) {
+        throw diag::InternalError(
+            "the UPF trend is configured but the trend steps table is empty");
+    }
+    if (trend_type_ == TrendType::IncomeTrend && (!decay_ || decay_->empty())) {
+        throw diag::InternalError(
+            "the income trend is configured but the decay factor table is empty");
     }
 }
 
@@ -95,14 +99,22 @@ double AdjustableRiskFactorModel::get_expected(RuntimeContext &context, core::Ge
                                                 const core::Identifier &factor,
                                                 std::optional<core::DoubleInterval> range,
                                                 bool apply_trend) const {
-    if (!expected_->contains(sex, factor)) {
+    return expected_from(*expected_, context, sex, age, factor, range, apply_trend);
+}
+
+double AdjustableRiskFactorModel::expected_from(const SexAgeFactorTable &table,
+                                                 RuntimeContext &context, core::Gender sex,
+                                                 int age, const core::Identifier &factor,
+                                                 std::optional<core::DoubleInterval> range,
+                                                 bool apply_trend) const {
+    if (!table.contains(sex, factor)) {
         throw diag::InternalError(fmt::format(
             "no expected value for factor '{}' ({}) in the FactorsMean table; the model names a "
             "factor its own calibration data does not have a column for",
             factor.to_string(), sex == core::Gender::male ? "male" : "female"));
     }
 
-    const auto &by_age = expected_->at(sex, factor);
+    const auto &by_age = table.at(sex, factor);
     if (age < 0 || static_cast<std::size_t>(age) >= by_age.size()) {
         throw diag::InternalError(
             fmt::format("the FactorsMean table for '{}' has no row for age {}",
@@ -125,11 +137,10 @@ double AdjustableRiskFactorModel::get_expected(RuntimeContext &context, core::Ge
             break;
         case TrendType::IncomeTrend:
             // From the second year only: at the start year the expected value is as measured.
-            if (elapsed > 0 && trend_ && trend_->contains(factor) &&
-                trend_steps_ != nullptr) {
-                // The income trend's decay factor shares the trend table, keyed by factor.
-                const double decay = static_cast<double>(get_trend_steps(factor));
-                expected *= trend_->at(factor) * std::exp(decay * elapsed);
+            // The trend does not stop after a number of steps as the UPF one does; it decays.
+            if (elapsed > 0 && trend_ && trend_->contains(factor) && decay_ &&
+                decay_->contains(factor)) {
+                expected *= trend_->at(factor) * std::exp(decay_->at(factor) * elapsed);
             }
             break;
         }
@@ -145,7 +156,8 @@ double AdjustableRiskFactorModel::get_expected(RuntimeContext &context, core::Ge
 SexAgeFactorTable AdjustableRiskFactorModel::calculate_simulated_mean(
     const Population &population, core::IntegerInterval age_range,
     const std::vector<core::Identifier> &factors,
-    const std::vector<core::Identifier> &logistic_factors) {
+    const std::vector<core::Identifier> &logistic_factors,
+    std::optional<std::size_t> income_stratum) {
     const auto age_count = static_cast<std::size_t>(age_range.upper()) + 1;
 
     Map2d<core::Gender, core::Identifier, std::vector<FirstMoment>> moments;
@@ -162,6 +174,11 @@ SexAgeFactorTable AdjustableRiskFactorModel::calculate_simulated_mean(
             continue;
         }
         if (static_cast<std::size_t>(person.age) >= age_count) {
+            continue;
+        }
+        if (income_stratum.has_value() &&
+            (!person.has_income_adjustment_stratum ||
+             person.income_adjustment_stratum != *income_stratum)) {
             continue;
         }
 
@@ -199,18 +216,21 @@ SexAgeFactorTable AdjustableRiskFactorModel::calculate_simulated_mean(
 
 sim::AdjustmentTable AdjustableRiskFactorModel::calculate_adjustments(
     RuntimeContext &context, const std::vector<core::Identifier> &factors,
-    const std::vector<core::DoubleInterval> *ranges, bool apply_trend) const {
+    const std::vector<core::DoubleInterval> *ranges, bool apply_trend,
+    const AdjustmentScope &scope) const {
     const auto age_range = context.age_range();
     const auto age_count = static_cast<std::size_t>(age_range.upper()) + 1;
 
-    const auto simulated =
-        calculate_simulated_mean(context.population(), age_range, factors, logistic_factors_);
+    const auto *table = scope.expected_table != nullptr ? scope.expected_table : expected_.get();
+
+    const auto simulated = calculate_simulated_mean(context.population(), age_range, factors,
+                                                    logistic_factors_, scope.income_stratum);
 
     sim::AdjustmentTable adjustments;
     for (const auto sex : {core::Gender::male, core::Gender::female}) {
         for (std::size_t i = 0; i < factors.size(); ++i) {
             const auto &factor = factors[i];
-            if (!expected_->contains(sex, factor)) {
+            if (!table->contains(sex, factor)) {
                 // A factor with no calibration column is left alone. The baseline prints a warning
                 // to stdout and carries on; this is the same behaviour, reported through the
                 // metrics so it appears in the results file rather than in a scrollback.
@@ -225,7 +245,10 @@ sim::AdjustmentTable AdjustableRiskFactorModel::calculate_adjustments(
 
             std::vector<double> deltas(age_count, 0.0);
             for (int age = age_range.lower(); age <= age_range.upper(); ++age) {
-                const double expected = get_expected(context, sex, age, factor, range, apply_trend);
+                const double expected =
+                    scope.expected_table != nullptr
+                        ? expected_from(*table, context, sex, age, factor, range, apply_trend)
+                        : get_expected(context, sex, age, factor, range, apply_trend);
                 const double mean = simulated.at(sex, factor).at(static_cast<std::size_t>(age));
 
                 // A NaN mean means nobody of this age and sex has the factor, so there is nothing
@@ -243,11 +266,12 @@ sim::AdjustmentTable AdjustableRiskFactorModel::calculate_adjustments(
 void AdjustableRiskFactorModel::adjust_risk_factors(
     RuntimeContext &context, sim::ScenarioJournal &journal,
     const std::vector<core::Identifier> &factors,
-    const std::vector<core::DoubleInterval> *ranges, bool apply_trend) const {
+    const std::vector<core::DoubleInterval> *ranges, bool apply_trend,
+    const AdjustmentScope &scope) const {
     sim::AdjustmentTable adjustments;
 
     if (context.scenario().type() == sim::ScenarioType::baseline) {
-        adjustments = calculate_adjustments(context, factors, ranges, apply_trend);
+        adjustments = calculate_adjustments(context, factors, ranges, apply_trend, scope);
         journal.push_adjustment(context.current_run(), context.time_now(), adjustments);
     } else {
         adjustments = journal.pop_adjustment(context.current_run(), context.time_now());
@@ -257,6 +281,11 @@ void AdjustableRiskFactorModel::adjust_risk_factors(
     // so it runs serially in slot order rather than earning a parallel region.
     for (auto &person : context.population()) {
         if (!person.is_active()) {
+            continue;
+        }
+        if (scope.income_stratum.has_value() &&
+            (!person.has_income_adjustment_stratum ||
+             person.income_adjustment_stratum != *scope.income_stratum)) {
             continue;
         }
 

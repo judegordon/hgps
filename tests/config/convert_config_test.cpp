@@ -239,7 +239,7 @@ struct ExampleExpectation {
 const std::vector<ExampleExpectation> kExamples = {
     {"Dummy_disease_test", true, std::nullopt},
     {"HLM_France", true, std::nullopt},
-    {"HLM_India", false, hgps::diag::IssueCode::feature_not_implemented},
+    {"HLM_India", true, std::nullopt},
     {"KevinHall_FINCH", true, std::nullopt},
     {"KevinHall_India", true, std::nullopt},
     {"KevinHall_PIF", false, hgps::diag::IssueCode::feature_not_implemented},

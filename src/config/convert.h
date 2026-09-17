@@ -64,4 +64,29 @@ void rebase_input_paths(nlohmann::json &document, const std::filesystem::path &f
                         const std::filesystem::path &to_directory,
                         std::vector<ConversionNote> &notes);
 
+/// @brief Points a static model file's policy inputs at one of the S1..S7 policy scenarios.
+///
+/// The upstream `KevinHall_FINCH/static_model.json` names `Finch_residual_policy_covariance.csv`
+/// and `policyeffect_model.csv`, and **neither file exists**: the pack ships `S1_`…`S7_` prefixed
+/// variants of both, one per modelled policy scenario, and the example is broken as shipped
+/// (audit finding D-02). Its sibling `new_static_model.json` names the `S1_` pair, which is how
+/// the pack's authors evidently meant it to be read.
+///
+/// The upstream example is read-only, so the fix is here: the converter writes a patched *copy*
+/// of the static model beside the converted config, with the two names prefixed by the chosen
+/// scenario, and points the config at the copy. `S1` is the default, matching
+/// `new_static_model.json`.
+///
+/// Does nothing, and says so, when the named files already exist — which is every other example.
+///
+/// @param document     The converted config, modified in place to name the patched copy.
+/// @param source_model The static model file the config currently names, as an absolute path.
+/// @param scenario     "S1".."S7".
+/// @param output_dir   Where the patched copy is written.
+/// @return The patched copy's path, or nullopt if no patch was needed or possible.
+std::optional<std::filesystem::path>
+apply_policy_scenario(nlohmann::json &document, const std::filesystem::path &source_model,
+                      const std::string &scenario, const std::filesystem::path &output_dir,
+                      std::vector<ConversionNote> &notes);
+
 } // namespace hgps::config

@@ -66,6 +66,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import shutil
 import statistics
 import subprocess
@@ -114,6 +115,19 @@ DEGENERATE_MODAL_SHARE = 0.5
 # The family-wide significance the departure-rate test uses, matching the 4.5 sigma the other
 # tests use: a Bonferroni correction at alpha = 0.05 over the ~5,000 independent series.
 DEPARTURE_RATE_ALPHA = 0.05 / 5000
+
+# Variables the baseline does not actually compute, keyed to the deviation that records why.
+#
+# A column the baseline emits but never fills is not a disagreement about a number: there is no
+# number on one side. Comparing it would fail for ever and say nothing. Excluding it is safe only
+# while the premise holds, so the harness *checks* the premise — the baseline's series must be
+# identically zero — and compares the variable normally if it is not. A baseline that starts
+# filling the column therefore stops being excluded, and says so.
+BASELINE_DOES_NOT_COMPUTE = {
+    "std_income": ("B-22", "the baseline skips 'income' in the loop that accumulates squared "
+                           "deviations, on the ground that the mapping loop handles it, and the "
+                           "mapping loop skips it too; the column is always exactly zero"),
+}
 
 # Variables whose value is meaningless in the first simulated year, so the year is skipped for
 # them rather than compared. Nothing else is excluded.
@@ -181,17 +195,51 @@ def derive_config(source: Path, seed: int, output_folder: Path, intervention: st
     return document
 
 
+def link_example_files(source: Path, into: Path) -> None:
+    """Symlinks an upstream example's files next to the derived config.
+
+    The derived config names its model files by absolute path, but a *model* file names its own
+    CSVs by a path relative to the config's directory — that is how the baseline resolves them, and
+    it is right when the config sits in the example folder, which upstream it does. The derived
+    config does not, so the files it needs are linked in beside it: links rather than copies
+    because the upstream examples are read-only and some of them are tens of megabytes.
+
+    This changes nothing about the derived config, and so nothing about its hash or the stored
+    reference keyed by it.
+    """
+    into.mkdir(parents=True, exist_ok=True)
+    for entry in sorted(source.iterdir()):
+        if not entry.is_file():
+            continue
+        link = into / entry.name
+        if link.is_symlink() or link.exists():
+            continue
+        link.symlink_to(entry.resolve())
+
+
 def find_result_csv(folder: Path) -> Path:
-    """The main result CSV: the one without an income-stratum suffix."""
-    candidates = [p for p in folder.glob("*.csv")
-                  if not any(p.stem.endswith(s) for s in ("_LowIncome", "_MiddleIncome",
-                                                          "_HighIncome", "_Quintile1",
-                                                          "_Quintile2", "_Quintile3",
-                                                          "_Quintile4", "_Quintile5"))]
-    if len(candidates) != 1:
-        raise RuntimeError(f"expected one result CSV in {folder}, found {len(candidates)}: "
-                           f"{[p.name for p in candidates]}")
-    return candidates[0]
+    """The main result CSV: the whole-population one.
+
+    A run also writes an income-stratified file per category and, when it is switched on, an
+    individual-tracking file. Every one of those is the main file's name plus a suffix, so the
+    main one is the file whose stem every other stem begins with — which needs no list of suffixes
+    to keep in step with the writer.
+    """
+    candidates = sorted(folder.glob("*.csv"))
+    if not candidates:
+        raise RuntimeError(f"no result CSV in {folder}")
+
+    # The derived files are the main name plus a CamelCase suffix — `_LowIncome`, `_Quintile3`,
+    # `_IndividualIDTracking`. Matching on the shape of the suffix rather than on a list of them
+    # keeps this in step with the writer, and works even when a derived file's own timestamp is a
+    # second later than the main one's, which it sometimes is.
+    derived = re.compile(r"_[A-Z][A-Za-z0-9]*$")
+    whole = [p for p in candidates if not derived.search(p.stem)]
+
+    if len(whole) != 1:
+        raise RuntimeError(f"cannot tell which of the CSVs in {folder} is the whole-population "
+                           f"one: {[p.name for p in candidates]}")
+    return whole[0]
 
 
 def run(binary: Path, config: Path, extra: list[str], log: Path) -> float:
@@ -392,6 +440,9 @@ class Outcome:
     config_hashes: dict[str, str] = field(default_factory=dict)
     excluded_bands: int = 0
 
+    # variable -> (deviation id, reason), for the columns the baseline emits but never fills.
+    uncomputed: dict[str, tuple[str, str]] = field(default_factory=dict)
+
 
 def modal_share(values: list[float]) -> float:
     """The share of the seeds that take the series' single commonest value."""
@@ -459,6 +510,12 @@ def compare(baseline: dict[int, dict], new: dict[int, dict], seeds: list[int],
         new_values = [new[seed][key] for seed in seeds if key in new[seed]]
         if len(base_values) != len(seeds) or len(new_values) != len(seeds):
             outcome.skipped.append(f"{key}: not present for every seed")
+            continue
+
+        if variable in BASELINE_DOES_NOT_COMPUTE and all(v == 0.0 for v in base_values):
+            identifier, reason = BASELINE_DOES_NOT_COMPUTE[variable]
+            outcome.uncomputed.setdefault(variable, (identifier, reason))
+            outcome.skipped.append(f"{key}: the baseline does not compute it ({identifier})")
             continue
 
         base = Summary.of(base_values)
@@ -569,6 +626,9 @@ def report(outcome: Outcome, verbose: bool, max_failures: int) -> bool:
         print(f"    {label} config sha256: {digest}")
     print(f"    {outcome.excluded_bands} age band(s) excluded on both sides: the bands either "
           f"implementation empties, which immigration cannot refill (docs/equivalence.md)")
+    for variable, (identifier, reason) in sorted(outcome.uncomputed.items()):
+        print(f"    {variable}: not compared — the baseline emits the column and never fills it "
+              f"({identifier}: {reason})")
 
     if outcome.missing:
         print(f"    {len(outcome.missing)} series reported by only one implementation:")
@@ -652,6 +712,8 @@ def as_json(outcome: Outcome) -> dict:
         "comparisons": len(outcome.comparisons),
         "failures": sum(1 for c in outcome.comparisons if not c.passed),
         "excluded_age_bands": outcome.excluded_bands,
+        "not_computed_by_the_baseline": {v: {"deviation": d, "reason": r}
+                                          for v, (d, r) in outcome.uncomputed.items()},
         "skipped": len(outcome.skipped),
         "series_reported_by_one_side_only": outcome.missing,
         "sigma_limit": SIGMA_LIMIT,
@@ -788,6 +850,7 @@ def main() -> int:
                 document = derive_config(source, seed, folder, example.intervention,
                                          arguments.stop_time, is_baseline)
                 config_path = folder.parent / f"config-seed-{seed}.json"
+                link_example_files(source.parent, config_path.parent)
                 config_path.write_text(json.dumps(document, indent=1))
 
                 extra = ["-T", "1"] if label == "baseline" else ["--threads", "1"]

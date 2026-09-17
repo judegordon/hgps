@@ -22,7 +22,8 @@ namespace detail {
 bool validate_predictor_name(const std::string &name, const std::filesystem::path &path,
                              const std::string &pointer, const LoadContext &context,
                              diag::IssueReport &report) {
-    const auto factors = context.mapping->keys();
+    auto factors = context.mapping->keys();
+    factors.insert(factors.end(), context.extra_factors.begin(), context.extra_factors.end());
     if (model::is_resolvable_predictor(name, factors)) {
         return true;
     }
@@ -143,10 +144,11 @@ std::optional<std::string> read_model_name(const std::filesystem::path &path,
     return model_name_of(*document, path, report);
 }
 
-std::optional<RiskFactorModels> load_risk_factor_models(const LoadContext &context,
+std::optional<RiskFactorModels> load_risk_factor_models(const LoadContext &given,
                                                         diag::IssueReport &report) {
     const auto before = report.error_count();
 
+    LoadContext context = given;
     const auto &models = context.config->modelling.risk_factor_models;
     RiskFactorModels result;
 
@@ -180,10 +182,20 @@ std::optional<RiskFactorModels> load_risk_factor_models(const LoadContext &conte
             if (*name == "hlm") {
                 return detail::load_hlm(*document, path, context, report);
             }
+            if (*name == "staticlinear") {
+                // The same file also carries the region and ethnicity prevalence, which belong to
+                // the demographic module. Read here so the file is parsed once.
+                if (const auto prevalence =
+                        detail::load_region_and_ethnicity(*document, path, context, report)) {
+                    result.prevalence = *prevalence;
+                }
+                return detail::load_static_linear(*document, path, context, report);
+            }
             report.error(IssueCode::feature_not_implemented,
                          IssueLocation{.file = path.string(), .field = "/ModelName"},
                          fmt::format("static model '{}' is not implemented in this build; this "
-                                     "build implements 'HLM'. See docs/backlog.md",
+                                     "build implements 'HLM' and 'StaticLinear'. See "
+                                     "docs/backlog.md",
                                      *name));
             return nullptr;
         }
@@ -191,16 +203,29 @@ std::optional<RiskFactorModels> load_risk_factor_models(const LoadContext &conte
         if (*name == "ebhlm") {
             return detail::load_ebhlm(*document, path, context, report);
         }
+        if (*name == "kevinhall") {
+            return detail::load_kevin_hall(*document, path, context, report);
+        }
 
         report.error(IssueCode::feature_not_implemented,
                      IssueLocation{.file = path.string(), .field = "/ModelName"},
                      fmt::format("dynamic model '{}' is not implemented in this build; this build "
-                                 "implements 'EBHLM'. See docs/backlog.md",
+                                 "implements 'EBHLM' and 'KevinHall'. See docs/backlog.md",
                                  *name));
         return nullptr;
     };
 
     result.static_model = load_one("static");
+
+    // The dynamic model is loaded against a factor set that includes whatever the static model
+    // generates, so a dynamic model naming a food group the static model creates is accepted —
+    // and one naming a food group nothing creates is still refused.
+    if (result.static_model) {
+        auto generated = result.static_model->generated_factors();
+        context.extra_factors.insert(context.extra_factors.end(), generated.begin(),
+                                     generated.end());
+    }
+
     result.dynamic_model = load_one("dynamic");
 
     if (report.error_count() != before || !result.static_model || !result.dynamic_model) {
