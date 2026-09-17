@@ -15,6 +15,20 @@ namespace hgps::io {
 ///
 /// nlohmann reports a byte offset; this maps it to a line and a column, because "line 34, column
 /// 5" is actionable and "byte 1187" is not.
+/// @brief Reads and parses a JSON file, discarding the named members as it goes.
+///
+/// The fitted static-model files carry per-observation diagnostics from the R fit — `residuals`
+/// and `fittedValues`, 40,000 numbers each per factor — that the simulation never reads. France's
+/// static_model.json is 18.8 MB of text, almost all of it those arrays, and building a
+/// `nlohmann::json` tree for them costs about 110 MB of resident memory. Dropping them during the
+/// parse rather than after it is the difference between this program using more memory than the
+/// baseline and using half as much (docs/performance.md).
+///
+/// @param discarded_members Member names to skip, at any depth, along with their values.
+std::optional<nlohmann::json> read_json(const std::filesystem::path &path,
+                                        diag::IssueReport &report,
+                                        const std::vector<std::string> &discarded_members);
+
 std::optional<nlohmann::json> read_json(const std::filesystem::path &path,
                                         diag::IssueReport &report);
 

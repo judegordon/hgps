@@ -40,6 +40,7 @@ that enforces each one.
 | [docs/examples.md](docs/examples.md) | which upstream examples run here and which are out of scope |
 | [docs/equivalence.md](docs/equivalence.md) | the statistical equivalence harness, its tolerances and its results |
 | [docs/performance.md](docs/performance.md) | wall time and peak memory, this implementation versus the baseline |
+| [docs/test-port-map.md](docs/test-port-map.md) | where each of the baseline's 471 tests went, suite by suite |
 | [docs/backlog.md](docs/backlog.md) | what is left, ranked |
 | [docs/SUMMARY.md](docs/SUMMARY.md) | what was built, what passes, what is still open |
 
@@ -65,7 +66,7 @@ implemented here, and HTTP download and zip extraction are delegated to `curl` a
 # Convert an upstream config (v1) to this repository's config v2 format
 ./out/build/release/tools/convert-config \
     --input  ../hgps_main_examples/HLM_France/config.json \
-    --output examples/HLM_France/config.json
+    --output examples/HLM_France/config.json --rebase --check
 
 # Run it
 ./out/build/release/src/healthgps --config examples/HLM_France/config.json
@@ -99,11 +100,15 @@ scripts/check.sh --fast   # release only
 
 Validation has two layers ([ADR 0006](docs/decisions/0006-validation-strategy.md)):
 
-- **The baseline's test suite, ported.** All 471 of its tests, adapted to this API but keeping each
-  test's intent and expected values. Where a baseline test encoded one of the audit's findings, the
-  expectation is changed and the finding ID is named in the test. Added here: byte-for-byte
-  reproducibility at one thread and at N, a modulo-bias regression test, ordered-sampling tests, and
-  a test that an unseeded config is rejected.
+- **The baseline's test suite, ported.** Its 471 tests were gone through one by one, keeping each
+  test's intent and — wherever the numbers are the point — its expected values unchanged. Where a
+  baseline test encoded one of the audit's findings, the expectation is changed and the finding ID
+  is named in the test. 348 have a counterpart here; the other 104 do not, and
+  [docs/test-port-map.md](docs/test-port-map.md) says of each whether that is scope (76, all in the
+  backlog — `KevinHall`, `StaticLinear`, PIF) or design (28, where the thing tested does not exist
+  here: the event bus, the sync channel, the lazy repository). 110 tests are new, including
+  byte-for-byte reproducibility at one thread and at N, a modulo-bias regression test,
+  ordered-sampling tests, and a test that an unseeded config is rejected. 433 in total.
 - **Statistical equivalence against the baseline** on the reference examples over at least 20 seeds,
   comparing means, standard deviations and percentiles per output variable per year per scenario per
   sex, within tolerances argued for in [docs/equivalence.md](docs/equivalence.md).

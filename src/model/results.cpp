@@ -133,6 +133,22 @@ const std::vector<double> &DataSeries::at(core::Gender gender, core::Income inco
     return by_income_.at(income).at(gender).at(key);
 }
 
+const std::vector<double> *DataSeries::find(core::Gender gender, core::Income income,
+                                            const std::string &key) const noexcept {
+    const auto for_income = by_income_.find(income);
+    if (for_income == by_income_.end()) {
+        return nullptr;
+    }
+
+    const auto for_gender = for_income->second.find(gender);
+    if (for_gender == for_income->second.end()) {
+        return nullptr;
+    }
+
+    const auto found = for_gender->second.find(key);
+    return found == for_gender->second.end() ? nullptr : &found->second;
+}
+
 bool RuntimeMetric::emplace(const std::string &key, double value) {
     return metrics_.emplace(key, value).second;
 }

@@ -6,7 +6,9 @@
 #include "model/runtime_context.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <map>
 #include <set>
 
 #include <fmt/format.h>
@@ -230,15 +232,48 @@ void AnalysisModule::calculate_standard_deviation(RuntimeContext &context,
         available.insert(core::to_lower(channel));
     }
 
-    // The means are already in place, so this is one pass of squared differences.
-    const auto accumulate = [&series, &available](const std::string &name, core::Gender gender,
-                                                  std::size_t age, double value) {
-        if (!available.contains(core::to_lower("mean_" + name)) ||
-            !available.contains(core::to_lower("std_" + name))) {
+    // Resolved once, not once per person per channel. This lambda runs for every person and
+    // every channel of every year, and it used to build two strings, lower-case both and look
+    // each up in a std::map<std::string> on every call: the lower-casing alone was 6% of the
+    // whole run (docs/performance.md). What it needs is the two vectors, so those are found up
+    // front and the loop below just adds to them.
+    struct Target {
+        std::vector<double> *mean{};
+        std::vector<double> *deviation{};
+    };
+
+    std::map<std::string, std::array<Target, 2>> targets;
+    const auto slot_of = [](core::Gender gender) {
+        return gender == core::Gender::male ? std::size_t{0} : std::size_t{1};
+    };
+
+    for (const auto &channel : series.channels()) {
+        const auto lower = core::to_lower(channel);
+        if (!lower.starts_with("std_")) {
+            continue;
+        }
+
+        const auto name = lower.substr(4);
+        if (!available.contains("mean_" + name)) {
+            continue;
+        }
+
+        auto &entry = targets[name];
+        for (const auto gender : {core::Gender::male, core::Gender::female}) {
+            entry.at(slot_of(gender)) = Target{
+                .mean = &series(gender, "mean_" + name), .deviation = &series(gender, channel)};
+        }
+    }
+
+    const auto accumulate = [&targets, &slot_of](const std::string &name, core::Gender gender,
+                                                 std::size_t age, double value) {
+        const auto found = targets.find(name);
+        if (found == targets.end()) {
             return;
         }
-        const double difference = value - series(gender, "mean_" + name).at(age);
-        series(gender, "std_" + name).at(age) += difference * difference;
+        const auto &target = found->second.at(slot_of(gender));
+        const double difference = value - target.mean->at(age);
+        target.deviation->at(age) += difference * difference;
     };
 
     const auto current_time = static_cast<unsigned int>(context.time_now());
@@ -328,12 +363,19 @@ void AnalysisModule::calculate_standard_deviation(RuntimeContext &context,
         }
 
         for (const auto *name : {"age", "age2", "age3", "gender", "region", "ethnicity", "sector",
-                                 "income", "income_category", "physical_activity", "yld"}) {
+                                 "income", "income_category", "physical_activity"}) {
             finish(name, core::Gender::male, age, count_male);
             finish(name, core::Gender::female, age, count_female);
         }
 
-        for (const auto *name : {"yll", "daly"}) {
+        // The burden channels are rates per person-year at risk, so someone who died during the
+        // year is in the denominator: they were alive for part of it. Their contribution to the
+        // numerator is years of life lost and not years lived with disability, which is why the
+        // yld sum comes only from the living and is still divided by the larger figure. All three
+        // channels use the same denominator for their mean and their standard deviation — yld
+        // used the head count here, which made its spread disagree with the baseline's by about
+        // 2% and, worse, disagree with its own mean.
+        for (const auto *name : {"yll", "yld", "daly"}) {
             finish(name, core::Gender::male, age, count_male + deaths_male);
             finish(name, core::Gender::female, age, count_female + deaths_female);
         }

@@ -367,7 +367,19 @@ kind):
 
 CSV output is written with `std::format`-based fixed formatting (`{:.10g}`) so that a value's text
 does not depend on the platform's locale or on iostream state, and rows are emitted in the order
-given by D10.
+given by D10. Ten digits, not the baseline's six: the baseline writes to a `std::stringstream` at
+its default precision, which is the reason the equivalence comparison needs a 10⁻⁵ floor
+([docs/equivalence.md](equivalence.md)).
+
+**Which columns exist** is a property of the configuration and the loaded models, decided before
+the run starts — never of the population. A demographic channel is written when
+`project_requirements` asks for the dimension **and** a loaded risk-factor model declares that it
+assigns it (`model::AssignedAttributes`). Both halves are needed: the requirement defaults switch
+income and physical activity on for every config including the HLM ones, whose models assign
+neither, and the baseline decides by inspecting the first 1,000 people — so its file's column set
+depends on the contents of a sample of the cohort, and a small cohort can lose a column
+altogether. The risk-factor and disease columns come from the config's declared factor list and
+disease list, in the config's own order.
 
 ---
 

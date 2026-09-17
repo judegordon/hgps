@@ -87,6 +87,15 @@ class DataSeries {
 
     bool has_income_channels() const noexcept { return !by_income_.empty(); }
 
+    /// @brief The income-stratified channel if it exists, or nullptr.
+    ///
+    /// The result writer asks this for every channel of every stratum of every row, and most
+    /// channels have no stratified counterpart — so `at` throwing for them is exception-driven
+    /// control flow on the hottest path in the program. It cost 20% of the reference example's
+    /// run time before this existed (docs/performance.md).
+    const std::vector<double> *find(core::Gender gender, core::Income income,
+                                    const std::string &key) const noexcept;
+
   private:
     std::size_t sample_size_;
     std::vector<std::string> channels_;

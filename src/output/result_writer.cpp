@@ -165,12 +165,11 @@ void ResultWriter::write_income_rows(const sim::ResultRow &row) {
                 for (const auto &channel : series.channels()) {
                     // A channel with no income-stratified counterpart reads as zero rather than
                     // being absent, so every stratum file has the same columns as the main one.
-                    double value = 0.0;
-                    try {
-                        value = series.at(gender, income, channel).at(index);
-                    } catch (const std::out_of_range &) {
-                        value = 0.0;
-                    }
+                    // Asked with `find` rather than by catching what `at` throws: most channels
+                    // have no stratified counterpart, and the throw-and-catch was 20% of the
+                    // reference example's run time (docs/performance.md).
+                    const auto *values = series.find(gender, income, channel);
+                    const double value = values != nullptr ? (*values)[index] : 0.0;
                     stream << ',' << format_value(value);
                 }
 

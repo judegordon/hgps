@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <fstream>
-#include <sstream>
 #include <utility>
 
 #include <fmt/format.h>
@@ -13,18 +12,31 @@ namespace {
 using diag::IssueCode;
 using diag::IssueLocation;
 
-/// nlohmann's byte offset to (line, column), counting from 1.
-std::pair<std::size_t, std::size_t> offset_to_line_column(const std::string &text,
-                                                          std::size_t offset) {
+/// @brief Turns a byte offset into a 1-based line and column by re-reading the file.
+///
+/// Only called when a parse has already failed, so reading the file a second time costs nothing
+/// anybody will notice — and it means the parse itself can read the stream instead of holding the
+/// whole document as a string as well as a tree.
+std::pair<std::size_t, std::size_t> locate_in_file(const std::filesystem::path &path,
+                                                   std::size_t byte) {
+    std::ifstream stream{path};
+    if (!stream) {
+        return {1U, 1U};
+    }
+
     std::size_t line = 1;
     std::size_t column = 1;
-    for (std::size_t i = 0; i < offset && i < text.size(); ++i) {
-        if (text[i] == '\n') {
+    for (std::size_t offset = 1; offset < byte; ++offset) {
+        const auto character = stream.get();
+        if (character == std::char_traits<char>::eof()) {
+            break;
+        }
+        if (character == '\n') {
             ++line;
             column = 1;
-        } else {
-            ++column;
+            continue;
         }
+        ++column;
     }
     return {line, column};
 }
@@ -36,7 +48,8 @@ std::string type_name(const nlohmann::json &value) {
 } // namespace
 
 std::optional<nlohmann::json> read_json(const std::filesystem::path &path,
-                                        diag::IssueReport &report) {
+                                        diag::IssueReport &report,
+                                        const std::vector<std::string> &discarded_members) {
     std::ifstream stream{path};
     if (!stream) {
         report.error(IssueCode::file_not_found, IssueLocation{.file = path.string()},
@@ -44,19 +57,42 @@ std::optional<nlohmann::json> read_json(const std::filesystem::path &path,
         return std::nullopt;
     }
 
-    std::stringstream buffer;
-    buffer << stream.rdbuf();
-    const auto text = buffer.str();
-
     try {
-        return nlohmann::json::parse(text);
+        if (discarded_members.empty()) {
+            return nlohmann::json::parse(stream);
+        }
+
+        // Returning false for a key event discards that key and its value, so the tree is never
+        // built for it. The depth and event are unused: these member names are unambiguous in
+        // the files they appear in.
+        std::string current_key;
+        auto callback = [&discarded_members, &current_key](
+                            int /*depth*/, nlohmann::json::parse_event_t event,
+                            nlohmann::json &parsed) {
+            if (event != nlohmann::json::parse_event_t::key) {
+                return true;
+            }
+            current_key = parsed.get<std::string>();
+            return std::find(discarded_members.begin(), discarded_members.end(), current_key) ==
+                   discarded_members.end();
+        };
+
+        return nlohmann::json::parse(stream, callback);
     } catch (const nlohmann::json::parse_error &error) {
-        const auto [line, column] = offset_to_line_column(text, error.byte);
+        // Only now is the text read, and only to turn a byte offset into a line and a column. The
+        // parse itself reads the stream: holding an 18.8 MB model file as a string as well as a
+        // tree cost 19 MB of peak memory for nothing (docs/performance.md).
+        const auto [line, column] = locate_in_file(path, error.byte);
         report.error(IssueCode::json_parse_error,
                      IssueLocation{.file = path.string(), .line = line, .column = column},
                      error.what());
         return std::nullopt;
     }
+}
+
+std::optional<nlohmann::json> read_json(const std::filesystem::path &path,
+                                        diag::IssueReport &report) {
+    return read_json(path, report, {});
 }
 
 JsonCursor::JsonCursor(const nlohmann::json &node, std::string file, std::string pointer,

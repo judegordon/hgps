@@ -102,21 +102,45 @@ load_expected_values(const Config &config, diag::IssueReport &report) {
     return table;
 }
 
-std::optional<std::string> read_model_name(const std::filesystem::path &path,
-                                           diag::IssueReport &report) {
-    const auto document = io::read_json(path, report);
-    if (!document.has_value()) {
-        return std::nullopt;
-    }
+namespace {
 
-    if (!document->contains("ModelName") || !(*document)["ModelName"].is_string()) {
+/// The members of a fitted-model file that the simulation never reads.
+///
+/// `residuals` and `fittedValues` are per-observation diagnostics from the R fit — 40,000 numbers
+/// each, per factor. France's static_model.json is 18.8 MB of text and almost all of it is these,
+/// so they are dropped during the parse rather than after it (see io::read_json).
+const std::vector<std::string> kUnusedModelMembers{"residuals", "fittedValues"};
+
+/// @brief Reads a model file once, skipping the members nothing reads.
+std::optional<nlohmann::json> read_model_document(const std::filesystem::path &path,
+                                                  diag::IssueReport &report) {
+    return io::read_json(path, report, kUnusedModelMembers);
+}
+
+/// @brief The lower-cased `ModelName` of an already-parsed model document.
+std::optional<std::string> model_name_of(const nlohmann::json &document,
+                                         const std::filesystem::path &path,
+                                         diag::IssueReport &report) {
+    if (!document.contains("ModelName") || !document["ModelName"].is_string()) {
         report.error(IssueCode::model_missing_key,
                      IssueLocation{.file = path.string(), .field = "/ModelName"},
                      "a risk-factor model file must declare a string 'ModelName'");
         return std::nullopt;
     }
 
-    return core::to_lower((*document)["ModelName"].get<std::string>());
+    return core::to_lower(document["ModelName"].get<std::string>());
+}
+
+} // namespace
+
+std::optional<std::string> read_model_name(const std::filesystem::path &path,
+                                           diag::IssueReport &report) {
+    const auto document = read_model_document(path, report);
+    if (!document.has_value()) {
+        return std::nullopt;
+    }
+
+    return model_name_of(*document, path, report);
 }
 
 std::optional<RiskFactorModels> load_risk_factor_models(const LoadContext &context,
@@ -137,12 +161,15 @@ std::optional<RiskFactorModels> load_risk_factor_models(const LoadContext &conte
         }
 
         const auto &path = found->second;
-        const auto document = io::read_json(path, report);
+
+        // Once, not twice: reading the file to find its ModelName and then again to load it
+        // doubled both the parse time and the memory spike on an 18.8 MB model file.
+        const auto document = read_model_document(path, report);
         if (!document.has_value()) {
             return nullptr;
         }
 
-        const auto name = read_model_name(path, report);
+        const auto name = model_name_of(*document, path, report);
         if (!name.has_value()) {
             return nullptr;
         }
