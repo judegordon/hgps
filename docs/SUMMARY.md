@@ -1,171 +1,173 @@
-# Summary of the first build run
+# Summary of the second build run
 
 What was built, what is proven, and where it stops. Written at the end of the run it describes.
+The first run's summary is in the history of this file; what it covered is the HLM surface, and
+what it left open was the FINCH one.
 
 ## The short version
 
-A working, deterministic C++20 reimplementation of the Health-GPS microsimulation covering the
-**HLM surface end to end**: the converted `HLM_France` reference example runs 2010–2050 over both
-scenarios and produces results that agree with the baseline's, and it does so in **2.7 s against
-the baseline's 5.0 s** and **57 MiB against 85 MiB**, with byte-identical output on every repeat
-and at any thread count.
+A working, deterministic C++20 reimplementation of the Health-GPS microsimulation covering **both
+in-scope model surfaces end to end**. `HLM_France` and `KevinHall_FINCH` both run all their
+scenarios against the baseline and produce results that agree with it, and four of the six upstream
+examples now run.
 
-- **433 tests**, all passing under every preset — release, debug, **AddressSanitizer +
+- **548 tests**, all passing under every preset — release, debug, **AddressSanitizer +
   UndefinedBehaviorSanitizer** and **ThreadSanitizer**. The baseline's 471 were gone through one by
-  one: [docs/test-port-map.md](test-port-map.md) says where each went.
-- **38,260 statistical comparisons** against the baseline, run at 20 seeds and again at 60, of
-  which **every single mean agrees** — 0 of 7,652, at both seed counts — and 99.86% of all
-  comparisons fall inside a multiplicity-corrected 4.5σ allowance:
-  [docs/equivalence.md](equivalence.md).
-- **26 ADRs**, one per design decision, each with the alternatives rejected.
-- **33 recorded deviations** from the baseline — 15 fixed defects that change the numbers, 10
+  one, and **the 35 the baseline skips now run**: [docs/test-port-map.md](test-port-map.md) says
+  where each went.
+- **Two statistical equivalence comparisons against the baseline, both at zero failures.**
+  33,732 comparisons on `HLM_France` and 23,432 on `KevinHall_FINCH`, each at 20 seeds and again at
+  60, plus one run per intervention for each of the other five policies. There is **no failure
+  budget**: `scripts/check.sh` fails on any out-of-tolerance comparison.
+- **30 ADRs**, one per design decision, each with the alternatives rejected.
+- **37 recorded deviations** from the baseline — 19 fixed defects that change the numbers, 10
   design differences that change results or output, 8 internal ones that change nothing — each with
   its audit finding ID and its evidence: [docs/deviations.md](deviations.md).
-
-The **FINCH surface was not completed**. See *Where step 7 stopped*, below.
+- **Four new baseline defects found**, B-21 to B-24, all of them by running code the baseline's own
+  tests never reach.
 
 ## What is here
 
 | | |
 |---|---|
-| `src/` | 114 files, 17,200 lines — core, diagnostics, RNG, I/O, config, data, model, sim, output, app |
-| `tests/` | 43 files, 9,600 lines — 433 tests in 51 suites |
-| `tools/` | `convert-config` (v1→v2) and `gen-fixtures` (the synthetic data pack) |
+| `src/` | 128 files, 22,600 lines — core, diagnostics, RNG, I/O, config, data, model, sim, output, app |
+| `tests/` | 47 files, 11,500 lines — 548 tests in 63 suites |
+| `tools/` | `convert-config` (v1→v2, with `--policy-scenario`) and `gen-fixtures` (the synthetic data pack) |
 | `schemas/v2/` | the published config contract, kept in step with the loader by a test |
-| `docs/` | 8 documents and 26 ADRs |
+| `docs/` | 9 documents and 30 ADRs |
 | `examples/` | the six upstream examples, converted |
-| `tests/equivalence/` | the harness and the baseline's stored reference output |
+| `tests/equivalence/` | the harness, two stored baseline references, and the FINCH intervention set |
 
-For comparison, the baseline is 41,400 lines of C++ for the whole model surface, of which this run
-implements the HLM part.
+For comparison, the baseline is 41,400 lines of C++ for the whole model surface.
 
-## The ten tasks, and how each ended
+## The eleven tasks, and how each ended
 
 | | Task | Outcome |
 |---:|---|---|
-| 1 | Build the baseline and run its tests | **Done.** `471 tests, 436 passed, 35 skipped`, matching the expectation exactly. Four macOS shims were needed and each is recorded in [docs/build-notes.md](build-notes.md) with a judgement on whether it is a baseline defect. |
-| 2 | Scaffold | **Done.** CMake + presets (release, debug, asan-ubsan, tsan), vcpkg pinned to a builtin baseline, three dependencies, `-Wall -Wextra -Wpedantic -Werror` with every warning fixed rather than suppressed. |
-| 3 | Design and ADRs | **Done.** [docs/design.md](design.md) and 26 ADRs, one per ruling and per design choice. |
-| 4 | Tests first | **Done.** Ported before the code they test, including the expectations changed because a baseline test encoded a finding. |
-| 5 | Foundations | **Done.** The determinism contract's 14 clauses are enforced by types, not by review: an unseeded engine does not compile, an RNG draw inside a parallel region throws with a source location, `Categorical<T>` has its `unordered_map` constructors deleted, and `reduce_ordered`'s block decomposition is independent of the thread count. |
-| 6 | Converter, fixtures and examples | **Done.** All six upstream examples converted; [docs/examples.md](examples.md) records that one runs end to end and why each of the others stops. |
-| 7 | Model components | **Partly done — this is where the run stopped.** See below. |
-| 8 | Equivalence harness | **Done** for the surface that exists. [docs/equivalence.md](equivalence.md). |
-| 9 | Profiling | **Done.** [docs/performance.md](performance.md) — and it changed the code three times. |
-| 10 | Backlog, summary, README | **Done.** [docs/backlog.md](backlog.md). |
-
-## Where step 7 stopped
-
-**Implemented:** the demographic module (births, deaths, ageing, net migration, residual
-mortality), the SES module, the disease module (incidence, remission, mortality, relative risks,
-comorbidity), the analysis module (five units: burden, channels, series, income strata, module),
-the `HLM` static and `EBHLM` dynamic risk-factor models, the `simple` intervention, the scenario
-journal, the engine and runner, and the result writer.
-
-**Not implemented:** the `StaticLinear` and `KevinHall` model families, which are the FINCH
-surface. With them go the income and physical-activity models, region and ethnicity **data
-loading**, the two-stage logistic option, the income-quintile FactorsMean strata, the trend types
-other than `null`, the other five interventions, PIF, and individual-level tracking output.
-
-Everything in that list is **rejected at load time with a located error naming the missing
-feature and pointing at the backlog** — never silently ignored, and never producing a
-plausible-looking wrong number. Four of the six converted examples load; `HLM_India` is rejected
-for selecting `food_labelling` and `KevinHall_PIF` for enabling PIF; the two `KevinHall` examples
-load their configs and are rejected at their model files.
-
-The scope ruling for this run was the HLM_France and FINCH surfaces. HLM_France is done and FINCH
-is not, and the reason is the size of the two model families — 2,615 and 1,462 lines in the
-baseline — against the time the earlier tasks took. [docs/backlog.md](backlog.md) ranks them first
-and second, and says what each unblocks.
+| 1 | Orientation | **Done.** |
+| 2 | Residual investigation — close the 54 with evidence, not a budget | **Done.** Measured, attributed to the baseline as B-21, and excluded from the reduction by a rule derived from the data. The seven that survived that turned out to be a defect in the *test*. 54 → 0. |
+| 3 | Derived-predictor resolver with load-time validation | **Done.** |
+| 4 | FINCH data loading and manifest validation | **Done.** |
+| 5 | `StaticLinear`, split into units, with tests | **Done.** 2,615 baseline lines become seven translation units; 22 + 11 new tests. |
+| 6 | `KevinHall` and the 35 skipped baseline tests | **Done.** The 30 that test behaviour run and pass; the five that assert the contents of a printed summary box this build does not print are recorded as not ported. |
+| 7 | The other five interventions, and determinism for each | **Done.** One `BandedInterventionScenario` and one virtual function per policy; 43 tests; every intervention byte-identical at one thread and at four, twice each. |
+| 8 | Converter policy-scenario option, and every example converted and loaded | **Done.** `--policy-scenario S1..S7` resolves audit D-02 without editing the upstream example. Four of six examples run; the two that do not stop at a named missing feature. |
+| 9 | Equivalence and performance for FINCH | **Done.** See below. |
+| 10 | Test port completion and every preset | **Done.** 548 tests, four presets. |
+| 11 | Docs, ADRs, README, backlog, this file | **Done.** |
 
 ## What the validation actually shows
 
-**Component level.** 433 tests. The strongest are the ones that carry the baseline's expected
-numbers over unchanged and still pass: the univariate-summary moment recurrence, the SHA-256
-digests, the weight-model LMS classification, and — the best single piece of evidence in the
-suite — `TestRelativeRiskLookup.ReferenceDataLookup`, 44 expected relative risks interpolated from
-a real 7×5 table.
+**Component level.** 548 tests, of which 220 are new. The strongest are the ones that carry the
+baseline's expected numbers over unchanged and still pass: the univariate-summary moment
+recurrence, the SHA-256 digests, the weight-model LMS classification, and
+`TestRelativeRiskLookup.ReferenceDataLookup`, 44 expected relative risks interpolated from a real
+7×5 table.
 
-**End to end.** Over 20 seeds of 2010–2050, both scenarios, both sexes and 52 output variables:
-38,260 comparisons of five statistics each. **Every mean agrees** — 0 failures in 7,652
-comparisons. 54 comparisons (0.14%) fall outside the allowance, all between 1.01× and 1.36× it,
-and all traced to one mechanism: when an age-sex band empties, immigration has nobody of that age
-to clone, both implementations fall short of the projected total, and they do so on different
-seeds.
+The 35 the baseline skips are the interesting ones. `KevinHallHeight`, `KevinHallWeightQuantiles`,
+`KevinHallWeightValidation` and `ModelParserFinch` have never executed in the baseline's CI, on any
+machine, because the fixture path they derive from `__FILE__` does not exist in either upstream
+data repository (audit B-11). Running them for the first time is how four of this run's defects
+were found.
 
-Repeating at 60 seeds gives **the same 54 failures** — tripling the seeds tightens every allowance
-by √3 and changes nothing, so what is left is a real difference of about the size the allowance now
-is, not sampling noise. At 60 seeds it concentrates into three (year, sex) cells, each failing
-simultaneously for six to eight correlated variables: one event, propagated through the count
-weights. The largest disagreement anywhere in either run is 5 people in 3,461.
+**End to end.** Two examples, two model families, six intervention scenarios, 20 seeds each and
+60 for the two primary runs. Every comparison within tolerance, and the worst of them uses 90% of
+its allowance — which matters, because a set of comparisons clustered at 0.99× would mean the
+thresholds were doing the work rather than the code.
 
-**Determinism.** Byte-identical output across repeats, across thread counts, and with an
-intervention active — asserted by `tests/sim/reproducibility_test.cpp`, not just claimed.
+**Determinism.** Byte-identical output across repeats, across thread counts, and for **each of the
+six interventions** — asserted by `tests/sim/reproducibility_test.cpp`, not just claimed.
 
 **Memory and threading.** The whole suite passes under AddressSanitizer + UndefinedBehaviorSanitizer
-(80 s) and under ThreadSanitizer (181 s), which is where audit finding B-02 — a data race in the
-baseline's lazily-populated repository — was confirmed in the first place.
+and under ThreadSanitizer, which is where audit finding B-02 — a data race in the baseline's
+lazily-populated repository — was confirmed in the first place. This build has never exited on a
+signal, on any example, at any seed, under any preset. The baseline does, on `KevinHall_FINCH`, on
+about one run in twenty, with three different signals seen.
+
+**Performance.** [docs/performance.md](performance.md):
+
+| | Baseline | This build |
+|---|---|---|
+| `HLM_France`, 2010–2050 | 4.78–5.26 s, 85.2 MiB | **2.78–3.23 s, 56.8 MiB** |
+| `KevinHall_FINCH`, 2022–2032 | 15.19–15.52 s, 198 MiB | **11.63–11.79 s, 195.6 MiB** |
+
+The budget for this run was the previous one's `HLM_France` figure plus 10%, and it holds: adding
+the whole FINCH surface cost an example that uses none of it nothing measurable.
 
 ## What the process found that reading would not have
 
-Five things worth recording, because each came from actually running something:
+1. **Two calibration targets were aimed at the wrong number**, and the equivalence harness found
+   both. Physical activity's target was being clamped to the factor's configured range — but the
+   FINCH table legitimately puts a newborn at 1.2 against a configured lower bound of 1.4, so the
+   band came out a tenth of a unit high and 3.5% wide. And weight was being calibrated onto the
+   Kevin Hall model's derived adult-weight regression, which is a *fit to* the FactorsMean table's
+   own `Weight` column — 86.1912 against the table's 86.1864. Both are a fraction of a percent, in
+   the right direction, on a quantity that looks calibrated either way. Neither is visible in any
+   unit test and neither would have been found by reading the code.
 
-1. **The HLM model loaders read the wrong member names.** They used the internal spellings
-   (`transition`, `residual_distribution`, `residuals_standard_deviation`) instead of the files'
-   (`m`, `s`, `residualsStandardDeviation`). The synthetic fixture had been generated to match the
-   loaders, so the whole path was green until the real 18.8 MB France model produced 54 located
-   errors at once. The lesson was a test file that spells out the real format
-   (`tests/config/model_loader_test.cpp`), one of whose tests asserts the internal names are
-   *rejected*.
+2. **The FINCH example's `simple` intervention has an empty impact list.** Its policy is somewhere
+   else entirely: `policy_start_year: 2024`, and from that year the static linear model applies the
+   S1 policy-effect coefficients and residual policy covariance. Anyone who assumed the
+   `interventions` block was the policy would have compared a scenario against a copy of itself and
+   called it a pass. The stored reference is what says otherwise: the baseline's two scenarios are
+   identical in 2022 and 2023 and differ in 2,476 of 4,600 reduced series in 2024.
 
-2. **`mean_gender` was `1/count` instead of `1`.** `gender` is a declared level-0 risk factor, so
-   it is in the mapping, but a person carries it in `person.gender` rather than in `risk_factors` —
-   so the sum came from the explicit accumulation and was then divided by the head count twice. The
-   equivalence harness found it on its first real run. The baseline has a test for the income
-   version of the same bug; this implementation now has the generalised one.
+3. **The FINCH static model names two files the pack does not contain.** It ships seven variants of
+   each, `S1_` to `S7_`, one per modelled policy scenario, and the example as shipped fails at load
+   in the baseline. That is audit D-02, and the fix is a converter option rather than an edit to
+   somebody else's example ([ADR 0030](decisions/0030-policy-scenario-selection-for-the-broken-finch-example.md)).
 
-3. **The calibration adjustment must not be clamped.** `adjust_to_factors_mean` shifts an
-   (age, sex) band by `expected − simulated_mean` so the band's mean lands exactly on the
-   FactorsMean table. Clamping the shifted values to the factor's configured range moves it back
-   off — most visibly at the young ages, where France's expected BMI of 14 sits just above the
-   configured bound of 13.88. A consequence worth knowing: the band means of a calibrated run are
-   **seed-independent**, in the baseline as here, and what the seed moves is the spread.
+4. **`std_income` is a column the baseline emits and never fills** (B-22). Two loops each skip
+   `income` on the ground that the other one handles it. Every value is exactly zero, in every
+   band, every year, every run.
 
-4. **41% of the run time was throwing exceptions.** The result writer asked for every
-   income-stratified channel and caught the `out_of_range` when there wasn't one — which is most
-   channels. It is the same anti-pattern the audit criticised in the earlier rewrite, written here
-   by the same reflex. Removing it took the run from 8.8 s to 3.3 s. No amount of reading the code
-   would have found it.
+5. **`two_stage.use_logistic` is read and never consulted** (B-23). The FINCH pack sets it `false`,
+   ships the logistic file anyway, and is fitted to the behaviour with the first step *on* — the
+   first step changes `mean_redmeat` by 30%. So the file has to decide, and the disagreement is
+   reported rather than resolved silently.
 
-5. **`std_yld` disagreed with its own `mean_yld`.** The mean divided by person-years at risk
-   (head count plus deaths) and the standard deviation by the head count, so a channel's spread was
-   about 2% off the baseline's and inconsistent with its own mean. Found by the 60-seed run, where
-   it was the only failing *mean* in the whole comparison.
+6. **The food-labelling policy can apply its impact more than once** (B-24). It marks somebody it
+   has just affected with `try_emplace`, which does nothing when they are already in its book as
+   unaffected, so a person who failed an early coverage draw and passed a later one is offered the
+   impact again every remaining year of the window.
 
-## What a reader should be sceptical about
+7. **A background indexer is worth 20% of the wall time.** The first attempt at this run's
+   performance figures put `HLM_France` at 3.38 s — over budget — while Spotlight was indexing the
+   working directories. It is in [docs/performance.md](performance.md) with the cause, because the
+   next person to measure this will hit it too.
 
-- **One example runs.** The equivalence evidence is one country, one model family, one
-  intervention. It is the reference example and it is the right one to have first, but it is one.
+## What a reader should still be sceptical about
+
+- **Two examples, two countries, and one of them twice.** The evidence is `HLM_France` and
+  `KevinHall_FINCH`. `HLM_India` and `KevinHall_India` load and run in both implementations but are
+  not compared, which was this run's scope ruling. Comparing `KevinHall_India` is the cheapest way
+  to make the FINCH evidence not one data pack, and it is ranked in [docs/backlog.md](backlog.md).
 - **The comparison's floor.** The baseline writes six significant digits, so no comparison can be
-  tighter than about 10⁻⁵ relative. Several of this model's aggregates are nearly deterministic, so
-  for those the test *is* that floor. A difference smaller than it would not be seen.
-- **Twenty seeds is few for a standard deviation.** Its standard error at n = 20 is 16% of the
-  standard deviation, which is why 29 of the 54 failures are standard deviations and why the run
-  was repeated at 60.
+  tighter than about 10⁻⁵ relative. Several of these models' aggregates are nearly deterministic,
+  so for those the test *is* that floor.
+- **The FINCH intervention definitions are not Finland's.** The pack ships one policy and it is
+  empty, so the five age-banded policies are compared using HLM_France's own definitions with the
+  active period and one factor name substituted. Both implementations get the identical definition,
+  so the comparison is sound — but it is a comparison of two programs, not a statement about Finnish
+  policy.
 - **macOS only, so far.** The code targets Linux and macOS and avoids what would break on either,
-  but every measurement here is from one Apple M5 and there is no CI. That is the first
-  low-effort item in the backlog.
+  but every measurement here is from one Apple M5 and there is no CI. That is now the first item in
+  the backlog.
 - **The synthetic fixture pack is invented.** It exists so tests can run without the network. Its
-  own `SYNTHETIC.md` says so, and records the one artefact it has (its top age equals the
-  configured age range, so the top band empties each year).
+  own `SYNTHETIC.md` says so, and records the one artefact it has.
+- **Population impact fraction is still refused.** It is the one part of the upstream model surface
+  that is rejected at load rather than implemented, with a named error and a pointer to the
+  backlog.
 
 ## The next three things to do
 
-1. `StaticLinear` — it unblocks region, ethnicity, income, physical activity, the two-stage
-   logistic and the income strata, and it is the prerequisite for the FINCH example.
-2. `KevinHall` — and with it the 30 baseline tests that are 30 of the baseline's own 35 skips, so
-   porting them is the first time anyone learns whether they pass.
-3. A CI workflow — `scripts/check.sh` is the whole of it; what is missing is a runner and a
-   decision about whether CI fetches the disease data or runs against the synthetic pack.
+1. **A CI workflow.** `scripts/check.sh` is the whole of it; what is missing is a runner and a
+   decision about whether CI fetches the disease data or runs against the synthetic pack. Two
+   equivalence references are checked in and nothing runs them automatically, and a harness nobody
+   runs is a document.
+2. **Population impact fraction**, the last refused feature, and with it `KevinHall_PIF`.
+3. **Resolve factor and channel names to indices once per run.** Both profiles say the same thing —
+   40% of `HLM_France`'s samples and 52% of `KevinHall_FINCH`'s are string comparison — and the same
+   structure is where FINCH's 195 MiB goes.
 
 [docs/backlog.md](backlog.md) has the rest, ranked, with what each costs.

@@ -57,11 +57,15 @@ if [[ "$RUN_EQUIVALENCE" -eq 1 && "$FAST" -eq 0 ]]; then
         # --refresh-reference to re-run the baseline binary itself; see docs/equivalence.md.
         #
         # There is no failure budget: --max-failures defaults to zero and nothing here raises it.
-        # The 54 residual failures of the previous run were traced to one mechanism — an age band
-        # that empties cannot be refilled by immigration, a baseline defect recorded as B-21 in
-        # docs/deviations.md — and the harness now excludes those bands from the reduction on both
+        # The 54 residual failures of the run before last were traced to one mechanism — an age
+        # band that empties cannot be refilled by immigration, a baseline defect recorded as B-21
+        # in docs/deviations.md — and the harness excludes those bands from the reduction on both
         # sides rather than budgeting for their consequences.
+        #
+        # Both examples, one per model family: HLM_France covers HLM/EBHLM and KevinHall_FINCH
+        # covers StaticLinear/KevinHall and the S1 policy model.
         python3 tests/equivalence/run.py --example HLM_France --seeds 20 --use-reference
+        python3 tests/equivalence/run.py --example KevinHall_FINCH --seeds 20 --use-reference
     else
         echo "check.sh: tests/equivalence/run.py is missing or not executable." >&2
         exit 1
