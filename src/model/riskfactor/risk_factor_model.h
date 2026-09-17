@@ -1,0 +1,146 @@
+// Derived from Health-GPS (BSD-3-Clause, Imperial College London / INRAE); see LICENSE.
+// Origin: src/HealthGPS/{risk_factor_model,riskfactor,risk_factor_adjustable_model}.h.
+#pragma once
+
+#include "core/identifier.h"
+#include "core/interval.h"
+#include "model/containers.h"
+#include "model/module.h"
+#include "sim/scenario.h"
+
+#include <cstdint>
+#include <map>
+#include <memory>
+#include <optional>
+#include <string>
+#include <vector>
+
+namespace hgps::model {
+
+/// @brief The two slots a risk-factor model can fill.
+enum class RiskFactorModelType : std::uint8_t {
+    /// @brief Generates the initial cohort's factor values.
+    Static,
+    /// @brief Moves them year on year.
+    Dynamic,
+};
+
+/// @brief Expected factor values by sex and factor, indexed by age.
+using SexAgeFactorTable = Map2d<core::Gender, core::Identifier, std::vector<double>>;
+
+/// @brief How expected values move over time.
+enum class TrendType : std::uint8_t {
+    /// @brief No trend.
+    Null,
+    /// @brief The ultra-processed-food trend: expected *= factor^elapsed, capped by trend steps.
+    UpfTrend,
+    /// @brief The income trend: expected *= trend * exp(decay * elapsed), from the second year.
+    IncomeTrend,
+};
+
+/// @brief A risk-factor model: generates factor values, then updates them each year.
+class RiskFactorModel {
+  public:
+    RiskFactorModel() = default;
+    virtual ~RiskFactorModel() = default;
+    RiskFactorModel(const RiskFactorModel &) = delete;
+    RiskFactorModel &operator=(const RiskFactorModel &) = delete;
+    RiskFactorModel(RiskFactorModel &&) = delete;
+    RiskFactorModel &operator=(RiskFactorModel &&) = delete;
+
+    virtual RiskFactorModelType type() const noexcept = 0;
+    virtual std::string name() const noexcept = 0;
+
+    /// @brief Gives the population its factor values.
+    virtual void generate_risk_factors(RuntimeContext &context,
+                                       sim::ScenarioJournal &journal) = 0;
+
+    /// @brief Moves them one year.
+    virtual void update_risk_factors(RuntimeContext &context, sim::ScenarioJournal &journal) = 0;
+};
+
+/// @brief A model that calibrates simulated means to the FactorsMean tables.
+///
+/// The adjustment is computed by the baseline scenario and reused by the intervention, so the two
+/// futures are calibrated identically. The baseline passes it over a channel with a timeout; here
+/// it goes in the journal (ADR 0009).
+class AdjustableRiskFactorModel : public RiskFactorModel {
+  public:
+    AdjustableRiskFactorModel(std::shared_ptr<const SexAgeFactorTable> expected,
+                              std::shared_ptr<const std::map<core::Identifier, double>> trend,
+                              std::shared_ptr<const std::map<core::Identifier, int>> trend_steps,
+                              TrendType trend_type = TrendType::Null);
+
+    /// @brief The expected value of a factor for a sex and age, with any trend applied.
+    /// @throws diag::InternalError if the FactorsMean table has no column for the factor — which
+    ///         is a model definition that names a factor its own calibration data lacks.
+    double get_expected(RuntimeContext &context, core::Gender sex, int age,
+                        const core::Identifier &factor,
+                        std::optional<core::DoubleInterval> range, bool apply_trend) const;
+
+    /// @brief The number of years a factor's trend keeps being applied for.
+    int get_trend_steps(const core::Identifier &factor) const;
+
+    /// @brief Shifts every person's factors so the simulated means match the expected ones.
+    void adjust_risk_factors(RuntimeContext &context, sim::ScenarioJournal &journal,
+                             const std::vector<core::Identifier> &factors,
+                             const std::vector<core::DoubleInterval> *ranges,
+                             bool apply_trend) const;
+
+    /// @brief The factors whose zeros are excluded from the simulated mean, because a two-stage
+    ///        model treats zero as "not applicable" rather than as a low value.
+    void set_logistic_factors(std::vector<core::Identifier> factors);
+
+  protected:
+    const SexAgeFactorTable &expected() const noexcept { return *expected_; }
+
+    /// @brief The simulated mean of each factor by sex and age. NaN where nobody contributed.
+    static SexAgeFactorTable
+    calculate_simulated_mean(const Population &population, core::IntegerInterval age_range,
+                             const std::vector<core::Identifier> &factors,
+                             const std::vector<core::Identifier> &logistic_factors);
+
+  private:
+    std::shared_ptr<const SexAgeFactorTable> expected_;
+    std::shared_ptr<const std::map<core::Identifier, double>> trend_;
+    std::shared_ptr<const std::map<core::Identifier, int>> trend_steps_;
+    TrendType trend_type_{TrendType::Null};
+    std::vector<core::Identifier> logistic_factors_;
+
+    sim::AdjustmentTable calculate_adjustments(RuntimeContext &context,
+                                                const std::vector<core::Identifier> &factors,
+                                                const std::vector<core::DoubleInterval> *ranges,
+                                                bool apply_trend) const;
+};
+
+/// @brief Hosts the static and dynamic models, and runs whichever the year calls for.
+class RiskFactorHostModule final : public SimulationModule {
+  public:
+    RiskFactorHostModule() = delete;
+
+    RiskFactorHostModule(std::unique_ptr<RiskFactorModel> static_model,
+                         std::unique_ptr<RiskFactorModel> dynamic_model,
+                         sim::ScenarioJournal &journal);
+
+    ModuleType type() const noexcept override { return ModuleType::RiskFactor; }
+    const std::string &name() const noexcept override { return name_; }
+
+    std::size_t size() const noexcept;
+    bool contains(RiskFactorModelType model_type) const noexcept;
+
+    /// @brief The static model generates the initial cohort's factors.
+    void initialise_population(RuntimeContext &context) override;
+
+    /// @brief The static model generates newborns' factors; the dynamic model moves everyone
+    ///        else's. In that order, because the dynamic model's calibration includes the
+    ///        newborns.
+    void update_population(RuntimeContext &context);
+
+  private:
+    std::unique_ptr<RiskFactorModel> static_model_;
+    std::unique_ptr<RiskFactorModel> dynamic_model_;
+    sim::ScenarioJournal *journal_;
+    std::string name_{"RiskFactor"};
+};
+
+} // namespace hgps::model
