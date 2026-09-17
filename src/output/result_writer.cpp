@@ -66,12 +66,10 @@ ResultWriter::ResultWriter(std::filesystem::path base_path, RunMetadata metadata
     }
 
     if (write_income_files_) {
-        for (std::size_t i = 0; i < income_layout_.strata.size(); ++i) {
-            const auto income = income_layout_.strata[i];
+        for (const auto income : income_layout_.strata) {
             auto path = csv_path_;
-            path.replace_filename(
-                fmt::format("{}_{}Income.csv", csv_path_.stem().string(),
-                            income_layout_.labels.at(i)));
+            path.replace_filename(fmt::format("{}_{}.csv", csv_path_.stem().string(),
+                                              core::income_file_name(income)));
 
             // Every configured stratum gets a file, whether or not anybody falls into it this
             // year. The baseline opens a stratum's file on first use, so a year with nobody in a

@@ -43,4 +43,12 @@ double income_category_numeric(Income income, const IncomeCategoryLayout &layout
 /// @brief The lower-case name of an income category, for diagnostics and output file names.
 std::string_view income_name(Income income) noexcept;
 
+/// @brief The name the income-stratified result files carry: "LowIncome", "LowerMiddleIncome",
+///        and so on.
+///
+/// Distinct from the layout's `labels`, which are the short forms the CSV's own category column
+/// uses ("LowerMid"). The file names are part of what a downstream reader globs for, so they are
+/// the baseline's spellings.
+std::string_view income_file_name(Income income) noexcept;
+
 } // namespace hgps::core

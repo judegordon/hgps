@@ -359,6 +359,15 @@ works, and nothing whatsoever about the world.
 The output is byte-identical every time, which is what lets the reproducibility test compare
 result files at all. The country is code {country_code} ("{country_name}"), which is unassigned in
 ISO 3166-1 so that nothing here can be mistaken for a real country's data.
+
+## A known artefact of how small it is
+
+The pack's population table stops at age {max_age}, and the synthetic config's `age_range` ends
+there too. A person who reaches the top age therefore has no band above them to move into and
+leaves the cohort, so the simulated death rate against this pack runs above the rate the mortality
+table implies. That is a property of the fixture, not of the simulation: the real data store
+carries ages up to 100 with a config that stops below it. Do not read the pack's death rates as a
+check on anything, and do not "fix" the simulation to match them.
 )",
                        fmt::arg("diseases", diseases().size()), fmt::arg("max_age", spec.max_age),
                        fmt::arg("first_year", spec.first_year),

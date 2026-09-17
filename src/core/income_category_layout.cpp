@@ -114,4 +114,22 @@ std::string_view income_name(Income income) noexcept {
     return "unknown";
 }
 
+std::string_view income_file_name(Income income) noexcept {
+    switch (income) {
+    case Income::low:
+        return "LowIncome";
+    case Income::lowermiddle:
+        return "LowerMiddleIncome";
+    case Income::middle:
+        return "MiddleIncome";
+    case Income::uppermiddle:
+        return "UpperMiddleIncome";
+    case Income::high:
+        return "HighIncome";
+    case Income::unknown:
+        break;
+    }
+    return "UnknownIncome";
+}
+
 } // namespace hgps::core

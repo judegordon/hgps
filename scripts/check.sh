@@ -53,7 +53,9 @@ done
 if [[ "$RUN_EQUIVALENCE" -eq 1 && "$FAST" -eq 0 ]]; then
     step "equivalence harness"
     if [[ -x tests/equivalence/run.py ]]; then
-        python3 tests/equivalence/run.py --repo-root "$REPO_ROOT"
+        # Twenty seeds of the reference example against the stored baseline reference. Add
+        # --refresh-reference to re-run the baseline binary itself; see docs/equivalence.md.
+        python3 tests/equivalence/run.py --example HLM_France --seeds 20 --use-reference
     else
         echo "check.sh: tests/equivalence/run.py is missing or not executable." >&2
         exit 1

@@ -33,6 +33,12 @@ computing its own.
   which is a programmer error, not user input.
 - `sync_timeout_ms` is removed from the config format; a v1 config carrying it converts with a
   note, and a v2 config carrying it is an error naming the replacement (ADR 0010).
+- The journal carries three kinds of payload, not one. Net migration is the obvious one, but the
+  baseline's channel also passes the residual-mortality table and the risk-factor adjustment
+  tables, and the intervention scenario must see exactly the figures the baseline computed rather
+  than recompute them from its own population. Adjustments arrive once per year per call site, so
+  they are a queue replayed in recording order with a cursor reset at the start of each run;
+  migration and residual mortality are keyed by (run, year).
 
 ## Alternatives
 
