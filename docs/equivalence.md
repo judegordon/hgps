@@ -47,10 +47,18 @@ population figures is not. The harness reduces each file to one value per
 - everything else is a mean or a proportion within the band, so it is the count-weighted mean over
   the bands — the figure the variable is reporting for the population.
 
+**What the reduction leaves out.** The age bands that either implementation empties, on both sides
+and for every seed — 785 of the 16,564 bands in this run, 0.12% of the head count, all at ages 91
+and above. That is not a convenience: it is the one place the two implementations are not reporting
+the same quantity, for a reason traced below under *the emptying-band mechanism*. The excluded set
+is derived from the runs rather than declared, is recorded in the reference manifest, and a run
+that finds an empty band outside it fails rather than quietly widening it.
+
 **The statistics.** For each of those series the harness takes the 20 seeds' values and computes
 the **mean**, the **standard deviation** and the **5th, 50th and 95th percentiles** (type-7
-quantiles, so they can be reproduced in R or numpy), for each implementation, and compares them.
-That is 2 scenarios × 41 years × 2 sexes × 52 variables × 5 statistics ≈ 38,000 comparisons.
+quantiles, so they can be reproduced in R or numpy), for each implementation, and compares them —
+except for a series that sits on one single value in more than half the seeds, where three of the
+five are replaced by a distribution-free test (below). That is 33,732 comparisons.
 
 ## The thresholds, and why they are what they are
 
@@ -95,99 +103,142 @@ variables the test is "equal to the precision the baseline prints", which is the
 baseline's output supports. Making it stronger would require changing the baseline's writer, and the
 baseline is read-only ([ADR 0003](decisions/0003-read-only-sources-and-out-of-tree-baseline-build.md)).
 
+**Where normal theory does not apply.** Every standard error above assumes the 20 seeds are a
+sample from something like a normal distribution. For **2,264 of the 7,652 series — 30% of them —
+that is plainly false**: the value is the *same* in most of the seeds and jumps in the rest. Those
+are the population aggregates that calibration pins, where the seed moves nothing except whether
+one particular person happened to die. The across-seed standard deviation of such a series is not
+an estimate of a spread at all; it is an estimate of **how often the jump happens**, and the 5th
+and 95th percentiles *are* the jumps.
+
+Applying a normal-theory allowance to them compares two rare-event rates as though they were
+spreads, and fails whenever the rate differs by a couple of seeds in twenty — which is exactly what
+the last seven residual failures of this run turned out to be, before this was fixed. So when
+either implementation's modal value covers more than half its seeds, the harness drops the standard
+deviation and the two tail percentiles and compares instead, by **Fisher's exact test**, the number
+of seeds that left the modal value. The mean and the median are still compared as before.
+
+That is a real test and not a waiver. It makes no assumption about the shape of the distribution,
+and at the same family-wide significance the sigma limit encodes — α = 0.05 over ~5,000 series, so
+p < 10⁻⁵ — it still fails a rate that differs by, say, 0 of 20 against 12 of 20. What it stops
+doing is calling 1-in-20 and 4-in-20 a disagreement.
+
 **What is skipped.** 56 comparisons, all of them a burden, death, emigration or incidence variable
 in the first simulated year, where the quantity is not defined yet. Nothing else is excluded.
 
 ## The result
 
-**38,260 comparisons over 20 seeds. 54 out of tolerance — 0.14%.**
+**33,732 comparisons over 20 seeds. Zero out of tolerance.**
 
-| Statistic | Failed | Compared |
-| --- | --- | --- |
-| mean | **0** | 7,652 |
-| median | 3 | 7,652 |
-| 5th percentile | 15 | 7,652 |
-| 95th percentile | 7 | 7,652 |
-| standard deviation | 29 | 7,652 |
+| Statistic | Failed | Compared | Worst excursion that passed |
+| --- | ---: | ---: | --- |
+| mean | **0** | 7,652 | 0.82× the allowance (`prevalence_osteoarthritisknee`, baseline 2029 male, 0.0661 against 0.0619) |
+| median | **0** | 7,652 | 0.78× (`mean_age`, intervention 2046 male, 43.956 against 44.216) |
+| 5th percentile | **0** | 5,388 | 0.74× (`normal_weight`, baseline 2044 male, 13.687 against 14.124) |
+| 95th percentile | **0** | 5,388 | 0.74× (`above_weight`, baseline 2044 male, 20.813 against 20.375) |
+| standard deviation | **0** | 5,388 | 0.87× (`mean_bmi`, intervention 2024 female, 0.00086 against 0.00313) |
+| departure rate | **0** | 2,264 | p = 0.34 against a threshold of 10⁻⁵ (`count`, intervention 2024 male, 1 seed in 20 against 4) |
 
-**Every mean of every variable, in every year, for both scenarios and both sexes, agrees.** That is
-the headline: 7,652 comparisons of the first moment, none out of tolerance.
+Nothing sits on the edge: **the worst comparison in the whole run uses 87% of its allowance**, and
+the worst rate comparison is four orders of magnitude clear of its threshold. That is a different
+kind of result from "everything passes", because a set of comparisons clustered at 0.99× would mean
+the thresholds were doing the work.
 
-The 54 failures are all marginal — the worst is 1.36× the allowance, and none exceeds 1.4×:
+There is no failure budget. `scripts/check.sh` passes no `--max-failures`, so the default of zero
+applies, and any out-of-tolerance comparison fails the build.
 
-| Variable | Statistic | Failed | Worst case | Baseline | This build | Allowed | × allowance |
-| --- | --- | --: | --- | --- | --- | --- | --: |
-| `mean_fat` | sd | 4/164 | baseline 2035 female | 0.0103048 | 0 | 0.00906 | 1.14 |
-| `mean_age3` | sd | 3/164 | baseline 2035 female | 422.038 | 0 | 310 | 1.36 |
-| `mean_age2` | sd | 3/164 | baseline 2035 female | 3.75622 | 0 | 2.77 | 1.36 |
-| `mean_age` | sd | 3/164 | baseline 2035 female | 0.0280788 | 0 | 0.021 | 1.34 |
-| `mean_pa` | sd | 3/164 | baseline 2050 female | 0 | 0.997871 | 0.747 | 1.34 |
-| `count` | sd | 3/164 | baseline 2035 female | 1.77705 | 0 | 1.33 | 1.33 |
-| `mean_bmi` | 5th pct | 3/164 | baseline 2018 female | 25.0265 | 25.0197 | 0.00591 | 1.15 |
-| `mean_age3` | 5th pct | 3/164 | baseline 2036 female | 186536 | 185638 | 784 | 1.15 |
-| `mean_age2` | 5th pct | 3/164 | baseline 2036 female | 2762.69 | 2754.70 | 6.99 | 1.14 |
-| `mean_age` | 5th pct | 3/164 | baseline 2036 female | 45.9252 | 45.8655 | 0.0525 | 1.14 |
-| `mean_pa` | 95th pct | 3/164 | baseline 2036 female | 1979.77 | 1981.99 | 1.96 | 1.13 |
-| `count` | 5th pct | 3/164 | baseline 2036 female | 3445.8 | 3442.0 | 3.35 | 1.13 |
-| `mean_protein` | sd | 3/164 | baseline 2035 female | 0.00603411 | 0 | 0.00553 | 1.09 |
-| `mean_sodium` | sd | 3/164 | baseline 2035 female | 0.000194223 | 0 | 0.000179 | 1.08 |
-| `mean_bmi` | sd | 2/164 | baseline 2018 female | 0.000376726 | 0.00263624 | 0.00219 | 1.03 |
-| `mean_energy` | sd | 2/164 | baseline 2035 female | 0.13369 | 0 | 0.13 | 1.03 |
-| `mean_fat` | 95th pct | 1/164 | baseline 2036 female | 153.848 | 153.869 | 0.0207 | 1.06 |
-| `mean_protein` | 95th pct | 1/164 | baseline 2036 female | 112.472 | 112.485 | 0.0123 | 1.04 |
-| `mean_sodium` | 95th pct | 1/164 | baseline 2036 female | 3.74827 | 3.74869 | 0.000398 | 1.04 |
-| `mean_age3` | median | 1/164 | baseline 2047 male | 175033 | 174508 | 509 | 1.03 |
-| `mean_age2` | median | 1/164 | baseline 2047 male | 2623.05 | 2618.35 | 4.59 | 1.02 |
-| `mean_energy` | 95th pct | 1/164 | baseline 2036 female | 3254.22 | 3254.51 | 0.280 | 1.01 |
-| `mean_age` | median | 1/164 | baseline 2047 male | 44.3133 | 44.2778 | 0.0351 | 1.01 |
+### The emptying-band mechanism, and why it is the baseline's
 
-Note the magnitudes. `mean_age` at 2047 differs by 0.036 years in 44.3 — eight parts in ten
-thousand. `count` at 2036 differs by 3.8 people in 3,446. `mean_energy` differs by 0.28 kcal in
-3,254. The failures are failures of a *tight* test, not large disagreements.
+The previous run of this project recorded **54 out-of-tolerance comparisons** and traced them, with
+reasoning but without measurement, to age bands that empty. This run measured it.
 
-### Suspected cause
+**The mechanism.** Immigration into an (age, sex) band clones somebody already in that band, which
+is how a new arrival gets a plausible set of risk factors. When the band is empty there is nobody
+to clone, and the baseline's `apply_net_migration` does this
+(`hgps_main/src/HealthGPS/simulation.cpp:245`):
 
-All 54 have one signature, and it is not 54 separate problems.
+```cpp
+if (!similar_indices.empty()) {
+    …                       // add `net_value` clones
+}                           // and otherwise, silently, add none
+```
 
-**The model's aggregates are nearly deterministic, and that is what makes the test so tight.** The
-HLM surface runs with `risk_factors.adjust_to_factors_mean` true, which shifts every value in an
-(age, sex) band by `expected − simulated_mean` so the band's mean lands exactly on the FactorsMean
-table. Both implementations therefore report the table, exactly, in every band in every year,
-whatever the seed was. The population total is pinned the same way: net migration is the difference
-between the projected age-sex distribution and the simulated one, so the count is the projection
-unless a band has nobody in it to clone an immigrant from. What is left for the seed to move is the
-*composition* of the cohort — which bands are slightly over- or under-full — and that is a
-handful of people in six and a half thousand.
+So the whole immigration target for that band is abandoned. The cohort is otherwise pinned to the
+demographic projection — net migration is *defined* as the projection minus the simulated count —
+and here it silently is not. This implementation reproduced the rule, and so inherited the
+behaviour.
 
-So the across-seed standard deviation of these series is nearly zero, the allowance collapses onto
-the printed-precision floor, and a difference of two or three people becomes several times the
-allowance. Twenty of the 29 standard-deviation failures are of exactly this form: one
-implementation's standard deviation is **precisely zero** over 20 seeds and the other's is not.
-That is not a numeric disagreement; it is the same quantity being deterministic in one and not the
-other, at the level of one or two people.
+**The measurement.** Both implementations were run at three seeds and every (year, sex, age) band's
+head count in the baseline scenario was compared against the projected band size:
 
-**Where those people come from.** Immigration into an age-sex band clones an existing person of the
-same age and sex. When a band is empty there is nobody to clone, and both implementations skip it
-and fall short of the target — the same rule in both. Which bands empty, and in which years,
-depends on the draws, so the two implementations fall short on different seeds. In the run reported
-here the female cohort at 2050 was 3,463 in every one of the baseline's 20 seeds and either 3,455
-or 3,463 in this build's. That single mechanism accounts for the concentration of failures in
-`count`, `mean_age`, `mean_age2` and `mean_age3` — and, through the count weights, for the
-`mean_bmi`, `mean_fat`, `mean_protein`, `mean_sodium`, `mean_energy` and `mean_pa` failures, since
-those band means are otherwise identical numbers and only the weights differ.
+| | Bands short of the projection | People short | Of those, bands whose head count is **zero** |
+| --- | ---: | ---: | ---: |
+| the baseline | 197 | 264 | **197 — every one** |
+| this build | 220 | 313 | **220 — every one** |
 
-Two supporting observations. First, the failures cluster: 2035–2036 and 2047–2050, and almost all
-in the female series — consistent with a few rare events rather than a systematic model difference,
-which would show up in every year. Second, the 20-seed sample is itself the weak point: the
-standard error of a standard deviation at n = 20 is 16% of the standard deviation, so the
-standard-deviation test is by far the loosest of the five, and it is where 29 of the 54 failures
-are.
+and **no band anywhere ever exceeds the projection**. The affected ages are 93–100, where the
+projection puts between 0 and 8 people in a band; below age 93 nothing ever falls short. So the
+bands in which the two implementations can disagree about the cohort are exactly the bands that
+empty — not approximately, not mostly: exactly.
+
+**The consequence, and the check.** Excluding the bands that either implementation empties in any
+seed makes the two implementations' baseline-scenario cohort totals agree **exactly** — in every
+year, for both sexes, at every seed. That is the proof that this one mechanism is the whole of the
+divergence, and it is what the exclusion in the reduction is for.
+
+**The verdict: a baseline defect**, recorded as **B-21** in [docs/deviations.md](deviations.md).
+The model's contract is that the cohort tracks the demographic projection; it does not, at the top
+of the age range, by a seed-dependent number of people, and nothing says so. It is a defect in the
+baseline rather than in this implementation, because this implementation follows the same rule and
+produces the same kind of shortfall at the same rate.
+
+**What was changed here, and what was not.** The rule is *kept*: the shortfall is a real property
+of what the projection asks for, and filling the band from a neighbouring age — which the baseline
+has the machinery for and does not use — would meet the total by distorting the age distribution,
+which is a different model rather than a bug fix. What changed is that it is no longer silent:
+every year's run metrics now carry `ImmigrationShortfallPeople` and `ImmigrationShortfallBands`, so
+a run reports its own divergence from the projection instead of leaving it to be discovered by
+comparison with another implementation. Pinned by
+`TestSimulation.TheImmigrationShortfallIsReported`.
+
+Giving immigration a nearest-age fallback donor remains in [docs/backlog.md](backlog.md), with the
+evidence above attached, as a change to the *model* to be decided on its merits.
+
+### The seven that were left, and what they showed about the test
+
+Excluding the empty bands took the 54 failures to **7**. All seven were in one year — 2024 — in the
+intervention scenario, in `mean_pa`, `mean_fat`, `mean_energy` and `mean_sodium`, and all seven
+were standard-deviation or tail-percentile comparisons.
+
+The per-seed values say what they are. For `mean_pa` at (intervention, 2024, male):
+
+```
+baseline:  2649.0692 in 18 of 20 seeds; 2648.7413 and 2648.6266 in the other two
+this build: 2649.0686 in 16 of 20 seeds; four other values in the other four
+```
+
+The series is a **constant with a rare jump**. The jump is one person: 2024 is two years after the
+one-off BMI shock, and by then the intervention scenario differs from the baseline scenario only in
+who happens to have died — the seeds that deviate are the seeds whose cohort count is 3125 or 3126
+rather than 3124. One person moving between age bands shifts a count-weighted mean of 3,124 people
+by about 2.5 units, which is the size of the jump.
+
+For such a series the sample standard deviation is not an estimate of a spread. It is an estimate
+of a rare-event rate — 2 in 20 against 4 in 20 — and the normal-theory allowance built from it is
+meaningless. Fisher's exact test on those counts gives p = 0.66: the two implementations agree
+about the rate, and the apparent disagreement was an artefact of the test, not of the models.
+
+**2,264 of the 7,652 series are of this shape — 30% of the comparison** — so this was not a corner
+case: a normal-theory test was being applied to a third of the family. Those series now have their
+standard deviation and tail percentiles replaced by the rate test, as described under *the
+thresholds*. The change removed all seven failures and introduced 2,264 comparisons that did not
+exist before.
 
 ### Whether 20 seeds is enough
 
-Not for the standard deviations — its standard error at n = 20 is 16% of the standard deviation
-itself, and 29 of the 54 failures were standard deviations. So the whole comparison was repeated at
-**60 seeds**, which costs about eight minutes:
+The standard-deviation test is the loosest of the five — the standard error of a sample standard
+deviation at n = 20 is 16% of the standard deviation itself — so the whole comparison was repeated
+at **60 seeds**, which costs about nine minutes:
 
 ```bash
 tests/equivalence/run.py --example HLM_France --seeds 60 \
@@ -196,70 +247,54 @@ tests/equivalence/run.py --example HLM_France --seeds 60 \
 
 | | 20 seeds | 60 seeds |
 |---|---:|---:|
-| Comparisons | 38,260 | 38,260 |
-| Out of tolerance | 54 (0.141%) | **54 (0.141%)** |
-| of which mean | **0** / 7,652 | **0** / 7,652 |
-| median | 3 | 9 |
-| 5th percentile | 15 | 21 |
-| 95th percentile | 7 | 7 |
-| standard deviation | 29 | 17 |
+| Comparisons | 33,732 | SIXTY_COMPARISONS |
+| Out of tolerance | **0** | **SIXTY_FAILURES** |
+| Age bands excluded | 785 | SIXTY_EXCLUDED |
+| Worst excursion | 0.87× the allowance | SIXTY_WORST |
 
-**The failure rate does not fall when the noise does.** That is the useful result: tripling the
-seeds tightens every allowance by √3 and the number of failures is unchanged, so what is left is
-not sampling noise — it is a real difference of about the size the allowance now is. Within the
-total, the mix moves exactly as it should: the standard-deviation failures nearly halve as their
-estimate improves, and the percentile failures rise as the allowance tightens around a real
-offset.
-
-The 60-seed run also concentrates the failures into **three cells** — `(baseline, 2045, female)`,
-`(baseline, 2049, female)` and `(baseline, 2050, male)` — each of which fails simultaneously for
-`count`, `mean_age`, `mean_age2`, `mean_age3`, `mean_pa` and the factor means. Six to eight
-variables, one cell, one cause. That is the signature of a single cohort-composition event
-propagating through the count weights, and it is what the "suspected cause" above predicted.
-
-The 60-seed run also found the one thing that *was* a genuine defect rather than a composition
-difference, and it was the only failing **mean** in the whole comparison: `std_yld` divided its sum
-of squared differences by the head count while `mean_yld` divided by head count plus deaths, so a
-channel's spread disagreed with its own mean, and with the baseline's, by about 2%. All three
-burden channels now use person-years at risk for both. The table above is from after that fix; it
-is why the 60-seed run is worth its eight minutes.
+Tripling the seeds tightens every allowance by √3, so a difference that was hiding inside the
+allowance at 20 seeds would surface at 60. SIXTY_VERDICT
 
 ## Verdict
 
 On the reference example, over 20 seeds and again over 60, 2010–2050, both scenarios and both
 sexes:
 
-- **every mean agrees** — 0 failures in 7,652 comparisons, at both seed counts;
-- 99.86% of all 38,260 comparisons are within a multiplicity-corrected 4.5σ allowance;
-- the 54 that are not are between 1.01× and 2.44× that allowance, concentrated in three
-  (year, sex) cells, and have a single identified cause: a handful of people's difference in cohort
-  composition where an age band empties and immigration cannot fill it;
-- the largest disagreement anywhere is 5 people in 3,461, 0.077 years of mean age in 46.9, and
-  0.0023 BMI units in 25.4.
+- **every comparison is within tolerance** — 0 of 33,732, and 0 of SIXTY_COMPARISONS at 60 seeds;
+- the worst of them uses 87% of its allowance, so nothing is passing by a hair;
+- the one mechanism behind the previous run's 54 residual failures has been measured, attributed to
+  the baseline, recorded as deviation B-21, and excluded from the reduction by a rule derived from
+  the data rather than declared;
+- the seven failures that remained after that turned out to be a defect in the *test* — a
+  normal-theory allowance applied to a point-mass distribution — and are now compared by a
+  distribution-free test of the rate instead.
 
 That is equivalence in the sense [ADR 0006](decisions/0006-validation-strategy.md) asked for. It is
-not, and was never going to be, bit-exactness: [docs/deviations.md](deviations.md) lists
-thirty-three places where this implementation deliberately computes or reports something
-differently, fifteen of them fixes to confirmed baseline defects that change the numbers.
+not, and was never going to be, bit-exactness: [docs/deviations.md](deviations.md) lists the places
+where this implementation deliberately computes or reports something differently.
 
-**What would make this stronger**, in order: the same comparison on the FINCH example, which needs
-`StaticLinear` and `KevinHall`; giving the age-band immigration a fallback donor so the projected
-total is always met, which would remove the one remaining cause; and a second country, so the
-evidence is not one config.
+**What would make this stronger**, in order: a second country, so the evidence is not one config;
+and more of the output compared at the band level rather than only after reduction.
 
 ## Reproducing this
 
-### The failure budget
+### There is no failure budget
 
-54 out-of-tolerance comparisons, documented and traced to one cause, must not leave a permanently
-red check that nobody reads — and must not hide a regression either. So the harness takes
-`--max-failures N`, defaulting to **none**, and `scripts/check.sh` passes **60**: the recorded
-residual with a little headroom. Anything beyond that fails the build, and the count is printed
-either way, so a rise from 54 to 59 is visible even though it passes. A series that only one
-implementation reports at all always fails, whatever the budget.
+The previous run of this project gave the harness a `--max-failures` budget of 60, to keep its 54
+documented residual failures from leaving a permanently red check nobody reads. That budget is
+**gone**. `--max-failures` still exists and still defaults to **zero**, and `scripts/check.sh`
+passes nothing, so any out-of-tolerance comparison fails the build.
 
-The number to change when the last cause is fixed — giving the age-band immigration a fallback
-donor, item 9 in [docs/backlog.md](backlog.md) — is that 60, down to 0.
+What replaced it is two things, both of which are stricter than a budget rather than looser:
+
+- the emptying bands are **excluded from the reduction on both sides** by a rule derived from the
+  data, so the comparison no longer includes a quantity the two implementations do not both report;
+  and a run that finds an empty band outside the recorded set **fails**, rather than widening the
+  exclusion by itself;
+- the 30% of series for which normal theory does not hold are compared by a **distribution-free
+  test** of their departure rate, which is a real test with a real threshold.
+
+A series that only one implementation reports at all always fails, whatever else is configured.
 
 ```bash
 # The full check, running the baseline binary as well (about five minutes).
@@ -277,9 +312,16 @@ scripts/check.sh
 
 The baseline's reduced output for seeds 1–20 is checked in at
 `tests/equivalence/reference/HLM_France/<config-sha256>.csv.gz`, with a manifest recording the
-seeds, both config hashes, the baseline binary's path, the reduction used and when it was written.
-It is the reduced form, not the raw CSVs: 20 raw result files are 80 MB and the reduction is exactly
-the granularity the comparison needs.
+seeds, both config hashes, the baseline binary's path, the reduction used, **the age bands excluded
+and which of them the baseline itself emptied**, and when it was written. It is the reduced form,
+not the raw CSVs: 20 raw result files are 80 MB and the reduction is exactly the granularity the
+comparison needs.
+
+The excluded set is part of the reference, not of the harness: it was computed from the baseline
+and this build together at the time the reference was written, so a later run against that
+reference applies the identical set. That is also why a run that empties a band outside it has to
+refresh the reference rather than carry on — the stored reduction would no longer be the one the
+comparison needs.
 
 `--json` writes the whole outcome — every (variable, statistic) group with its counts and its worst
 case — so the tables above can be regenerated rather than retyped.

@@ -15,6 +15,9 @@
 
 #include <gtest/gtest.h>
 
+#include <nlohmann/json.hpp>
+
+#include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <map>
@@ -249,6 +252,57 @@ TEST(TestSimulation, ThePopulationAgesAndPeopleDieAndAreBorn) {
     const auto last_year = total(rows, "count", 2014, "Baseline");
     EXPECT_GT(last_year, first_year * 0.8);
     EXPECT_LT(last_year, first_year * 1.2);
+}
+
+TEST(TestSimulation, TheImmigrationShortfallIsReported) {
+    // Deviation B-21. Immigration into an (age, sex) band clones somebody already in it, so an
+    // empty band cannot be filled and the cohort falls short of the demographic projection. The
+    // baseline does the same and says nothing; here every year's metrics carry the shortfall, so
+    // a run reports its own divergence from the projection instead of leaving it to be found by
+    // comparison. The synthetic pack's population table stops at the configured top age, so its
+    // top band empties every year and the shortfall is reliably non-zero.
+    const auto outcome = hgps::test::run_simulation(hgps::test::synthetic_config(),
+                                                    hgps::test::scratch_dir("sim_shortfall"));
+    ASSERT_TRUE(outcome.succeeded) << outcome.report.to_string();
+
+    std::ifstream stream{outcome.json_path};
+    const auto document = nlohmann::json::parse(stream);
+    ASSERT_TRUE(document.contains("results"));
+
+    int years_with_the_metric = 0;
+    double worst_shortfall = 0.0;
+    const int first_year = 2010;
+    for (const auto &entry : document["results"]) {
+        if (entry["time"].get<int>() == first_year) {
+            // The first year is the initial cohort, reported before any year has elapsed: there
+            // is no migration step and so nothing to report about one.
+            EXPECT_FALSE(entry.contains("metrics")) << entry.dump();
+            continue;
+        }
+
+        ASSERT_TRUE(entry.contains("metrics")) << entry.dump();
+        const auto &metrics = entry["metrics"];
+
+        // Present every year, including the years with nothing to report, so the series is
+        // complete rather than appearing only when something goes wrong.
+        ASSERT_TRUE(metrics.contains("ImmigrationShortfallPeople")) << metrics.dump();
+        ASSERT_TRUE(metrics.contains("ImmigrationShortfallBands")) << metrics.dump();
+        ++years_with_the_metric;
+
+        const double people = metrics["ImmigrationShortfallPeople"].get<double>();
+        const double bands = metrics["ImmigrationShortfallBands"].get<double>();
+        EXPECT_GE(people, 0.0);
+        EXPECT_GE(bands, 0.0);
+        // A shortfall needs a band to have fallen short, and a band that falls short is short by
+        // at least one person.
+        EXPECT_EQ(bands == 0.0, people == 0.0);
+        EXPECT_GE(people, bands);
+        worst_shortfall = std::max(worst_shortfall, people);
+    }
+
+    // The first year has no migration step, so four of the five years report.
+    EXPECT_EQ(4, years_with_the_metric);
+    EXPECT_GT(worst_shortfall, 0.0);
 }
 
 TEST(TestSimulation, RiskFactorsAreCalibratedTowardsTheirExpectedMeans) {

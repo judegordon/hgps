@@ -199,6 +199,11 @@ void Engine::apply_net_migration(const MigrationEntry &migration) {
     auto &population = context_.population();
     const auto now = static_cast<unsigned int>(context_.time_now());
 
+    // This year's figures, set unconditionally so the series has a value every year rather than
+    // only in the years something went wrong. See the empty-band branch below.
+    context_.metrics()["ImmigrationShortfallPeople"] = 0.0;
+    context_.metrics()["ImmigrationShortfallBands"] = 0.0;
+
     // Ascending age, then male before female: the migration map is ordered, so the draws below
     // happen in a stated sequence.
     for (const auto &[age, by_gender] : migration.net_by_age_gender) {
@@ -222,6 +227,13 @@ void Engine::apply_net_migration(const MigrationEntry &migration) {
                 }
 
                 if (candidates.empty()) {
+                    // Nobody of this age and sex to model an immigrant on, so the cohort falls
+                    // short of the demographic projection it is otherwise pinned to. The baseline
+                    // does the same and says nothing (deviation B-21); this at least reports it,
+                    // so a run's own metrics say how many people it is short and in how many
+                    // bands rather than leaving it to be discovered by comparison.
+                    context_.metrics()["ImmigrationShortfallPeople"] += static_cast<double>(net);
+                    context_.metrics()["ImmigrationShortfallBands"] += 1.0;
                     continue;
                 }
 

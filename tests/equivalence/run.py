@@ -16,7 +16,8 @@ What it does, for each example and each seed:
      active intervention, so the only difference is the implementation.
   2. Runs both, and reduces each result file to one value per (scenario, year, sex, variable) by
      taking the count-weighted mean over the age bands — the population figure the variable is
-     reporting.
+     reporting. Age bands that either implementation ever empties are left out of that reduction,
+     on both sides: see "the emptying-band exclusion" below.
   3. Across the seeds, computes the mean, standard deviation and 5th, 50th and 95th percentiles of
      each of those series, for each implementation, and compares them.
 
@@ -28,11 +29,37 @@ are what they are.
 The baseline's reduced output is cached under tests/equivalence/reference/, keyed by the hash of
 the config that produced it, so a later run compares against the same numbers without needing the
 baseline binary.
+
+The emptying-band exclusion
+---------------------------
+
+Immigration into an (age, sex) band clones somebody already in it. When the band is empty there is
+nobody to clone, and both implementations skip it and fall short of the demographic projection the
+cohort is otherwise pinned to — silently, and on different seeds, because which bands empty depends
+on the draws. That is a defect in the baseline, recorded as B-21 in docs/deviations.md; this
+implementation reproduces the rule and so inherits it.
+
+The measured consequence, over three seeds of HLM_France: in the baseline scenario 197 of the
+baseline's band counts and 220 of this build's fall short of the projection, and **every single one
+of them is a band whose head count is exactly zero**. No band ever exceeds the projection. So the
+bands where the two implementations can legitimately disagree are exactly the bands that empty.
+
+The harness therefore excludes, from the reduction on **both** sides and for **every** seed, each
+(scenario, year, sex, age) band that either implementation empties in any seed. The set is derived
+from the runs rather than declared, is applied identically to both, and is recorded in the
+reference manifest so a run against the stored reference uses the same one. For HLM_France at
+three seeds it is 562 of 16,564 bands — 0.124% of the head count, all at ages 91 and above — and
+with it the two implementations' baseline-scenario cohort totals agree **exactly**, in every year,
+for both sexes, at every seed.
+
+If a run finds an empty band outside the recorded set, the stored reduction is no longer the right
+one and the harness says so and fails, rather than quietly widening the exclusion.
 """
 
 from __future__ import annotations
 
 import argparse
+import collections
 import csv
 import gzip
 import hashlib
@@ -75,6 +102,18 @@ SIGMA_LIMIT = 4.5
 # added to every allowance, and for a variable that is constant across seeds it *is* the
 # allowance — which turns that case into "equal to the precision the baseline prints".
 PRINTED_PRECISION_FLOOR = 1e-5
+
+# When a series takes one single value in more than this share of the seeds, its across-seed
+# distribution is a point mass with rare jumps rather than anything like a normal, and the
+# normal-theory tests below do not apply to it: the sample standard deviation is then an estimate
+# of how often the jump happens, not of a spread, and the 5th and 95th percentiles ARE the jumps.
+# Such a series has its standard deviation and tail percentiles compared by a distribution-free
+# test of the departure rate instead. docs/equivalence.md derives this.
+DEGENERATE_MODAL_SHARE = 0.5
+
+# The family-wide significance the departure-rate test uses, matching the 4.5 sigma the other
+# tests use: a Bonferroni correction at alpha = 0.05 over the ~5,000 independent series.
+DEPARTURE_RATE_ALPHA = 0.05 / 5000
 
 # Variables whose value is meaningless in the first simulated year, so the year is skipped for
 # them rather than compared. Nothing else is excluded.
@@ -173,14 +212,45 @@ def run(binary: Path, config: Path, extra: list[str], log: Path) -> float:
 KEY_COLUMNS = ("source", "run", "time", "gender_name", "index_id", "count")
 
 
-def reduce_result(path: Path) -> dict[tuple[str, int, str, str], float]:
+Band = tuple  # (scenario, year, sex, age)
+
+
+def empty_bands(path: Path) -> set[Band]:
+    """The (scenario, year, sex, age) bands whose head count is zero.
+
+    These are the bands immigration cannot refill, and so the only bands where the two
+    implementations disagree about the cohort — see "the emptying-band exclusion" in the module
+    docstring and docs/equivalence.md.
+    """
+    found: set[Band] = set()
+    with path.open(newline="") as stream:
+        for row in csv.DictReader(stream):
+            if float(row["count"]) == 0.0:
+                found.add((row["source"].lower(), int(row["time"]), row["gender_name"].lower(),
+                           int(row["index_id"])))
+    return found
+
+
+def band_key(scenario: str, year: int, sex: str, age: int) -> Band:
+    return (scenario, year, sex, age)
+
+
+def reduce_result(path: Path, excluded: set[Band] | None = None
+                  ) -> dict[tuple[str, int, str, str], float]:
     """One value per (scenario, year, sex, variable), as the count-weighted mean over ages.
 
     Every variable in the file is a per-age-band figure. `count`, `deaths` and `emigrations` are
     counts, so the population figure is their sum; everything else is a mean or a proportion over
     the band's members, so the population figure is the count-weighted mean. Reducing this way is
     what makes the two implementations comparable at all: their age bands hold different people.
+
+    `excluded` names the age bands to leave out, on both sides and for every seed. It is the set of
+    bands that either implementation empties in any seed: the bands where immigration falls short
+    of the projection, and so the only bands whose head counts the two implementations disagree
+    about. Excluding them on one side alone would bias the comparison, so the caller passes the
+    union and this function applies it to whichever file it is given.
     """
+    excluded = excluded or set()
     totals: dict[tuple[str, int, str, str], float] = {}
     weights: dict[tuple[str, int, str, str], float] = {}
 
@@ -194,6 +264,9 @@ def reduce_result(path: Path) -> dict[tuple[str, int, str, str], float]:
             year = int(row["time"])
             sex = row["gender_name"].lower()
             count = float(row["count"])
+
+            if band_key(source, year, sex, int(row["index_id"])) in excluded:
+                continue
 
             for variable in ("count", "deaths", "emigrations"):
                 if variable in row and row[variable] != "":
@@ -289,12 +362,22 @@ class Comparison:
     allowed: float
     difference: float
 
+    # Set for the departure-rate test, which is a p-value against a threshold rather than a
+    # difference against an allowance. `allowed` then holds the threshold and `difference` the
+    # p-value, so the two kinds of comparison still report and aggregate the same way.
+    p_value: float | None = None
+
     @property
     def passed(self) -> bool:
+        if self.p_value is not None:
+            return self.p_value >= self.allowed
         return abs(self.difference) <= self.allowed
 
     @property
     def ratio_of_allowed(self) -> float:
+        if self.p_value is not None:
+            # 1.0 is exactly the threshold, so this orders the same way as the others do.
+            return self.allowed / self.p_value if self.p_value > 0 else math.inf
         return abs(self.difference) / self.allowed if self.allowed > 0 else math.inf
 
 
@@ -307,6 +390,45 @@ class Outcome:
     missing: list[str] = field(default_factory=list)
     timings: dict[str, float] = field(default_factory=dict)
     config_hashes: dict[str, str] = field(default_factory=dict)
+    excluded_bands: int = 0
+
+
+def modal_share(values: list[float]) -> float:
+    """The share of the seeds that take the series' single commonest value."""
+    if not values:
+        return 0.0
+    return collections.Counter(values).most_common(1)[0][1] / len(values)
+
+
+def departures_from_mode(values: list[float]) -> int:
+    """How many seeds do NOT take the commonest value."""
+    return len(values) - collections.Counter(values).most_common(1)[0][1]
+
+
+def fisher_exact_two_sided(a: int, b: int, c: int, d: int) -> float:
+    """The two-sided p-value of Fisher's exact test on the 2x2 table [[a, b], [c, d]].
+
+    Written out rather than taken from scipy, because the harness has no third-party dependency
+    and this is twenty lines. It sums the hypergeometric probability of every table with the same
+    margins whose probability is no greater than the observed one — the standard two-sided
+    definition.
+    """
+    total = a + b + c + d
+    if total == 0:
+        return 1.0
+
+    row1, col1 = a + b, a + c
+
+    def probability(k: int) -> float:
+        return (math.comb(row1, k) * math.comb(total - row1, col1 - k)) / math.comb(total, col1)
+
+    lower = max(0, col1 - (total - row1))
+    upper = min(row1, col1)
+    observed = probability(a)
+    # A relative slack, because the probabilities are floating point and the observed table must
+    # always be counted as no greater than itself.
+    return min(1.0, sum(probability(k) for k in range(lower, upper + 1)
+                        if probability(k) <= observed * (1.0 + 1e-9)))
 
 
 def is_first_year_undefined(variable: str) -> bool:
@@ -352,12 +474,38 @@ def compare(baseline: dict[int, dict], new: dict[int, dict], seeds: list[int],
         scale = max(abs(base.mean), abs(mine.mean), base.sd, mine.sd, 1e-12)
         floor = PRINTED_PRECISION_FLOOR * scale
 
+        # A series that sits on one value in most of the seeds is not a sample from anything
+        # like a normal distribution: it is a constant with an occasional one-person jump, and
+        # its standard deviation and tail percentiles measure how often that jump happens rather
+        # than any spread. Applying a normal-theory allowance to them compares two estimates of a
+        # rare-event rate as though they were estimates of a spread, and fails whenever the rate
+        # differs by a couple of seeds out of twenty. So those three statistics are replaced, for
+        # such a series, by a distribution-free test of the rate itself.
+        degenerate = max(modal_share(base_values), modal_share(new_values)) > \
+            DEGENERATE_MODAL_SHARE
+
         for name, se_factor in STATISTICS.items():
+            if degenerate and name in ("p5", "p95"):
+                continue
             allowed = SIGMA_LIMIT * se_factor * math.sqrt(pooled_variance / n) + floor
             outcome.comparisons.append(
                 Comparison(key, name, getattr(base, name), getattr(mine, name),
                            allowed=allowed,
                            difference=getattr(mine, name) - getattr(base, name)))
+
+        if degenerate:
+            # Fisher's exact test on "seeds that left the commonest value" against "seeds that did
+            # not", at the same family-wide significance the sigma limit encodes. It makes no
+            # assumption about the shape of the distribution, and it is a real test rather than a
+            # waiver: a rate that differed by, say, 0 of 20 against 12 of 20 fails it.
+            base_out = departures_from_mode(base_values)
+            new_out = departures_from_mode(new_values)
+            probability = fisher_exact_two_sided(base_out, n - base_out, new_out, n - new_out)
+            outcome.comparisons.append(
+                Comparison(key, "departure_rate", base_out / n, new_out / n,
+                           allowed=DEPARTURE_RATE_ALPHA, difference=probability,
+                           p_value=probability))
+            continue
 
         # The standard deviations. The standard error of a sample standard deviation is
         # s / sqrt(2(n-1)), so this is the same k-sigma rule as the others; writing it as a
@@ -419,6 +567,8 @@ def report(outcome: Outcome, verbose: bool, max_failures: int) -> bool:
         print(f"    {label}: {seconds:.1f}s")
     for label, digest in sorted(outcome.config_hashes.items()):
         print(f"    {label} config sha256: {digest}")
+    print(f"    {outcome.excluded_bands} age band(s) excluded on both sides: the bands either "
+          f"implementation empties, which immigration cannot refill (docs/equivalence.md)")
 
     if outcome.missing:
         print(f"    {len(outcome.missing)} series reported by only one implementation:")
@@ -441,9 +591,16 @@ def report(outcome: Outcome, verbose: bool, max_failures: int) -> bool:
             group = by_variable[variable]
             worst = max(group, key=lambda c: c.ratio_of_allowed)
             years = sorted({c.key[1] for c in group})
-            print(f"      {variable}: {len(group)} comparison(s), years {years[0]}-{years[-1]}, "
-                  f"worst {worst.statistic} baseline={worst.baseline:.6g} "
-                  f"new={worst.new:.6g} = {worst.ratio_of_allowed:.1f}x the allowance")
+            if worst.p_value is not None:
+                print(f"      {variable}: {len(group)} comparison(s), "
+                      f"years {years[0]}-{years[-1]}, worst {worst.statistic} "
+                      f"baseline={worst.baseline:.3g} new={worst.new:.3g} "
+                      f"p={worst.p_value:.3g} against {worst.allowed:.3g}")
+            else:
+                print(f"      {variable}: {len(group)} comparison(s), "
+                      f"years {years[0]}-{years[-1]}, worst {worst.statistic} "
+                      f"baseline={worst.baseline:.6g} new={worst.new:.6g} = "
+                      f"{worst.ratio_of_allowed:.1f}x the allowance")
 
     # The largest excursions that still passed, so a systematic shift hiding inside a wide
     # allowance is visible rather than silent.
@@ -494,6 +651,7 @@ def as_json(outcome: Outcome) -> dict:
         "timings_seconds": outcome.timings,
         "comparisons": len(outcome.comparisons),
         "failures": sum(1 for c in outcome.comparisons if not c.passed),
+        "excluded_age_bands": outcome.excluded_bands,
         "skipped": len(outcome.skipped),
         "series_reported_by_one_side_only": outcome.missing,
         "sigma_limit": SIGMA_LIMIT,
@@ -588,6 +746,7 @@ def main() -> int:
 
         baseline_reduced: dict[int, dict] = {}
         new_reduced: dict[int, dict] = {}
+        stored_manifest: dict = {}
 
         use_reference = arguments.use_reference and reference_path.is_file()
         if arguments.use_reference and not reference_path.is_file():
@@ -604,12 +763,20 @@ def main() -> int:
             else:
                 baseline_reduced = {seed: stored[seed] for seed in seeds}
                 outcome.timings["baseline (stored reference)"] = 0.0
+                stored_manifest = (json.loads(manifest_path.read_text())
+                                   if manifest_path.is_file() else {})
+
+        # Two passes, because the exclusion has to be the union over both implementations and every
+        # seed before any file can be reduced with it. Pass one runs and reads only the head
+        # counts; pass two reduces. The result files stay in the working directory between them.
+        result_files: dict[tuple[str, int], Path] = {}
+        baseline_empty: set[Band] = set()
+        new_empty: set[Band] = set()
 
         for seed in seeds:
-            for label, binary, source, is_baseline, target in (
-                    ("baseline", arguments.baseline, example.baseline_config, True,
-                     baseline_reduced),
-                    ("new", arguments.new, example.new_config, False, new_reduced)):
+            for label, binary, source, is_baseline in (
+                    ("baseline", arguments.baseline, example.baseline_config, True),
+                    ("new", arguments.new, example.new_config, False)):
                 if label == "baseline" and use_reference:
                     continue
 
@@ -627,8 +794,38 @@ def main() -> int:
                 elapsed = run(binary, config_path, extra, folder.parent / f"log-seed-{seed}.txt")
                 outcome.timings[label] = outcome.timings.get(label, 0.0) + elapsed
 
-                target[seed] = reduce_result(find_result_csv(folder))
+                result = find_result_csv(folder)
+                result_files[(label, seed)] = result
+                (baseline_empty if is_baseline else new_empty).update(empty_bands(result))
             print(f"    {name} seed {seed}: done", flush=True)
+
+        if use_reference:
+            baseline_empty = {tuple(band) for band in stored_manifest.get("baseline_empty_bands",
+                                                                          [])}
+
+        excluded = baseline_empty | new_empty
+        outcome.excluded_bands = len(excluded)
+
+        if use_reference:
+            recorded = {tuple(band) for band in stored_manifest.get("excluded_bands", [])}
+            if excluded != recorded:
+                extra_now = sorted(excluded - recorded)[:10]
+                gone = sorted(recorded - excluded)[:10]
+                print(f"=== {name}: the emptying-band exclusion has changed since the stored "
+                      f"reference was written, so the stored reduction is no longer the right "
+                      f"one.")
+                print(f"    recorded {len(recorded)} bands, this run needs {len(excluded)}")
+                if extra_now:
+                    print(f"    newly empty, e.g.: {extra_now}")
+                if gone:
+                    print(f"    no longer empty, e.g.: {gone}")
+                print(f"    re-run with --refresh-reference; see docs/equivalence.md")
+                all_passed = False
+                continue
+
+        for (label, seed), result in result_files.items():
+            target = baseline_reduced if label == "baseline" else new_reduced
+            target[seed] = reduce_result(result, excluded)
 
         if not use_reference and (arguments.refresh_reference or not reference_path.is_file()):
             rows = [row for seed in seeds for row in reduced_to_rows(baseline_reduced[seed], seed)]
@@ -641,7 +838,11 @@ def main() -> int:
                 "intervention": example.intervention,
                 "stop_time_override": arguments.stop_time,
                 "baseline_binary": str(arguments.baseline),
-                "reduction": "count-weighted mean over age bands; counts summed",
+                "reduction": "count-weighted mean over age bands; counts summed; the age bands "
+                             "listed in excluded_bands are left out on both sides — see "
+                             "docs/equivalence.md",
+                "baseline_empty_bands": sorted(baseline_empty),
+                "excluded_bands": sorted(excluded),
                 "written_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             }, indent=2) + "\n")
             try:

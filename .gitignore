@@ -5,3 +5,4 @@ vcpkg_installed/
 compile_commands.json
 tests/fixtures/pack/
 .DS_Store
+__pycache__/
