@@ -944,8 +944,10 @@ std::optional<Config> load_from_json(const nlohmann::json &document,
 
     const JsonCursor root{document, "", "", report};
 
-    root.reject_unknown_members({"$schema", "version", "project_requirements", "data", "inputs",
-                                 "modelling", "running", "output",
+    // "$comment" is allowed anywhere a document takes one: it is the conventional way to
+    // annotate JSON that has no schema slot for prose.
+    root.reject_unknown_members({"$schema", "$comment", "version", "project_requirements", "data",
+                                 "inputs", "modelling", "running", "output",
                                  "population_impact_fraction"});
 
     // Removed in config v2, with the replacement named rather than the key ignored.

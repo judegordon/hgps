@@ -1,5 +1,6 @@
 // gen-fixtures — writes the synthetic data pack used by the tests and by offline runs.
 // docs/decisions/0011-data-fetched-not-vendored.md explains why this exists.
+#include "model_pack.h"
 #include "pack.h"
 
 #include <cstdlib>
@@ -14,6 +15,9 @@ void print_usage() {
 
 Usage:
   gen-fixtures --output DIR [--first-year Y] [--last-year Y] [--max-age N]
+
+Writes DIR/data (a data store in the upstream layout) and DIR/model (a runnable config v2 with
+its model definitions, FactorsMean tables and input dataset).
 
 Every number written is invented: closed-form functions of age, year and sex, with no random
 component. The output is byte-identical on every run. The pack carries a SYNTHETIC.md saying so.
@@ -72,8 +76,10 @@ int main(int argc, char **argv) {
     }
 
     try {
-        const auto count = hgps::tools::write_fixture_pack(output, spec);
-        std::cout << "gen-fixtures: wrote " << count << " files to " << output.string() << '\n';
+        const auto data_files = hgps::tools::write_fixture_pack(output / "data", spec);
+        const auto model_files = hgps::tools::write_model_pack(output / "model", spec);
+        std::cout << "gen-fixtures: wrote " << data_files << " data files and " << model_files
+                  << " model files to " << output.string() << '\n';
     } catch (const std::exception &error) {
         std::cerr << "gen-fixtures: " << error.what() << '\n';
         return EXIT_FAILURE;

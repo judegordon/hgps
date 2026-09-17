@@ -197,17 +197,22 @@ std::string lms_csv(const FixturePackSpec &spec) {
     return out;
 }
 
-std::string cost_of_disease_csv(const FixturePackSpec &spec) {
-    // Thirteen columns, matching the upstream shape, with the ones the loader reads named.
-    std::string out =
-        "location_id,location,year,measure_id,measure,metric,age,age_name,gender_id,gender,"
-        "payer,units,cost\n";
+std::string observed_yld_csv(const FixturePackSpec &spec) {
+    // The upstream layout of analysis/cost/BoD{CODE}.csv: fifteen columns, `mean` at index 12,
+    // rows whose measure is YLD. Despite the path, these are observed years lived with
+    // disability as a fraction in [0, 1], not costs.
+    std::string out = "location_id,location,disease,time,age_group_id,age_group,age,is_filled,"
+                      "gender_id,gender,measure_id,measure,mean,lower,upper\n";
     for (int gender_id = 1; gender_id <= 2; ++gender_id) {
         for (int age = 0; age <= spec.max_age; ++age) {
-            const double cost = 120.0 + 9.0 * age * (gender_id == 1 ? 1.0 : 0.9);
-            out += fmt::format("{},{},{},1,spending,per_person,{},{} to {},{},{},all,usd,{:.4f}\n",
+            // A YLD that grows with age and stays well inside [0, 1].
+            const double yld =
+                (0.02 + 0.004 * static_cast<double>(age)) * (gender_id == 1 ? 1.0 : 0.95);
+            out += fmt::format("{},{},All causes,{},5,{} to {},{},False,{},{},3,YLD,{:.8f},{:.8f},"
+                               "{:.8f}\n",
                                spec.country_code, spec.country_name, spec.first_year, age, age, age,
-                               gender_id, gender_id == 1 ? "Male" : "Female", cost);
+                               gender_id, gender_id == 1 ? "Male" : "Female", yld, yld * 0.9,
+                               yld * 1.1);
         }
     }
     return out;
@@ -420,7 +425,7 @@ std::size_t write_fixture_pack(const std::filesystem::path &output,
 
     emit("analysis/disability_weights.csv", disability_weights_csv());
     emit("analysis/lms_parameters.csv", lms_csv(spec));
-    emit(fmt::format("analysis/cost/BoD{}.csv", spec.country_code), cost_of_disease_csv(spec));
+    emit(fmt::format("analysis/cost/BoD{}.csv", spec.country_code), observed_yld_csv(spec));
 
     return written;
 }

@@ -14,7 +14,13 @@ file(GLOB_RECURSE HGPS_SOURCES CONFIGURE_DEPENDS
      "${CMAKE_CURRENT_SOURCE_DIR}/data/*.cpp"
      "${CMAKE_CURRENT_SOURCE_DIR}/model/*.cpp"
      "${CMAKE_CURRENT_SOURCE_DIR}/sim/*.cpp"
-     "${CMAKE_CURRENT_SOURCE_DIR}/output/*.cpp")
+     "${CMAKE_CURRENT_SOURCE_DIR}/output/*.cpp"
+     "${CMAKE_CURRENT_SOURCE_DIR}/app/*.cpp")
+
+# main.cpp belongs to the executable, not the library: everything else under app/ is wiring that
+# the tests drive directly, which is what lets the reproducibility test exercise the real
+# pipeline rather than a test-only arrangement of it.
+list(REMOVE_ITEM HGPS_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/app/main.cpp")
 
 add_library(hgps STATIC ${HGPS_SOURCES})
 hgps_target_options(hgps)
@@ -23,7 +29,6 @@ target_link_libraries(hgps PUBLIC fmt::fmt nlohmann_json::nlohmann_json)
 find_package(Threads REQUIRED)
 target_link_libraries(hgps PUBLIC Threads::Threads)
 
-file(GLOB HGPS_APP_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/app/*.cpp")
-add_executable(healthgps ${HGPS_APP_SOURCES})
+add_executable(healthgps "${CMAKE_CURRENT_SOURCE_DIR}/app/main.cpp")
 hgps_target_options(healthgps)
 target_link_libraries(healthgps PRIVATE hgps)

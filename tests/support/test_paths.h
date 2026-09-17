@@ -11,11 +11,20 @@ namespace hgps::test {
 
 inline std::filesystem::path fixtures_dir() { return std::filesystem::path{HGPS_TEST_DATA_DIR}; }
 
-/// @brief The generated synthetic data pack. Generated at build time, so a test that cannot find
-///        it should fail rather than skip (audit B-11).
+/// @brief The generated synthetic fixture pack. Generated at build time, so a test that cannot
+///        find it should fail rather than skip (audit B-11).
 inline std::filesystem::path synthetic_pack_dir() {
     return std::filesystem::path{HGPS_FIXTURE_PACK_DIR};
 }
+
+/// @brief The synthetic data store, in the upstream layout.
+inline std::filesystem::path synthetic_data_dir() { return synthetic_pack_dir() / "data"; }
+
+/// @brief The synthetic model pack: a runnable config v2 and its model definitions.
+inline std::filesystem::path synthetic_model_dir() { return synthetic_pack_dir() / "model"; }
+
+/// @brief The runnable synthetic config.
+inline std::filesystem::path synthetic_config() { return synthetic_model_dir() / "config.json"; }
 
 inline std::filesystem::path examples_dir() { return std::filesystem::path{HGPS_EXAMPLES_DIR}; }
 

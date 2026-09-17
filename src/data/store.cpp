@@ -668,6 +668,7 @@ Store::disease_analysis(const core::Country &country, diag::IssueReport &report)
         }
     }
 
+    // Named "cost_of_disease" in index.json; the file it points at is an observed-YLD table.
     if (node.contains("cost_of_disease")) {
         const auto &cost_node = node["cost_of_disease"];
         const auto file = DataIndex::substitute_named(
@@ -676,7 +677,7 @@ Store::disease_analysis(const core::Country &country, diag::IssueReport &report)
         const auto path = analysis_root / cost_node.value("path", std::string{}) / file;
 
         if (const auto document = io::read_csv(path, {}, report)) {
-            const auto columns = map_columns(*document, {"age", "gender_id", "cost"}, report);
+            const auto columns = map_columns(*document, {"age", "gender_id", "mean"}, report);
 
             // The upstream cost file has no header names for these columns in every release, so
             // fall back to the fixed positions the baseline uses (6, 8, 12) when the names are
@@ -686,22 +687,22 @@ Store::disease_analysis(const core::Country &country, diag::IssueReport &report)
                     const auto age = document->field_as_int(row, columns.at("age"), report);
                     const auto gender =
                         document->field_as_int(row, columns.at("gender_id"), report);
-                    const auto cost = document->field_as_double(row, columns.at("cost"), report);
-                    if (age && gender && cost) {
-                        result.cost_of_diseases[*age][static_cast<core::Gender>(*gender)] = *cost;
+                    const auto yld = document->field_as_double(row, columns.at("mean"), report);
+                    if (age && gender && yld) {
+                        result.observed_yld[*age][static_cast<core::Gender>(*gender)] = *yld;
                     }
                 }
             } else if (document->num_columns() > 12) {
                 report.warning(IssueCode::csv_missing_column,
                                IssueLocation{.file = path.string(), .line = 1U},
                                "using the upstream fixed column positions (7, 9 and 13) for age, "
-                               "gender and cost, because the named columns are absent");
+                               "gender and the YLD mean, because the named columns are absent");
                 for (std::size_t row = 0; row < document->num_rows(); ++row) {
                     const auto age = document->field_as_int(row, 6, report);
                     const auto gender = document->field_as_int(row, 8, report);
-                    const auto cost = document->field_as_double(row, 12, report);
-                    if (age && gender && cost) {
-                        result.cost_of_diseases[*age][static_cast<core::Gender>(*gender)] = *cost;
+                    const auto yld = document->field_as_double(row, 12, report);
+                    if (age && gender && yld) {
+                        result.observed_yld[*age][static_cast<core::Gender>(*gender)] = *yld;
                     }
                 }
             }

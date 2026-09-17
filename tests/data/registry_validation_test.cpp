@@ -21,7 +21,7 @@ using hgps::diag::IssueReport;
 /// Copies the synthetic pack into a scratch directory so a test can break it.
 std::filesystem::path copy_pack(const std::string &name) {
     const auto destination = hgps::test::scratch_dir(name) / "pack";
-    std::filesystem::copy(hgps::test::synthetic_pack_dir(), destination,
+    std::filesystem::copy(hgps::test::synthetic_data_dir(), destination,
                           std::filesystem::copy_options::recursive);
     return destination;
 }
@@ -40,7 +40,7 @@ void write_index(const std::filesystem::path &pack, const nlohmann::json &docume
 
 TEST(DataRegistryValidation, AConsistentStoreReportsNothing) {
     IssueReport report;
-    const auto store = Store::open(hgps::test::synthetic_pack_dir(), report);
+    const auto store = Store::open(hgps::test::synthetic_data_dir(), report);
 
     ASSERT_TRUE(store.has_value()) << report.to_string();
     EXPECT_TRUE(report.empty()) << report.to_string();

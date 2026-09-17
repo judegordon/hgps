@@ -125,13 +125,20 @@ struct CancerParameterEntity {
     }
 };
 
-/// @brief The burden-of-disease inputs: disability weights, life expectancy, cost of disease.
+/// @brief The burden-of-disease inputs: disability weights, life expectancy and observed YLD.
 struct DiseaseAnalysisEntity {
     std::map<std::string, float> disability_weights{};
     std::vector<LifeExpectancyItem> life_expectancy{};
-    std::map<int, std::map<Gender, double>> cost_of_diseases{};
 
-    bool empty() const noexcept { return cost_of_diseases.empty() || life_expectancy.empty(); }
+    /// @brief Observed years lived with disability, by age and sex, as a fraction in [0, 1].
+    ///
+    /// The upstream data holds this in `analysis/cost/BoD{COUNTRY_CODE}.csv`, whose rows carry
+    /// `measure = YLD` and a `mean` column — so despite the file's path and the baseline's
+    /// `cost_of_diseases` member name, these are not costs. The baseline passes the same table
+    /// to its analysis definition as observed YLD, which is right; only the name was wrong.
+    std::map<int, std::map<Gender, double>> observed_yld{};
+
+    bool empty() const noexcept { return observed_yld.empty() || life_expectancy.empty(); }
 };
 
 /// @brief One row of the LMS (lambda-mu-sigma) childhood growth reference.

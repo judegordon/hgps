@@ -28,12 +28,12 @@ target_link_libraries(hgps_tests PRIVATE hgps GTest::gtest GTest::gtest_main)
 # (docs/decisions/0011-data-fetched-not-vendored.md).
 set(HGPS_FIXTURE_PACK "${CMAKE_CURRENT_BINARY_DIR}/fixtures/pack")
 add_custom_command(
-    OUTPUT "${HGPS_FIXTURE_PACK}/index.json"
+    OUTPUT "${HGPS_FIXTURE_PACK}/data/index.json"
     COMMAND gen-fixtures --output "${HGPS_FIXTURE_PACK}"
     DEPENDS gen-fixtures
     COMMENT "Generating the synthetic data pack"
     VERBATIM)
-add_custom_target(hgps_fixtures DEPENDS "${HGPS_FIXTURE_PACK}/index.json")
+add_custom_target(hgps_fixtures DEPENDS "${HGPS_FIXTURE_PACK}/data/index.json")
 add_dependencies(hgps_tests hgps_fixtures)
 
 # Paths the tests need, as compile definitions rather than __FILE__ arithmetic. The baseline
