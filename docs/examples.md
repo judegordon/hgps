@@ -75,9 +75,10 @@ KevinHall_FINCH 15 diseases, 34 risk factors, cohort of     6,817, 2022–2032
 KevinHall_India  7 diseases, 17 risk factors, cohort of    14,171, 2022–2026
 ```
 
-Two of them are compared against the baseline over many seeds: `HLM_France` and `KevinHall_FINCH`
-([docs/equivalence.md](equivalence.md)). The two India examples are run through the loader and the
-engine but not compared, which is this run's scope ruling: what they are for here is to make any
+Two of them are compared against the baseline over many seeds — `HLM_France` and
+`KevinHall_FINCH`, at 20 seeds with `simple` active, again at 60, and once more for each of the
+other five interventions ([docs/equivalence.md](equivalence.md)). The two India examples are run
+through the loader and the engine but not compared, which is this run's scope ruling: what they are for here is to make any
 missing disease directory or data inconsistency surface as a located input issue rather than as a
 mid-run failure, and they do.
 
@@ -201,9 +202,10 @@ missing file is indistinguishable from an effect somebody meant to switch off.
 
 ## One more thing worth knowing about the baseline
 
-Running the baseline on `KevinHall_FINCH` twenty times, the same binary on the same config with the
-same seed, **two of the twenty exited on a signal** — once on `SIGTRAP` and once on `SIGSEGV` — and
-both succeeded when re-run unchanged. That is the concurrency defect the audit recorded (B-01,
+Running the baseline on `KevinHall_FINCH` is not reliable. Over the many runs
+[docs/equivalence.md](equivalence.md) reports — the same binary, the same config, the same seed —
+some exit on a signal and then succeed when re-run unchanged, and three different signals have been
+seen: `SIGTRAP`, `SIGSEGV` and `SIGABRT`. That is the concurrency defect the audit recorded (B-01,
 B-02: two scenario threads, and a repository populated lazily from inside a parallel loop, behind a
 lock-free fast path that races a concurrent insert).
 

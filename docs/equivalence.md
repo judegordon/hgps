@@ -7,32 +7,52 @@ floating-point operation order in the baseline, which forecloses most of the imp
 implementation exists to make. Equivalence leaves the design free and still answers the question
 that matters — *do the two implementations produce the same distributions?*
 
-This document is the result. It is produced by one command:
+This document is the result. It is produced by one command per example:
 
 ```bash
 cd /Users/jude/work/hpgs/hgps_new_rewrite
-tests/equivalence/run.py --example HLM_France --seeds 20
+tests/equivalence/run.py --example HLM_France      --seeds 20
+tests/equivalence/run.py --example KevinHall_FINCH --seeds 20
 ```
 
 ## What is compared, and how
 
-**The example.** `examples/HLM_France`, the converted reference example ([docs/examples.md](examples.md)),
-the only one this build runs end to end. Both implementations get the same seed, the same input
-files, the same horizon (2010–2050), one trial run, one thread, and the same active intervention.
+**The examples.** Two, one per model family
+([docs/examples.md](examples.md)):
 
-The intervention is worth a note: `HLM_France` ships `active_type_id: null`, which would compare
-one scenario. The harness activates `simple` — BMI −1.0 from 2022, the one intervention this build
-implements — in **both**, so the intervention path is compared as well as the baseline path. Every
-number below is therefore over two scenarios.
+| | Model families | Horizon | Cohort | Diseases | Risk factors |
+|---|---|---|---:|---:|---:|
+| `HLM_France` | `HLM` static, `EBHLM` dynamic | 2010–2050 | 6,244 | 6 | 11 |
+| `KevinHall_FINCH` | `StaticLinear`, `KevinHall` | 2022–2032 | 6,817 | 15 | 34 |
 
-**The configs.** The baseline gets the upstream v1 `config.json` it was written for; this build gets
-the converted v2 config. They are not the same file, so the harness records the SHA-256 of each
-with the seed removed, and stores it beside the reference output. For the run reported here:
+Both implementations get the same seed, the same input files, the same horizon, one trial run, one
+thread, and the same active intervention.
 
-| | SHA-256 |
-| --- | --- |
-| baseline config | `6cea2a8ad468e34daa9ff5a3fb4592a7b2ce571100a3d7f2b8f91c12bb8392cd` |
-| this build's config | `b047ee3136241db69a3d4dcb93c149dc1866c16b639d8d6e94a629ad5d4fc444` |
+**What "the intervention" means, and it differs between the two.**
+
+`HLM_France` ships `active_type_id: null`, which would compare one scenario against nothing. The
+harness activates `simple` — BMI −1.0 from 2022 — in **both**, so the policy path is compared as
+well as the baseline path.
+
+`KevinHall_FINCH` ships `simple` as its active intervention and gives it an **empty impact list**,
+so the `interventions` block contributes nothing. Its policy is somewhere else: `policy_start_year`
+is 2024, and from that year the `StaticLinear` model applies the S1 policy-effect coefficients and
+the S1 residual policy covariance to the intervention scenario. That is the FINCH policy mechanism,
+and it is a different one from the age-banded impacts. It is visible in the stored reference: the
+baseline's two scenarios are identical in 2022 and 2023 and differ in 2,476 of 4,600 reduced series
+in 2024, rising to 4,191 by 2032.
+
+So the FINCH comparison covers the S1 policy model, and the five age-banded policies are compared
+separately, one run each — see *One intervention at a time*, below.
+
+**The configs.** The baseline gets the upstream v1 config it was written for; this build gets the
+converted v2 config. They are not the same file, so the harness records the SHA-256 of each with
+the seed removed, and stores it beside the reference output. For the runs reported here:
+
+| | baseline config | this build's config |
+| --- | --- | --- |
+| `HLM_France` | `6cea2a8ad468e34daa9ff5a3fb4592a7b2ce571100a3d7f2b8f91c12bb8392cd` | `b047ee3136241db69a3d4dcb93c149dc1866c16b639d8d6e94a629ad5d4fc444` |
+| `KevinHall_FINCH` | `a850e8a9f739b318ee8e3926355c65c4fefdc255a6c45df4f740631b932899be` | `685c8b8f5c9ee017c4ca99b150522766c67aa8cd9d3f658f9fcf863a5f1130d8` |
 
 The two configs are equivalent by construction: the converter's defaults for
 `project_requirements` are the baseline's own struct defaults, checked against
@@ -47,18 +67,31 @@ population figures is not. The harness reduces each file to one value per
 - everything else is a mean or a proportion within the band, so it is the count-weighted mean over
   the bands — the figure the variable is reporting for the population.
 
-**What the reduction leaves out.** The age bands that either implementation empties, on both sides
-and for every seed — 785 of the 16,564 bands in this run, 0.12% of the head count, all at ages 91
-and above. That is not a convenience: it is the one place the two implementations are not reporting
-the same quantity, for a reason traced below under *the emptying-band mechanism*. The excluded set
-is derived from the runs rather than declared, is recorded in the reference manifest, and a run
-that finds an empty band outside it fails rather than quietly widening it.
+**What the reduction leaves out.** Two things, and they are different in kind.
+
+*The emptying bands.* The age bands that either implementation empties, on both sides and for every
+seed — 785 of HLM_France's 16,564 bands and 692 of KevinHall_FINCH's, in each case a fraction of a
+percent of the head count and all at the top of the age range. That is not a convenience: it is the
+one place the two implementations are not reporting the same quantity, for a reason traced below
+under *the emptying-band mechanism*. The excluded set is derived from the runs rather than
+declared, is recorded in the reference manifest, and a run that finds an empty band outside it
+fails rather than quietly widening it.
+
+*A variable the baseline does not compute.* `std_income`, on FINCH only. The baseline emits the
+column and never fills it: the loop that accumulates squared deviations skips `income` on the
+ground that the mapping loop handles it, and the mapping loop skips it for the same reason, so
+every value in the column is exactly zero in every band of every year of every run. That is
+deviation **B-22**, and this build computes it. The harness's `BASELINE_DOES_NOT_COMPUTE` list
+drops the variable **only while the baseline's series is identically zero**, and compares it
+normally the moment that stops being true — so the exclusion cannot outlive the defect, and a
+future baseline that fixes it turns the comparison back on by itself.
 
 **The statistics.** For each of those series the harness takes the 20 seeds' values and computes
 the **mean**, the **standard deviation** and the **5th, 50th and 95th percentiles** (type-7
 quantiles, so they can be reproduced in R or numpy), for each implementation, and compares them —
 except for a series that sits on one single value in more than half the seeds, where three of the
-five are replaced by a distribution-free test (below). That is 33,732 comparisons.
+five are replaced by a distribution-free test (below). That is 33,732 comparisons on HLM_France and
+23,432 on KevinHall_FINCH.
 
 ## The thresholds, and why they are what they are
 
@@ -123,10 +156,11 @@ and at the same family-wide significance the sigma limit encodes — α = 0.05 o
 p < 10⁻⁵ — it still fails a rate that differs by, say, 0 of 20 against 12 of 20. What it stops
 doing is calling 1-in-20 and 4-in-20 a disagreement.
 
-**What is skipped.** 56 comparisons, all of them a burden, death, emigration or incidence variable
-in the first simulated year, where the quantity is not defined yet. Nothing else is excluded.
+**What is skipped.** A burden, death, emigration or incidence variable in the first simulated year,
+where the quantity is not defined yet: 56 comparisons on HLM_France and 136 on KevinHall_FINCH.
+Nothing else is excluded.
 
-## The result
+## The result — HLM_France
 
 **33,732 comparisons over 20 seeds. Zero out of tolerance.**
 
@@ -144,8 +178,79 @@ the worst rate comparison is four orders of magnitude clear of its threshold. Th
 kind of result from "everything passes", because a set of comparisons clustered at 0.99× would mean
 the thresholds were doing the work.
 
-There is no failure budget. `scripts/check.sh` passes no `--max-failures`, so the default of zero
-applies, and any out-of-tolerance comparison fails the build.
+## The result — KevinHall_FINCH
+
+**23,432 comparisons over 20 seeds. Zero out of tolerance.**
+
+| Statistic | Failed | Compared | Worst excursion that passed |
+| --- | ---: | ---: | --- |
+| mean | **0** | 4,924 | 0.85× the allowance (`obese_weight`, intervention 2032 male, 9.129 against 9.414) |
+| median | **0** | 4,924 | 0.90× (`obese_weight`, intervention 2031 male, 9.049 against 9.443) |
+| 5th percentile | **0** | 4,330 | 0.86× (`mean_fat`, intervention 2027 male, 107.954 against 108.315) |
+| 95th percentile | **0** | 4,330 | 0.76× (`incidence_esophaguscancer`, intervention 2032 male, 0.000314 against 0.000851) |
+| standard deviation | **0** | 4,330 | 0.74× (`mean_fruit`, baseline 2031 female, 0.664 against 0.275) |
+| departure rate | **0** | 594 | p = 0.048 against a threshold of 10⁻⁵ (`incidence_kidneycancer`, baseline 2023 male, 16 seeds in 20 against 9) |
+
+The worst comparison uses 90% of its allowance. The worst rate comparison has p = 0.048, which is
+nominally significant at an uncorrected 5% and is exactly what 594 comparisons should produce from
+noise alone — and the direction test says so: over the 567 (variable, statistic) groups, this
+build's worst-case value is above the baseline's in 55 and below it in 59.
+
+### Getting there
+
+FINCH did not pass first time. The count of out-of-tolerance comparisons went 1,542 → 1,326 →
+1,202 → 269 → 52 → 19 → **0**, and every step was a defect in this implementation rather than a
+loosened threshold. The last two are worth recording because both were the same mistake in
+different clothes — **calibrating onto the wrong target**:
+
+- **Physical activity.** `adjust_to_factors_mean` shifts an (age, sex) band so its mean lands on
+  the FactorsMean table's value, and the shifted values are then clamped to the factor's configured
+  range. Clamping the *target* as well is a different thing and it is wrong: the FINCH table puts a
+  newborn's physical activity at 1.2, below the configured lower bound of 1.4, so the newborn band
+  came out a tenth of a unit high and, because the shifted values then cleared the bound instead of
+  piling up on it, 3.5% wider as well. That was all 198 `mean_pa` comparisons.
+- **Weight.** The Kevin Hall model derives an adult's expected weight from a regression on their
+  expected energy intake, height, age and activity level, and that regression is a fit to the
+  FactorsMean table's own `Weight` column — 86.1912 against the table's 86.1864 for a 40-year-old
+  man. The derived value is what a person's weight is generated from; the measurement is what the
+  population's mean should be calibrated to. Calibrating onto the fit was five grams per person,
+  and it was the 8 remaining `mean_weight` comparisons.
+
+Neither would have been found by reading the code, and neither is visible in any unit test: both
+are a fraction of a percent, in the right direction, on a quantity that looks calibrated either
+way.
+
+## One intervention at a time
+
+`simple` is one policy, and on FINCH it is an empty impact list. The other five — `marketing`,
+`dynamic_marketing`, `food_labelling`, `physical_activity`, `fiscal` — are age-banded policies with
+their own exposure rules, their own per-person draws and, in `food_labelling` and
+`physical_activity`, their own memory of who they have already affected. A comparison that never
+activates them says nothing about them.
+
+So each is compared on its own, 20 seeds, in both implementations, with
+`--intervention NAME`. Each choice hashes to a different config and therefore to a different stored
+reference, so they cannot disturb the reference for `simple`.
+
+On `HLM_France` the definitions are upstream's own: its `config.json` declares all six and the
+harness simply activates one at a time. On `KevinHall_FINCH` they come from
+`tests/equivalence/interventions/KevinHall_FINCH.json`, which is HLM_France's five definitions
+verbatim with two substitutions and nothing else — the active period becomes FINCH's own 2025
+onwards, because France's runs to 2050 and the FINCH horizon ends in 2032, and the risk factor
+`Energy` becomes `EnergyIntake`, which is FINCH's name for it. France's coefficients mean nothing
+for Finland; that is not what they are for. Both implementations get the identical definition, and
+the question asked is whether they apply it identically — which on the FINCH surface is a different
+question, because an energy impact propagates through the Kevin Hall energy balance into weight and
+BMI rather than sitting in a static factor.
+
+<!-- INTERVENTION-RESULTS -->
+
+## What the residuals turned out to be
+
+The previous run of this project ended with 54 out-of-tolerance comparisons and a failure budget of
+60 to keep them from leaving a permanently red check. This run was to take the budget back to zero
+by explaining each one rather than by allowing for it. Both of the two things it found are below,
+and neither was what it looked like.
 
 ### The emptying-band mechanism, and why it is the baseline's
 
@@ -234,26 +339,29 @@ standard deviation and tail percentiles replaced by the rate test, as described 
 thresholds*. The change removed all seven failures and introduced 2,264 comparisons that did not
 exist before.
 
-### Whether 20 seeds is enough
+## Whether 20 seeds is enough
 
 The standard-deviation test is the loosest of the five — the standard error of a sample standard
-deviation at n = 20 is 16% of the standard deviation itself — so the whole comparison was repeated
-at **60 seeds**, which costs about nine minutes:
+deviation at n = 20 is 16% of the standard deviation itself — so each comparison was repeated at
+**60 seeds**, against a reference stored outside the repository because 60 seeds of reduced
+baseline output is larger than belongs in git:
 
 ```bash
 tests/equivalence/run.py --example HLM_France --seeds 60 \
     --reference-dir /tmp/hgps-ref60 --refresh-reference
 ```
 
-| | 20 seeds | 60 seeds |
-|---|---:|---:|
-| Comparisons | 33,732 | 33,732 |
-| Out of tolerance | **0** | **0** |
-| Age bands excluded | 785 | 923 |
-| Worst excursion | 0.87× the allowance | 0.91× the allowance |
+| | HLM_France, 20 | HLM_France, 60 | KevinHall_FINCH, 20 | KevinHall_FINCH, 60 |
+|---|---:|---:|---:|---:|
+| Comparisons | 33,732 | 33,732 | 23,432 | <!--F60-COMPARISONS--> |
+| Out of tolerance | **0** | **0** | **0** | <!--F60-FAILURES--> |
+| Age bands excluded | 785 | 923 | 692 | <!--F60-BANDS--> |
+| Worst excursion | 0.87× | 0.91× | 0.90× | <!--F60-WORST--> |
 
 Tripling the seeds tightens every allowance by √3, so a difference that was hiding inside the
-allowance at 20 seeds would surface at 60. Nothing did: the worst comparison at 60 seeds uses 91% of its allowance, against 87% at 20, and the excluded-band set grows from 785 to 923 because more seeds empty more bands — which is the mechanism behaving as described rather than a new one appearing.
+allowance at 20 seeds would surface at 60. Nothing did. The excluded-band set grows with the seed
+count, because more seeds empty more bands — which is the mechanism behaving as described rather
+than a new one appearing.
 
 ## Verdict
 
@@ -311,7 +419,8 @@ scripts/check.sh
 ```
 
 The baseline's reduced output for seeds 1–20 is checked in at
-`tests/equivalence/reference/HLM_France/<config-sha256>.csv.gz`, with a manifest recording the
+`tests/equivalence/reference/<example>/<config-sha256>.csv.gz` — 1.7 MB for HLM_France and 1.2 MB
+for KevinHall_FINCH — with a manifest recording the
 seeds, both config hashes, the baseline binary's path, the reduction used, **the age bands excluded
 and which of them the baseline itself emptied**, and when it was written. It is the reduced form,
 not the raw CSVs: 20 raw result files are 80 MB and the reduction is exactly the granularity the
@@ -326,9 +435,20 @@ comparison needs.
 `--json` writes the whole outcome — every (variable, statistic) group with its counts and its worst
 case — so the tables above can be regenerated rather than retyped.
 
-## KevinHall_FINCH
+## The baseline does not always finish
 
-The harness already defines the FINCH example, and running it reports that this build cannot:
-`StaticLinear` and `KevinHall` are not implemented, so there is nothing to compare. See
-[docs/backlog.md](backlog.md). When those land, `--example KevinHall_FINCH` is the check, and
-nothing in the harness needs to change.
+Running the baseline on `KevinHall_FINCH` is not reliable. Over the runs this document reports —
+the same binary, the same config, the same seed — some exit on a signal and then succeed when
+re-run unchanged. Three different signals have been seen: `SIGSEGV`, `SIGTRAP` and `SIGABRT`.
+
+That is audit findings **B-01** and **B-02** showing up as a crash rather than as a reordering:
+two scenario threads, and a disease repository populated lazily from inside a parallel loop behind
+a lock-free fast path that races a concurrent insert.
+
+The harness retries a baseline run up to three times for this reason, counts the retries, prints
+each one, and puts them in the `--json` outcome, so the flake is visible rather than smoothed away.
+It is not something a comparison against the baseline can fix, and it is the strongest single
+argument for the sequential-scenario design this implementation uses
+([ADR 0009](decisions/0009-sequential-scenarios-and-the-migration-journal.md)): this build has
+never exited on a signal on any example, at any seed, under any preset, including
+ThreadSanitizer.
