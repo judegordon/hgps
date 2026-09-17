@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/jude/hgps/main/schemas/v2/config/modelling.json",
+  "title": "The models and their parameters",
+  "type": "object",
+  "properties": {
+    "ses_model": {
+      "type": "object",
+      "properties": {
+        "function_name": { "const": "normal" },
+        "function_parameters": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "[mean, standard deviation]; the standard deviation must be above zero."
+        }
+      },
+      "required": ["function_name", "function_parameters"],
+      "additionalProperties": false
+    },
+    "policy_start_year": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "The calendar year policies start. 0 or omitted means start_time + 2."
+    },
+    "risk_factors": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "level": { "type": "integer", "minimum": 0 },
+          "range": {
+            "type": "array",
+            "items": { "type": "number" },
+            "minItems": 2,
+            "maxItems": 2
+          }
+        },
+        "required": ["name", "level"],
+        "additionalProperties": false
+      },
+      "description": "Every factor the models may refer to. A coefficient naming anything not listed here is rejected at model-load time (docs/decisions/0018-no-swallowing-catch-load-time-validation.md)."
+    },
+    "risk_factor_models": {
+      "type": "object",
+      "properties": {
+        "static": { "type": "string", "description": "The initialisation model's JSON file." },
+        "dynamic": { "type": "string", "description": "The year-on-year model's JSON file." }
+      },
+      "required": ["static", "dynamic"],
+      "additionalProperties": false
+    },
+    "baseline_adjustments": {
+      "type": "object",
+      "properties": {
+        "format": { "const": "csv", "default": "csv" },
+        "delimiter": { "type": "string", "default": "," },
+        "encoding": { "type": "string", "default": "ASCII" },
+        "file_names": {
+          "type": "object",
+          "properties": {
+            "factorsmean_male": { "type": "string" },
+            "factorsmean_female": { "type": "string" }
+          },
+          "required": ["factorsmean_male", "factorsmean_female"],
+          "additionalProperties": false
+        },
+        "income_stratum_factors_mean": {
+          "type": "object",
+          "description": "Optional per-stratum FactorsMean tables, one male/female pair per income rank bucket (FINCH uses quintiles). When enabled, adjustment_income_stratum_count must equal the number of strata. Independent of project_requirements.income.categories, which sets the final bucket count.",
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "adjustment_income_stratum_count": { "type": "integer", "minimum": 0 },
+            "strata": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string" },
+                  "factorsmean_male": { "type": "string" },
+                  "factorsmean_female": { "type": "string" }
+                },
+                "required": ["id", "factorsmean_male", "factorsmean_female"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": ["file_names"],
+      "additionalProperties": false
+    },
+    "demographic_models": {
+      "type": "object",
+      "description": "Region, ethnicity, income and physical-activity sub-models. The shape belongs to the risk-factor model that consumes it, so config validation passes it through and the model loader validates every coefficient name in it.",
+      "additionalProperties": true
+    }
+  },
+  "required": ["ses_model", "risk_factors", "risk_factor_models", "baseline_adjustments"],
+  "additionalProperties": false
+}

@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/jude/hgps/main/schemas/v2/config/project_requirements.json",
+  "title": "Which parts of the model this project uses",
+  "description": "Required in config v2. Upstream makes this optional and no primary example config carries it, so every upstream example silently exercises the legacy path while most current behaviour is gated on this block (audit finding D-03). Every default below is applied explicitly and reported as a warning naming the value used — nothing here is silent.",
+  "type": "object",
+  "properties": {
+    "demographics": {
+      "type": "object",
+      "properties": {
+        "age": { "type": "boolean", "default": true },
+        "gender": { "type": "boolean", "default": true },
+        "region": { "type": "boolean", "default": false, "description": "FINCH: true. HLM_France: false." },
+        "ethnicity": { "type": "boolean", "default": false, "description": "FINCH: true. HLM_France: false." },
+        "max_age_for_linear_models": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Cap age at this value in the age, age² and age³ terms of linear models. Omit for no cap."
+        },
+        "gender2": {
+          "enum": ["male", "female"],
+          "default": "male",
+          "description": "Which sex takes value 1 for the gender2 predictor row in the model CSVs; the other is the reference."
+        }
+      },
+      "additionalProperties": false
+    },
+    "income": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "type": {
+          "enum": ["continuous", "categorical"],
+          "default": "categorical",
+          "description": "continuous: a regression, then rank buckets. categorical: logits and a softmax."
+        },
+        "categories": {
+          "enum": ["3", "4", "5"],
+          "default": "3",
+          "description": "The number of income buckets. Their order is part of the model definition, not of a container's iteration (audit B-05)."
+        },
+        "adjust_to_factors_mean": { "type": "boolean", "default": false },
+        "trended": { "type": "boolean", "default": false },
+        "income_based_csv_output": { "type": "boolean", "default": true }
+      },
+      "additionalProperties": false
+    },
+    "physical_activity": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "type": {
+          "enum": ["simple", "continuous"],
+          "default": "simple",
+          "description": "simple: log-normal from the factors mean. continuous: a region, ethnicity and income model."
+        },
+        "adjust_to_factors_mean": { "type": "boolean", "default": false },
+        "trended": { "type": "boolean", "default": false }
+      },
+      "additionalProperties": false
+    },
+    "risk_factors": {
+      "type": "object",
+      "properties": {
+        "adjust_to_factors_mean": { "type": "boolean", "default": true },
+        "trended": { "type": "boolean", "default": true }
+      },
+      "additionalProperties": false
+    },
+    "trend": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "type": {
+          "enum": ["null", "trend", "upf_trend", "UPFTrend", "income_trend"],
+          "default": "null"
+        }
+      },
+      "additionalProperties": false
+    },
+    "two_stage": {
+      "type": "object",
+      "properties": {
+        "use_logistic": {
+          "type": "boolean",
+          "default": false,
+          "description": "Stage 1 logistic regression for zero versus non-zero, then Box-Cox. When true, logistic_file is required."
+        },
+        "logistic_file": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": ["demographics", "income", "physical_activity", "risk_factors", "trend", "two_stage"],
+  "additionalProperties": false
+}

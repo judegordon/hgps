@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/jude/hgps/main/schemas/v2/config.json",
+  "title": "Health-GPS configuration, version 2",
+  "description": "The published contract for a config v2 document. The loader in src/config is the authority — this file is documentation for humans and for editors, and is not consulted at runtime (docs/decisions/0022-hand-written-config-validation.md). tests/config/schema_agreement_test.cpp asserts that the loader rejects a document missing each property listed as required here, and rejects an unknown property at each level that sets additionalProperties: false, so the two cannot drift apart silently.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Should point at this file. A different value is a warning, because the loader has already validated the document; it usually means an upstream v1 config that tools/convert-config has not yet been run on."
+    },
+    "version": {
+      "const": 2,
+      "description": "The config format version. Kept from v1 so a hand-written config states its intent."
+    },
+    "project_requirements": {
+      "$ref": "config/project_requirements.json",
+      "description": "REQUIRED in v2, unlike upstream, where it is optional and absent from every primary example config while most current behaviour is gated on it (audit finding D-03)."
+    },
+    "data": { "$ref": "config/data.json" },
+    "inputs": { "$ref": "config/inputs.json" },
+    "modelling": { "$ref": "config/modelling.json" },
+    "running": { "$ref": "config/running.json" },
+    "output": { "$ref": "config/output.json" },
+    "population_impact_fraction": {
+      "$ref": "config/population_impact_fraction.json",
+      "description": "Reserved. Accepted by the schema so a PIF config keeps its shape, but rejected at load with feature_not_implemented when enabled is true; PIF is out of scope for this build (docs/decisions/0021-scope-finch-and-hlm-france.md)."
+    }
+  },
+  "required": [
+    "version",
+    "project_requirements",
+    "data",
+    "inputs",
+    "modelling",
+    "running",
+    "output"
+  ],
+  "additionalProperties": false,
+  "$comment": "Removed from v1 and rejected by name with their replacement: trend_type (use project_requirements.trend), income_categories (use project_requirements.income.categories), running.sync_timeout_ms (scenarios run sequentially, so there is nothing to time out)."
+}

@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/jude/hgps/main/schemas/v2/config/interventions.json",
+  "title": "Intervention scenarios",
+  "type": "object",
+  "properties": {
+    "active_type_id": {
+      "type": ["string", "null"],
+      "description": "The key under 'types' to run against the baseline, matched case-insensitively, or null for a baseline-only run. Only 'simple' is implemented in this build; any other value is rejected at load rather than ignored."
+    },
+    "types": {
+      "type": "object",
+      "description": "Every intervention the config defines, whether active or not.",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "active_period": {
+            "type": "object",
+            "properties": {
+              "start_time": { "type": "integer" },
+              "finish_time": { "type": ["integer", "null"] }
+            },
+            "required": ["start_time", "finish_time"],
+            "additionalProperties": false
+          },
+          "impacts": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "properties": {
+                "risk_factor": { "type": "string" },
+                "impact_value": { "type": "number" },
+                "from_age": { "type": "integer", "minimum": 0 },
+                "to_age": { "type": ["integer", "null"] }
+              },
+              "required": ["risk_factor", "impact_value", "from_age", "to_age"],
+              "additionalProperties": false
+            }
+          },
+          "impact_type": { "type": "string" },
+          "dynamics": { "type": "array", "items": { "type": "number" } },
+          "coefficients": { "type": "array", "items": { "type": "number" } },
+          "coverage_rates": { "type": "array", "items": { "type": "number" } },
+          "coverage_cutoff_time": { "type": "integer", "minimum": 0 },
+          "child_cutoff_age": { "type": "integer", "minimum": 0 },
+          "adjustments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "risk_factor": { "type": "string" },
+                "value": { "type": "number" }
+              },
+              "required": ["risk_factor", "value"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["active_period", "impacts"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["active_type_id", "types"],
+  "additionalProperties": false
+}

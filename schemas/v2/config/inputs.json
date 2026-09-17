@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/jude/hgps/main/schemas/v2/config/inputs.json",
+  "title": "The survey microdata and the population to draw from it",
+  "type": "object",
+  "properties": {
+    "dataset": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "The CSV file, relative to the config." },
+        "format": { "const": "csv", "default": "csv" },
+        "delimiter": { "type": "string", "minLength": 1, "maxLength": 1, "default": "," },
+        "encoding": { "type": "string", "default": "ASCII" },
+        "columns": {
+          "type": "object",
+          "minProperties": 1,
+          "description": "Column name to declared type. Columns are matched case-insensitively and appear in the loaded table in the order declared here.",
+          "additionalProperties": { "enum": ["integer", "double", "float", "string"] }
+        }
+      },
+      "required": ["name", "columns"],
+      "additionalProperties": false
+    },
+    "settings": {
+      "type": "object",
+      "properties": {
+        "country_code": {
+          "type": "string",
+          "description": "ISO 3166-1 alpha-2 or alpha-3, e.g. FRA."
+        },
+        "size_fraction": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "description": "The fraction of the real population to simulate."
+        },
+        "age_range": {
+          "type": "array",
+          "items": { "type": "integer" },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "[lower, upper], inclusive."
+        }
+      },
+      "required": ["country_code", "size_fraction", "age_range"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["dataset", "settings"],
+  "additionalProperties": false
+}

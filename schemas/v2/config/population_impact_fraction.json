@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/jude/hgps/main/schemas/v2/config/population_impact_fraction.json",
+  "title": "Population Impact Fraction (reserved, not implemented)",
+  "description": "Kept in the schema so a PIF config keeps its shape and converts cleanly, and so that a config asking for PIF fails at load with one sentence rather than running without it. See docs/backlog.md.",
+  "type": "object",
+  "properties": {
+    "enabled": { "type": "boolean", "default": false },
+    "data_root_path": { "type": "string" },
+    "risk_factor": { "type": "string" },
+    "scenario": { "type": "string" }
+  },
+  "required": ["enabled"],
+  "additionalProperties": false
+}

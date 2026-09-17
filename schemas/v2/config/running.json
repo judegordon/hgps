@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/jude/hgps/main/schemas/v2/config/running.json",
+  "title": "The experiment's horizon, seed and diseases",
+  "type": "object",
+  "properties": {
+    "seed": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "REQUIRED, and a single integer. In v1 this was an optional 0-or-1-element array, and an empty one produced a silently irreproducible run whose results file then recorded the seed as 0 (audit B-06). This build has no unseeded code path."
+    },
+    "start_time": { "type": "integer", "description": "The first simulated year." },
+    "stop_time": { "type": "integer", "description": "The last simulated year; must be after start_time." },
+    "trial_runs": { "type": "integer", "minimum": 1, "default": 1 },
+    "diseases": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "Disease codes as they appear in the data store's directory tree. Note 'pulmonary', not 'pulmonar' (docs/decisions/0012-disease-naming-pulmonary.md)."
+    },
+    "interventions": { "$ref": "interventions.json" }
+  },
+  "required": ["seed", "start_time", "stop_time", "diseases", "interventions"],
+  "additionalProperties": false,
+  "$comment": "sync_timeout_ms was removed: scenarios run one after the other and the baseline's net migration travels in a journal, so there is nothing to wait for (docs/decisions/0009-sequential-scenarios-and-the-migration-journal.md)."
+}

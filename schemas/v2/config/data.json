@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/jude/hgps/main/schemas/v2/config/data.json",
+  "title": "The back-end data store",
+  "type": "object",
+  "properties": {
+    "source": {
+      "type": "string",
+      "description": "A directory, a local .zip, or an http(s) URL. A relative path is resolved against the config file's own directory. ${VAR} is expanded from the environment; an undefined variable is an error rather than an empty string (audit N-17)."
+    },
+    "checksum": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{64}$",
+      "description": "The archive's SHA-256. REQUIRED when source is a URL or a .zip — unverified model inputs are not acceptable provenance (docs/decisions/0011-data-fetched-not-vendored.md). Not used for a directory source. The verified archive is extracted once, content-addressed, under the user cache."
+    }
+  },
+  "required": ["source"],
+  "additionalProperties": false
+}

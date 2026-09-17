@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/jude/hgps/main/schemas/v2/config/output.json",
+  "title": "Where results go",
+  "type": "object",
+  "properties": {
+    "comorbidities": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "How many simultaneous diseases the comorbidity table reports."
+    },
+    "folder": {
+      "type": "string",
+      "description": "The output directory. ${VAR} is expanded; an undefined variable is an error. May be empty when --output is given instead, but not both."
+    },
+    "file_name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Used EXACTLY as configured. {TIMESTAMP} and {JOBID} are optional tokens. Upstream ignores this name unless it contains a token (audit B-08) and forces a timestamp, which stops two runs of the same config ever writing comparable paths (N-15); the timestamp lives in the JSON metadata instead."
+    },
+    "individual_id_tracking": {
+      "type": "object",
+      "description": "Optional per-person output, filtered.",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "age_min": { "type": ["integer", "null"] },
+        "age_max": { "type": ["integer", "null"] },
+        "gender": { "enum": ["male", "female", "all"], "default": "all" },
+        "regions": { "type": "array", "items": { "type": "string" } },
+        "ethnicities": { "type": "array", "items": { "type": "string" } },
+        "risk_factors": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Empty means every risk factor."
+        },
+        "years": {
+          "type": "array",
+          "items": { "type": "integer" },
+          "description": "Empty means every year."
+        },
+        "scenarios": { "enum": ["baseline", "intervention", "both"], "default": "both" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": ["comorbidities", "folder", "file_name"],
+  "additionalProperties": false
+}
