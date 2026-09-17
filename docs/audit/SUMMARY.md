@@ -2,8 +2,10 @@
 
 Audit date **2026-09-17**. Host: macOS 26.0, Apple Silicon, Apple Clang 21 / libc++.
 Subject: the upstream Health-GPS baseline, its data and examples repositories, and an earlier
-deterministic C++ rewrite. No implementation code was written; the four source folders were not
-modified.
+deterministic C++ rewrite. No implementation code was written. The four source folders were to be
+treated as read-only; three were. Four `config.json` files in `hgps_main_examples` were
+inadvertently reformatted (whitespace only, no semantic change) — recorded in
+[00-inventory.md](00-inventory.md) §4.5b.
 
 ---
 
