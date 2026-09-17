@@ -15,9 +15,11 @@ namespace {
 const core::Identifier kIncome{"income"};
 const core::Identifier kPhysicalActivity{"physicalactivity"};
 
+/// The same list as in series.cpp, and for the same reason: see the comment there.
 bool is_demographic_factor(const std::string &lower_key) {
-    return lower_key == "region" || lower_key == "ethnicity" || lower_key == "sector" ||
-           lower_key == "income_category" || lower_key == "income";
+    return lower_key == "gender" || lower_key == "age" || lower_key == "age2" ||
+           lower_key == "age3" || lower_key == "region" || lower_key == "ethnicity" ||
+           lower_key == "sector" || lower_key == "income_category" || lower_key == "income";
 }
 
 } // namespace

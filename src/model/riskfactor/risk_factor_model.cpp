@@ -280,15 +280,21 @@ void AdjustableRiskFactorModel::adjust_risk_factors(
 
             double adjusted = *current + delta;
 
-            // The factor's own configured range wins over any range the caller passed, because
-            // the config's range is the one the output and the disease lookups assume.
-            if (context.mapping().contains(factor)) {
-                const auto &entry = context.mapping().at(factor);
-                if (entry.range().has_value()) {
-                    adjusted = entry.get_bounded_value(adjusted);
-                } else if (ranges != nullptr && i < ranges->size()) {
-                    adjusted = (*ranges)[i].clamp(adjusted);
-                }
+            // Whether to clamp is the caller's choice, not the factor's, and the HLM path
+            // passes no range. That is what makes `adjust_to_factors_mean` mean what it says:
+            // shifting every value in an (age, sex) band by `expected - simulated_mean` lands
+            // the band's mean exactly on the expected value, so the output reports the
+            // FactorsMean table. Clamping the shifted values moves the mean back off it —
+            // preferring the configured range here is what made the reference example's band
+            // means disagree with the baseline's, most visibly at the young ages where the
+            // expected BMI of 14 sits close to the configured lower bound of 13.88.
+            //
+            // PhysicalActivity is the exception the baseline makes, and for a stated reason: its
+            // expected values and its model are on different scales, so its configured range
+            // wins over the caller.
+            if (factor == kPhysicalActivity && context.mapping().contains(factor) &&
+                context.mapping().at(factor).range().has_value()) {
+                adjusted = context.mapping().at(factor).get_bounded_value(adjusted);
             } else if (ranges != nullptr && i < ranges->size()) {
                 adjusted = (*ranges)[i].clamp(adjusted);
             }

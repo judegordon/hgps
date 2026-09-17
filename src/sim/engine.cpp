@@ -105,8 +105,14 @@ model::IntegerAgeGenderTable Engine::expected_population() const {
     const auto start_year = context_.start_time();
     const auto real_start_population =
         modules_.demographic->get_total_population_size(start_year);
-    const auto cohort_size = inputs_->settings().size_fraction *
-                             static_cast<double>(real_start_population);
+    // The cohort size is the *whole number* of people the run actually started with, not the
+    // unrounded fraction. That matters: the scale below is applied to a projected age-sex count
+    // and rounded to a person, so scaling by `cohort_size / real_population` rather than by
+    // `size_fraction` moves some bands across the rounding boundary. Using the fraction directly
+    // left the reference example's population differing from the baseline's by a person or two
+    // per year, which then showed up in every count-weighted aggregate.
+    const auto cohort_size = static_cast<double>(static_cast<std::size_t>(
+        inputs_->settings().size_fraction * static_cast<double>(real_start_population)));
 
     const auto &distribution =
         modules_.demographic->get_population_distribution(context_.time_now());

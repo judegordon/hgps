@@ -496,12 +496,29 @@ TEST(TestSimulation, MultipleTrialRunsAppearAndDoNotShareSeeds) {
     }
     EXPECT_EQ(std::set<int>({1, 2, 3}), runs);
 
-    // Different runs get different seeds, so their results differ.
-    const auto first = total(rows, "mean_bmi", document["running"]["start_time"].get<int>(),
-                             "Baseline");
-    (void)first;
+    // Different runs get different seeds, so their results differ — but not in the factor
+    // means. `adjust_to_factors_mean` shifts every value in an (age, sex) band by
+    // `expected - simulated_mean`, so each band's mean lands exactly on the FactorsMean table
+    // whatever the seed was; the baseline's output has the same property. What the seed moves is
+    // the spread around those means, and everything downstream of it.
+    for (const auto *channel : {"std_bmi", "std_energy"}) {
+        std::set<double> per_run;
+        for (int run = 1; run <= 3; ++run) {
+            double sum = 0.0;
+            for (const auto &row : rows) {
+                if (row.run == run) {
+                    sum += row.values.at(channel);
+                }
+            }
+            per_run.insert(sum);
+        }
+        EXPECT_EQ(3U, per_run.size())
+            << "three trial runs produced the same " << channel << ", so they shared a seed";
+    }
 
-    std::set<double> per_run;
+    // And the means really are the same across runs, which is the invariant the calibration
+    // promises rather than an accident of this fixture.
+    std::set<double> mean_bmi_per_run;
     for (int run = 1; run <= 3; ++run) {
         double sum = 0.0;
         for (const auto &row : rows) {
@@ -509,9 +526,10 @@ TEST(TestSimulation, MultipleTrialRunsAppearAndDoNotShareSeeds) {
                 sum += row.values.at("mean_bmi");
             }
         }
-        per_run.insert(sum);
+        mean_bmi_per_run.insert(sum);
     }
-    EXPECT_EQ(3U, per_run.size()) << "three trial runs produced identical results";
+    EXPECT_EQ(1U, mean_bmi_per_run.size())
+        << "the calibrated band means should not depend on the seed";
 }
 
 TEST(TestSimulation, ADryRunValidatesWithoutWriting) {

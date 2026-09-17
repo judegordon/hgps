@@ -1,0 +1,32 @@
+{
+  "example": "HLM_France",
+  "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20
+  ],
+  "baseline_config_sha256": "6cea2a8ad468e34daa9ff5a3fb4592a7b2ce571100a3d7f2b8f91c12bb8392cd",
+  "new_config_sha256": "b047ee3136241db69a3d4dcb93c149dc1866c16b639d8d6e94a629ad5d4fc444",
+  "intervention": "simple",
+  "stop_time_override": null,
+  "baseline_binary": "/tmp/hgps-build/baseline-release/src/HealthGPS.Console/HealthGPS.Console",
+  "reduction": "count-weighted mean over age bands; counts summed",
+  "written_utc": "2026-09-17T19:53:08Z"
+}

@@ -18,10 +18,18 @@ const core::Identifier kIncome{"income"};
 const core::Identifier kPhysicalActivity{"physicalactivity"};
 
 /// Reported from their own members rather than from the factor map, so they must be skipped when
-/// the factor map is walked.
+/// the factor map is walked — both when accumulating and when turning sums into means.
+///
+/// `gender`, `age`, `age2` and `age3` belong here as well, and this is why: the config declares
+/// them as level-0 risk factors, so they appear in the mapping, but a person does not carry them
+/// in `risk_factors` — they come from `person.gender` and `person.age`. Leaving them out meant
+/// `mean_gender` was divided by the head count twice, once here and once in the explicit list, so
+/// every male band reported 1/count instead of 1. Found by the equivalence harness against the
+/// baseline, which reports 1.
 bool is_demographic_factor(const std::string &lower_key) {
-    return lower_key == "region" || lower_key == "ethnicity" || lower_key == "sector" ||
-           lower_key == "income_category" || lower_key == "income";
+    return lower_key == "gender" || lower_key == "age" || lower_key == "age2" ||
+           lower_key == "age3" || lower_key == "region" || lower_key == "ethnicity" ||
+           lower_key == "sector" || lower_key == "income_category" || lower_key == "income";
 }
 
 } // namespace
