@@ -103,6 +103,31 @@ same size, then falls through to `values.back()` — undefined behaviour if both
 baseline. **Behaviour:** *preserves behaviour* on all valid inputs; converts undefined behaviour
 into a diagnosable exception on invalid ones.
 
+### 2.5 Categorical income sampling was made order-deterministic and numerically stable
+
+**Baseline.** `initialise_categorical_income` (`static_linear_model.cpp:1952-1991`) computes softmax
+probabilities and then walks a cumulative distribution, iterating `std::unordered_map` at every
+stage. Category assignment therefore depends on unspecified hash-bucket order, so the same seed can
+assign a different income category on a different standard library (baseline issue B-05). It also
+computes `exp(logit)` directly, and can fall through the CDF loop to a thrown exception when
+floating-point rounding leaves the accumulated probability just below the draw.
+
+**Rewrite.** `src/hgps/models/static_linear_model.cpp:824-863` fixes all three:
+
+1. A helper at `:40-61` returns the income categories as a `std::vector` built from a hard-coded
+   braced-init-list — `{low, lowermiddle, uppermiddle, high}` for four categories, `{low, middle,
+   high}` otherwise — filtered by membership in the model map. Every subsequent stage (`logits`,
+   `probs`, the CDF walk) iterates a `std::vector`, never the `unordered_map`. Ordering is now part
+   of the model definition and is identical on every platform.
+2. `:846` uses `std::exp(logit - max_logit)` — the numerically stable softmax — where the baseline
+   exponentiates the raw logit and can overflow to infinity for large coefficients.
+3. `:855` terminates the CDF walk with `draw < cumulative || i + 1 == probs.size()`, guaranteeing a
+   category is always assigned rather than falling through to the throw.
+
+**Rationale: inferred.** **Behaviour:** *alters behaviour intentionally.* This is the rewrite's
+cleanest single fix, and the pattern — derive an explicit order from the domain, then sample over a
+sequence — is the one to carry into the new rewrite wherever a distribution is sampled.
+
 ### 2.4 What was not changed
 
 `next_double()` is unchanged — still `std::generate_canonical<double, 53>`
@@ -422,7 +447,7 @@ Recorded for completeness; all **inferred**, all *preserve behaviour*.
 | **B-02** repository data race | **Fixed twice** — lock taken before the read, and the concurrent caller made serial | §4 |
 | **B-03** `<cctype>` with signed `char` (UB) | **Fixed** — all 12 sites cast to `unsigned char` | §6 |
 | **B-04** `Identifier::operator==` compares hash only | **Fixed** — compares the string | §6 |
-| **B-05** income CDF over `unordered_map` iteration | **Inherited** — `src/hgps/models/static_linear_model.cpp` retains the same construction | R-09 |
+| **B-05** income CDF over `unordered_map` iteration | **Fixed** — the CDF is built over an explicitly ordered vector | §2.5 |
 | **B-06** unseeded run silent, seed mis-recorded | **Half fixed** — entropy seeding made impossible; the `value_or(0)` reporting pattern remains, though now truthful | §2.1 |
 | **B-07** `next_int` inclusive vs documented half-open | **Moot** — reimplemented; still inclusive, still undocumented (no doc comments at all) | §2.2 |
 | **B-08** `output.file_name` silently ignored | **Inherited** | R-10 |
@@ -438,7 +463,7 @@ Recorded for completeness; all **inferred**, all *preserve behaviour*.
 | **B-18** version mismatch CMake vs vcpkg | **Fixed** — both say `1.0.0` | `00` §2.4 |
 | **B-19** unused-but-set variables | **Fixed** — absent; 5 new `-Wpessimizing-move` warnings appear instead | R-12 |
 
-Eleven of nineteen fixed, six inherited, one half-fixed, one made worse.
+Twelve of nineteen fixed, five inherited, one half-fixed, one made worse.
 
 ---
 
