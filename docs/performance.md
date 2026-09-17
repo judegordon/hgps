@@ -1,8 +1,9 @@
 # Performance
 
-Measured, not estimated. Everything below is the converted `HLM_France` reference example —
-2010–2050, a cohort of 6,244, both scenarios (`simple` active in both implementations), one trial
-run, seed 1 — on:
+Measured, not estimated. Two examples: the converted `HLM_France` reference example — 2010–2050, a
+cohort of 6,244, 6 diseases, 11 risk factors — and the converted `KevinHall_FINCH` example —
+2022–2032, a cohort of 6,817, 15 diseases, 34 risk factors, with the S1 policy model active in the
+intervention scenario. Both run both scenarios, one trial run, seed 1, on:
 
 | | |
 |---|---|
@@ -11,40 +12,98 @@ run, seed 1 — on:
 | Baseline | `/tmp/hgps-build/baseline-release`, built as [docs/build-notes.md](build-notes.md) records |
 | This build | `out/build/release`, `--threads 1` |
 
-Each figure is the best of three runs on an otherwise idle machine; the spread across the three is
-given where it matters. `/usr/bin/time -l`, so peak memory is the maximum resident set size.
+The exact configs are the ones `tests/equivalence/run.py` derives, so the two implementations are
+given the same inputs in the same layout as in [docs/equivalence.md](equivalence.md). Every figure
+is three runs on an otherwise idle machine and all three are given, because the spread is part of
+the measurement. `/usr/bin/time -l`, so peak memory is the maximum resident set size.
+
+A note on the machine: the first attempt at these numbers was taken while Spotlight was indexing
+the working directories, and it put `HLM_France` at 3.38 s rather than 2.78 s — a 20% error, larger
+than any difference discussed below. The figures here were taken after `mds_stores` went quiet.
 
 ## The numbers
 
+**HLM_France**, 2010–2050:
+
 | | Wall | CPU | Peak memory |
 |---|---:|---:|---:|
-| **Baseline** | 4.79–5.22 s | 7.49–8.19 s | 85.3 MiB |
-| **This build** | **2.72–2.73 s** | **2.71–2.77 s** | **57.1 MiB** |
+| **Baseline** | 4.78 / 4.88 / 5.26 s | 7.69 / 7.90 / 8.22 s | 85.2 MiB |
+| **This build** | **2.78 / 2.90 / 3.23 s** | **2.76 / 2.85 / 3.22 s** | **56.7–56.9 MiB** |
 
-**1.8× faster in wall time, 2.8× less CPU work, and a third less memory** — running its two
-scenarios one after the other, on one thread, against a baseline that runs them concurrently.
+**KevinHall_FINCH**, 2022–2032:
+
+| | Wall | CPU | Peak memory |
+|---|---:|---:|---:|
+| **Baseline** | 15.19 / 15.52 / 15.52 s | 24.05 / 24.31 / 24.46 s | 197.8–198.7 MiB |
+| **This build** | **11.63 / 11.69 / 11.79 s** | **11.61 / 11.65 / 11.74 s** | **195.5–195.9 MiB** |
+
+On the HLM surface: **1.7× faster in wall time, 2.8× less CPU work, a third less memory**. On the
+FINCH surface: **1.3× faster in wall time, 2.1× less CPU, and the same memory to within 1%** —
+running its two scenarios one after the other, on one thread, against a baseline that runs them
+concurrently.
 
 The CPU column is the one that says something about the code. The baseline's wall time is shorter
 than its CPU time because it runs the baseline and intervention scenarios on separate threads; this
 build runs them sequentially by design ([ADR 0009](decisions/0009-sequential-scenarios-and-the-migration-journal.md)),
 so its wall and CPU times are the same number. Sequential execution was expected to cost about a
-factor of two in wall time and to be worth it for byte-identical output. It turned out not to cost
-anything, because the work itself is smaller.
+factor of two in wall time and to be worth it for byte-identical output. It costs nothing on either
+example, because the work itself is smaller.
 
-Loading, with `--dry-run` — config, both model files, the data index, the disease registry and
-every disease's tables:
+The previous run's figure for `HLM_France` was 2.72–2.73 s and 57.1 MiB, and the budget set for
+this run was that figure plus 10%. At 2.78–3.23 s and 56.8 MiB it holds: the FINCH surface —
+`StaticLinear`, `KevinHall`, five more interventions, the derived-predictor resolver, region and
+ethnicity — added nothing measurable to an example that uses none of it, which is what one would
+want from code that is selected by the model family named in the config.
+
+### Loading
+
+`--dry-run` in both: config, both model files, the data index, the disease registry, every
+disease's tables, and both scenarios' module sets. It is the same flag in both implementations and
+stops at the same point.
 
 | | Wall | CPU | Peak memory |
 |---|---:|---:|---:|
-| Baseline | 1.48 s | 0.60 s | 75.4 MiB |
-| This build | 0.52 s | 0.25 s | 38.5 MiB |
+| HLM_France, baseline | 1.31 / 1.36 / 1.54 s | 0.60 s | 75.2 MiB |
+| HLM_France, this build | **0.23 / 0.24 / 0.25 s** | **0.23 s** | **36.9 MiB** |
+| KevinHall_FINCH, baseline | 0.89 / 0.99 / 1.05 s | 0.09 s | 20.4 MiB |
+| KevinHall_FINCH, this build | **0.05 / 0.05 / 0.09 s** | **0.04 s** | **19.5 MiB** |
 
 This build loads everything a run needs before any worker thread exists, which is how audit finding
 B-02 — a data race in a lazily-populated repository — is removed by construction rather than by
 locking. That should have made loading *more* expensive than the baseline's lazy path, and it is
-still less.
+less on both examples, by 5× on France and by 18× on FINCH.
+
+France costs more to load than FINCH in both implementations for one reason: its `static_model.json`
+is 18.8 MB against FINCH's 12 KB, because the FINCH model keeps its tables in CSVs beside it.
+
+### Where FINCH's 195 MiB is
+
+FINCH loads 19.5 MiB and peaks at 195. That is not accumulation over the horizon, and it is worth
+saying where it goes, because 195 MiB for a cohort of 6,817 is a large number and the equivalence
+result depends on none of it:
+
+| Configuration | Peak |
+|---|---:|
+| `--dry-run` — everything loaded, nothing simulated | 19.5 MiB |
+| one scenario, one simulated year | 95.4 MiB |
+| both scenarios, one simulated year | 172.6 MiB |
+| both scenarios, all eleven years | 195.6 MiB |
+
+So it is **≈76 MiB per scenario**, charged at that scenario's first simulated year, plus about
+2.3 MiB per scenario per additional year. Eleven years of horizon account for 23 MiB of the 195;
+the cohort and its per-scenario result series account for 152. Per person that is about 11 KB,
+which for 34 risk factors and 15 diseases held in `std::map`s keyed by `core::Identifier` — every
+key a string, every node separately allocated — is the same cost the profile below finds in the
+time column, seen from the other side. The index-keyed store in [docs/backlog.md](backlog.md) would
+move both numbers.
+
+The baseline peaks at 198 MiB on the same example, so this is not a regression against it; it is a
+property of the data structure both implementations chose.
 
 ## Where the time went, and what it cost to find out
+
+This section is history, from the run that first got `HLM_France` working. It is kept because two
+of the three causes below are the kind of thing that comes back.
 
 The first measurement of this build was **8.8 s wall, 8.8 s CPU, 144 MiB** — nearly twice the
 baseline's wall time and 1.7× its memory. A profile (`sample`, 7 seconds of a run) explained all
@@ -103,8 +162,10 @@ the result series.
 
 ## Where the time goes now
 
-From a two-second profile of the current build, grouped by top of stack (1,540 thread samples,
-1,463 of them attributed to a symbol with five or more):
+Two profiles, one per example, `sample` at 1 ms, grouped by top of stack.
+
+**HLM_France**, two seconds of a run — 1,540 thread samples, 1,463 of them attributed to a symbol
+with five or more:
 
 | Share | What |
 |---:|---|
@@ -119,23 +180,46 @@ From a two-second profile of the current build, grouped by top of stack (1,540 t
 | 11.9% | other named symbols: output formatting, `std::map` tree operations, the weight model |
 | 5.0% | below the five-sample cutoff |
 
-The shape of that list says the program is now dominated by **map lookups keyed by strings**, not
-by arithmetic. `core::Identifier` compares by string — deliberately, because comparing by the
-cached 64-bit hash is audit finding B-04 — and every risk-factor read on every person in every
-year is such a comparison. The allocator share has the same root: those maps.
+**KevinHall_FINCH**, six seconds of a run — 4,635 thread samples, 4,540 of them (98%) attributed:
+
+| Share | What |
+|---:|---|
+| 52.3% | string comparison and identifier handling: `_platform_memcmp`, `__tolower`, `case_insensitive::equals`, `Identifier::validate_identifier` |
+| 15.2% | the disease module, almost all of it `DiseaseModelBase::relative_risk_for_risk_factors` |
+| 11.1% | the static linear model and predictor resolution |
+| 4.7% | allocator traffic and `std::map` node construction |
+| 3.1% | the analysis module |
+| 2.7% | person and result-series lookups not already counted as string work |
+| 1.8% | the Kevin Hall model itself |
+| 1.2% | `libm` — `pow` and `log`, the Box-Cox and the energy balance |
+| 0.6% | the RNG |
+| 7.4% | everything else named |
+
+**The two profiles say the same thing, and FINCH says it louder.** The program is dominated by
+**map lookups keyed by strings**, not by arithmetic. `core::Identifier` compares by string —
+deliberately, because comparing by the cached 64-bit hash is audit finding B-04 — and every
+risk-factor read on every person in every year is such a comparison. FINCH has 34 risk factors
+against France's 11 and 15 diseases against 6, so it does three times as many of them per person
+and the share rises from 40% to 52%. The allocator share and the 195 MiB have the same root.
+
+The single largest named function in the FINCH profile is
+`DiseaseModelBase::relative_risk_for_risk_factors` at 13% of all samples — a per-person,
+per-disease lookup over tables that do not change during a run, which is item 14 of the previous
+run's backlog, found again from the other end.
 
 The obvious next step is to resolve each factor and channel name to an index once per run and use
 the index on the hot path, which is a contained change to `Person::risk_factors` and `DataSeries`.
 It is in [docs/backlog.md](backlog.md) rather than done, for two reasons: the program is already
-faster than the baseline it has to be comparable to, and an index-keyed store is exactly the kind
-of change that can reorder a reduction without anyone noticing. Doing it would want the equivalence
-harness re-run, which is cheap, and the determinism tests to stay green, which they should.
+faster than the baseline it has to be comparable to on both examples, and an index-keyed store is
+exactly the kind of change that can reorder a reduction without anyone noticing. Doing it would
+want both equivalence references re-run, which is an hour, and the determinism tests to stay
+green, which they should.
 
 ## Threads
 
 `--threads N` sets the worker count for the parallel sections, which are the RNG-free ones only
-([ADR 0026](decisions/0026-parallelism-and-fixed-order-reductions.md)). On this example the number
-makes no measurable difference to wall time: the reductions that were parallelised are not where
+([ADR 0026](decisions/0026-parallelism-and-fixed-order-reductions.md)). On either example the
+number makes no measurable difference to wall time: the reductions that were parallelised are not where
 the time is, and everything that draws randomness is sequential by construction (determinism clause
 D3). That is the expected result and the honest one — the parallelism exists so that the contract
 holds when someone uses it, not because it currently buys anything.
@@ -145,19 +229,29 @@ asserts at 1 and at 4.
 
 ## Reproducing this
 
+`tests/equivalence/run.py` writes a like-for-like config pair for each implementation into its
+working directory, so that is where the configs below come from:
+
 ```bash
-# Both implementations on the same config, three runs each.
-S=/tmp/hgps-perf; mkdir -p $S/out-new $S/out-baseline
-# ... derive the two configs as tests/equivalence/run.py does, then:
-/usr/bin/time -l /tmp/hgps-build/baseline-release/src/HealthGPS.Console/HealthGPS.Console \
-    --config $S/baseline.json -T 1
-/usr/bin/time -l ./out/build/release/src/healthgps --config $S/new.json --threads 1
+# One seed is enough to get the pair written; the runs themselves are the measurement.
+tests/equivalence/run.py --example HLM_France --seeds 3 --stop-time 2015 --workdir /tmp/hgps-perf
+C=/tmp/hgps-perf/HLM_France
+
+# Three runs each. The inner shell is so that the program's own output goes to /dev/null while
+# time's report does not — `/usr/bin/time -l cmd 2>/dev/null` discards both.
+for i in 1 2 3; do
+  /usr/bin/time -l /bin/sh -c '"$0" "$@" >/dev/null 2>/dev/null' \
+      /tmp/hgps-build/baseline-release/src/HealthGPS.Console/HealthGPS.Console \
+      --config $C/baseline/config-seed-1.json -T 1
+  /usr/bin/time -l /bin/sh -c '"$0" "$@" >/dev/null 2>/dev/null' \
+      ./out/build/release/src/healthgps --config $C/new/config-seed-1.json --threads 1
+done
 
 # A profile of a run in progress.
-./out/build/release/src/healthgps --config $S/new.json --threads 1 >/dev/null &
-sample $(pgrep -n healthgps) 3 1 -f $S/profile.txt
+./out/build/release/src/healthgps --config $C/new/config-seed-1.json --threads 1 >/dev/null &
+sample $(pgrep -n healthgps) 6 1 -f /tmp/hgps-perf/profile.txt
 ```
 
-`tests/equivalence/run.py` writes the derived configs into its working directory, so the quickest
-way to get a like-for-like pair is to run it once with `--seeds 1 --stop-time 2015` and take
-`$TMPDIR/hgps-equivalence/HLM_France/{baseline,new}/config-seed-1.json`.
+Check that the machine is actually idle first — `ps -A -o %cpu,comm -r | head` — because a
+background indexer is worth 20% of the wall time, which is more than anything this document
+discusses.
