@@ -76,14 +76,30 @@ if(Python3_Interpreter_FOUND)
     # does it fail when it should. Both run the real simulation against the synthetic fixture pack —
     # sixty milliseconds a run, so twenty seeds of both sides is seconds — through run.py's own
     # `compare` and `report`. docs/equivalence-method.md §7, ADR 0036.
+    #
+    # **Six seeds under ThreadSanitizer, twenty everywhere else.** Sixty milliseconds a run is a
+    # release figure: under TSan a run of the synthetic pack is about six seconds, and these two
+    # tests were 501 of the tsan preset's 2,529 seconds — a fifth of it, for two tests
+    # (docs/SUMMARY.md). Twenty seeds is a statistical choice about the comparison's power, and
+    # what runs here is not a comparison against the baseline but the harness's own logic over a
+    # simulation that TSan is watching for races. Both modes still do what they are for at six:
+    # the perturbation is detected in `mean_bmi`, `mean_energy` and `std_energy`, the same three
+    # variables as at twenty, and the seeds mode still makes 1,074 comparisons. The full seed count
+    # runs in release, in debug and under AddressSanitizer, which is three of the four presets and
+    # every CI entry but two. docs/decisions/0046-*.md.
+    set(HGPS_SELF_CHECK_SEEDS 20)
+    if(CMAKE_CXX_FLAGS MATCHES "-fsanitize=thread")
+        set(HGPS_SELF_CHECK_SEEDS 6)
+    endif()
+
     add_test(NAME EquivalenceHarness.SelfConsistencyAcrossSeeds
              COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/equivalence/self_check.py"
-                     --mode seeds --example Synthetic --seeds 20
+                     --mode seeds --example Synthetic --seeds ${HGPS_SELF_CHECK_SEEDS}
                      --new "$<TARGET_FILE:healthgps>"
                      --workdir "${CMAKE_CURRENT_BINARY_DIR}/self-check/seeds")
     add_test(NAME EquivalenceHarness.DetectsADeliberatePerturbation
              COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/equivalence/self_check.py"
-                     --mode perturbation --example Synthetic --seeds 20
+                     --mode perturbation --example Synthetic --seeds ${HGPS_SELF_CHECK_SEEDS}
                      --new "$<TARGET_FILE:healthgps>"
                      --workdir "${CMAKE_CURRENT_BINARY_DIR}/self-check/perturbation")
     set_tests_properties(EquivalenceHarness.SelfConsistencyAcrossSeeds
