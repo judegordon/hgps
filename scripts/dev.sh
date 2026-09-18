@@ -72,7 +72,19 @@ for _ in $(seq 1 50); do
 done
 
 echo "dev.sh: frontend on http://127.0.0.1:5173"
-(cd "$REPO_ROOT/web" && HGPS_SERVER="http://127.0.0.1:$PORT" npm run dev) &
+# `exec`, so this subshell *becomes* vite and `$vite_pid` is vite's own pid. Without it the pid is
+# the subshell running `npm run dev`, npm spawns vite as a child, and killing the subshell leaves
+# vite holding port 5173 — which is exactly the stray process this script's trap exists to prevent,
+# and is what the first version of it did.
+(cd "$REPO_ROOT/web" && HGPS_SERVER="http://127.0.0.1:$PORT" exec npx vite) &
 vite_pid=$!
 
-wait -n "$engine_pid" "$vite_pid"
+# Not `wait -n`: that is bash 4.3 and up, and macOS ships bash 3.2 — which is what
+# /usr/bin/env bash finds on a Mac that has not installed a newer one. The first version of this
+# script used it and exited immediately with "wait: -n: invalid option", having started both
+# processes and then killed them through the trap.
+#
+# Polling instead: whichever dies first ends the loop, and the trap stops the other.
+while kill -0 "$engine_pid" 2>/dev/null && kill -0 "$vite_pid" 2>/dev/null; do
+    sleep 1
+done
