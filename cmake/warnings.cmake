@@ -20,6 +20,14 @@
 # added only where the compiler knows it, so an older clang or a gcc does not see an unknown option.
 # It was found by building with a newer clang than the development one, which is also how two real
 # portability defects were found; see docs/build-notes.md.
+#
+# An older clang and every GCC have no such narrow flag: they fold the same construct into
+# -Wmissing-field-initializers, which -Wextra turns on. The first CI run to get as far as linking
+# failed there, on both, at the same 213 initialisers. So where the narrow flag is missing the broad
+# one is turned off instead. That is a wider suppression than we would choose — it also covers a
+# positional aggregate initialiser that runs out of members — and it is the only thing those
+# compilers offer. Where the narrow flag exists it is used, so the development compiler keeps the
+# tighter setting and would still catch the positional case.
 # -Wshadow-field-in-constructor, where the compiler has it.
 #
 # GCC's -Wshadow rejects a constructor parameter that shadows a member; clang's does not, and puts
@@ -46,6 +54,8 @@ function(hgps_target_options target)
         -ffp-contract=off)
     if(HGPS_HAS_WNO_MISSING_DESIGNATED_FIELD_INITIALIZERS)
         target_compile_options(${target} PRIVATE -Wno-missing-designated-field-initializers)
+    else()
+        target_compile_options(${target} PRIVATE -Wno-missing-field-initializers)
     endif()
     if(HGPS_HAS_WSHADOW_FIELD_IN_CONSTRUCTOR)
         target_compile_options(${target} PRIVATE -Wshadow-field-in-constructor)
