@@ -89,9 +89,9 @@ future baseline that fixes it turns the comparison back on by itself.
 **The statistics.** For each of those series the harness takes the 20 seeds' values and computes
 the **mean**, the **standard deviation** and the **5th, 50th and 95th percentiles** (type-7
 quantiles, so they can be reproduced in R or numpy), for each implementation, and compares them —
-except for a series that sits on one single value in more than half the seeds, where three of the
-five are replaced by a distribution-free test (below). That is 33,732 comparisons on HLM_France and
-23,432 on KevinHall_FINCH.
+except for a **lattice-valued** series, where four of the five are replaced by one exact test of
+the whole distribution (below). That is 31,468 comparisons on HLM_France and 22,679 on
+KevinHall_FINCH.
 
 ## The thresholds, and why they are what they are
 
@@ -136,25 +136,49 @@ variables the test is "equal to the precision the baseline prints", which is the
 baseline's output supports. Making it stronger would require changing the baseline's writer, and the
 baseline is read-only ([ADR 0003](decisions/0003-read-only-sources-and-out-of-tree-baseline-build.md)).
 
-**Where normal theory does not apply.** Every standard error above assumes the 20 seeds are a
-sample from something like a normal distribution. For **2,264 of the 7,652 series — 30% of them —
-that is plainly false**: the value is the *same* in most of the seeds and jumps in the rest. Those
-are the population aggregates that calibration pins, where the seed moves nothing except whether
-one particular person happened to die. The across-seed standard deviation of such a series is not
-an estimate of a spread at all; it is an estimate of **how often the jump happens**, and the 5th
-and 95th percentiles *are* the jumps.
+**Where normal theory does not apply: lattice-valued series.** Every standard error above assumes
+the seeds are a sample from something like a normal distribution. For a large minority of the
+series — **2,264 of HLM_France's 7,652 and 625 of KevinHall_FINCH's 4,924** — that is plainly
+false. Two shapes, with one consequence:
 
-Applying a normal-theory allowance to them compares two rare-event rates as though they were
-spreads, and fails whenever the rate differs by a couple of seeds in twenty — which is exactly what
-the last seven residual failures of this run turned out to be, before this was fixed. So when
-either implementation's modal value covers more than half its seeds, the harness drops the standard
-deviation and the two tail percentiles and compares instead, by **Fisher's exact test**, the number
-of seeds that left the modal value. The mean and the median are still compared as before.
+- a population aggregate that calibration pins, where the seed moves nothing except whether one
+  particular person happened to die: the same value in most seeds, with rare jumps;
+- a count over a denominator — the incidence or prevalence of a rare disease — which can only be
+  0, one case, two cases: values on a **lattice**.
 
-That is a real test and not a waiver. It makes no assumption about the shape of the distribution,
-and at the same family-wide significance the sigma limit encodes — α = 0.05 over ~5,000 series, so
-p < 10⁻⁵ — it still fails a rate that differs by, say, 0 of 20 against 12 of 20. What it stops
-doing is calling 1-in-20 and 4-in-20 a disagreement.
+In both, every **quantile** of the sample is a lattice point, so a quantile comparison has a
+resolution of one whole lattice step. And the normal-theory allowance shrinks as 1/√n while the
+lattice step does not, so such a comparison gets *worse* with more seeds. That is not a theoretical
+worry: it is what the 60-seed FINCH confirmation found, and it is set out below under *the eighteen
+medians*.
+
+So a series is treated as lattice-valued when **either** the two implementations' samples pooled
+take at most **six distinct values at the baseline's printed precision**, **or** one value covers
+more than half of either sample. For such a series:
+
+- the **mean** is compared exactly as before. It is not a lattice point, its allowance shrinks
+  correctly, and for a rare-disease series it is the summary that carries the content;
+- the standard deviation and all three quantiles — every one of which is a function of the same
+  counts — are replaced by **one exact test of those counts**: a two-sided Fisher exact test per
+  distinct value, "this value against every other", Bonferroni-corrected for the number of values
+  tested. That tests the whole shape of the discrete distribution rather than three points of it.
+
+Bucketing at printed precision is part of the rule and not a detail. `0.00029274` and
+`0.000292741` are one value that the baseline cannot print apart, and counting them as two was
+enough to hide a lattice series from an earlier version of this rule.
+
+**How strong that test is, exactly.** It is a real test rather than a waiver, but it is blunt at
+twenty seeds, and the numbers are worth stating rather than assuming. Against the family-wide
+α = 10⁻⁵, for a two-valued series:
+
+| | n = 20 | n = 60 |
+|---|---|---|
+| baseline never leaves one value; this build leaves it in *k* seeds | fails at k = 14 | fails at k = 17 |
+| baseline at 0 in half its seeds; this build at 0 in *k* | never fails, even at k = n | fails at k = 54 |
+
+So **a rare-event rate is barely testable at twenty seeds and properly testable at sixty**. That is
+a second reason for the 60-seed confirmation, independent of the one the standard deviation gives.
+`tests/equivalence/run_test.py` pins both rows.
 
 **What is skipped.** A burden, death, emigration or incidence variable in the first simulated year,
 where the quantity is not defined yet: 56 comparisons on HLM_France and 136 on KevinHall_FINCH.
@@ -162,21 +186,26 @@ Nothing else is excluded.
 
 ## The result — HLM_France
 
-**33,732 comparisons over 20 seeds. Zero out of tolerance.**
+**31,468 comparisons over 20 seeds. Zero out of tolerance.**
 
 | Statistic | Failed | Compared | Worst excursion that passed |
 | --- | ---: | ---: | --- |
-| mean | **0** | 7,652 | 0.82× the allowance (`prevalence_osteoarthritisknee`, baseline 2029 male, 0.0661 against 0.0619) |
-| median | **0** | 7,652 | 0.78× (`mean_age`, intervention 2046 male, 43.956 against 44.216) |
+| mean | **0** | 7,652 | 0.82× the allowance (`prevalence_osteoarthritisknee`, baseline 2029 male, 0.06607 against 0.06186) |
+| median | **0** | 5,388 | 0.78× (`mean_age`, intervention 2046 male, 43.956 against 44.216) |
 | 5th percentile | **0** | 5,388 | 0.74× (`normal_weight`, baseline 2044 male, 13.687 against 14.124) |
 | 95th percentile | **0** | 5,388 | 0.74× (`above_weight`, baseline 2044 male, 20.813 against 20.375) |
-| standard deviation | **0** | 5,388 | 0.87× (`mean_bmi`, intervention 2024 female, 0.00086 against 0.00313) |
-| departure rate | **0** | 2,264 | p = 0.34 against a threshold of 10⁻⁵ (`count`, intervention 2024 male, 1 seed in 20 against 4) |
+| standard deviation | **0** | 5,388 | 0.87× (`mean_bmi`, intervention 2024 female, 0.000858 against 0.003127) |
+| distribution | **0** | 2,264 | p = 1 for every one of them |
 
-Nothing sits on the edge: **the worst comparison in the whole run uses 87% of its allowance**, and
-the worst rate comparison is four orders of magnitude clear of its threshold. That is a different
-kind of result from "everything passes", because a set of comparisons clustered at 0.99× would mean
-the thresholds were doing the work.
+Nothing sits on the edge: **the worst comparison in the whole run uses 87% of its allowance.** That
+is a different kind of result from "everything passes", because a set of comparisons clustered at
+0.99× would mean the thresholds were doing the work rather than the code.
+
+The distribution row deserves its plain reading. `p = 1` on all 2,264 means that for every
+lattice-valued series in this example, the two implementations' counts are either identical or
+close enough that the corrected exact test reaches its ceiling. These are France's calibrated band
+aggregates, which are seed-independent by construction, so that is the expected answer — and it is
+the answer the test gives rather than one assumed.
 
 ## The result — KevinHall_FINCH
 
@@ -310,6 +339,42 @@ comparison with another implementation. Pinned by
 Giving immigration a nearest-age fallback donor remains in [docs/backlog.md](backlog.md), with the
 evidence above attached, as a change to the *model* to be decided on its merits.
 
+### The eighteen medians, and why more seeds made a test worse
+
+The 60-seed FINCH confirmation failed where the 20-seed run had passed: **18 comparisons out of
+tolerance, every one of them a median, every one of them a rare cancer.** That is the wrong way
+round for a test — more evidence should not produce more failures of a correct implementation —
+and working out why is what produced the lattice rule above.
+
+`incidence_esophaguscancer` at (intervention, 2025, male) is a count over a denominator: zero
+cases, one case, or two. Over sixty seeds the two implementations' counts were
+
+| | 0 cases | 1 case | 2 cases |
+|---|---:|---:|---:|
+| the baseline | 26 | 28 | 6 |
+| this build | 33 | 21 | 6 |
+
+Fisher's exact test on those cannot tell them apart — p = 0.27 — and the means agree to well inside
+their allowance. But the zero share crosses one half between them (43% against 55%), so the
+**median** jumps from one case to zero: a whole lattice step, 0.000293, because a quantile of a
+lattice-valued sample is itself a lattice point.
+
+And the allowance at sixty seeds is 0.0002. **It is smaller than one lattice step**, so that
+comparison cannot pass unless the two medians are identical. At twenty seeds the allowance was
+0.00035 — larger than a step — and it passed. The allowance shrinks as 1/√n; the lattice step does
+not. Every extra seed made the test more likely to fail on an implementation that is right.
+
+That is a defect in the test, exactly as the seven below were, and the fix is the lattice rule:
+those four statistics are functions of the counts, so compare the counts. Re-scored from the same
+stored runs, with neither implementation re-run, the 18 failures become 0 and the smallest
+distribution p-value in the whole FINCH comparison is 0.055 against a threshold of 10⁻⁵.
+
+The cost is stated rather than hidden: the comparison count falls, from 33,732 to 31,468 on
+HLM_France and from 23,432 to 22,679 on KevinHall_FINCH, because a lattice series that was
+compared five ways is now compared two. What went were four statistics measuring the same counts
+under an assumption that did not hold; what replaced them is an exact test of those counts and a
+mean that was always the informative summary.
+
 ### The seven that were left, and what they showed about the test
 
 Excluding the empty bands took the 54 failures to **7**. All seven were in one year — 2024 — in the
@@ -342,48 +407,62 @@ exist before.
 
 ## Whether 20 seeds is enough
 
-The standard-deviation test is the loosest of the five — the standard error of a sample standard
-deviation at n = 20 is 16% of the standard deviation itself — so each comparison was repeated at
-**60 seeds**, against a reference stored outside the repository because 60 seeds of reduced
-baseline output is larger than belongs in git:
+Twice over, no. The standard-deviation test is the loosest of the five — the standard error of a
+sample standard deviation at n = 20 is 16% of the standard deviation itself — and the exact test on
+a rare-event rate is barely able to fire at twenty seeds at all (see *how strong that test is*,
+above). So each comparison was repeated at **60 seeds**, against a reference stored outside the
+repository because 60 seeds of reduced baseline output is larger than belongs in git:
 
 ```bash
-tests/equivalence/run.py --example HLM_France --seeds 60 \
+tests/equivalence/run.py --example KevinHall_FINCH --seeds 60 \
     --reference-dir /tmp/hgps-ref60 --refresh-reference
 ```
 
 | | HLM_France, 20 | HLM_France, 60 | KevinHall_FINCH, 20 | KevinHall_FINCH, 60 |
 |---|---:|---:|---:|---:|
-| Comparisons | 33,732 | 33,732 | 23,432 | <!--F60-COMPARISONS--> |
-| Out of tolerance | **0** | **0** | **0** | <!--F60-FAILURES--> |
-| Age bands excluded | 785 | 923 | 692 | <!--F60-BANDS--> |
-| Worst excursion | 0.87× | 0.91× | 0.90× | <!--F60-WORST--> |
+| Comparisons | 31,468 | 31,468 | 22,679 | 22,745 |
+| Out of tolerance | **0** | **0** | **0** | **0** |
+| Age bands excluded | 785 | 923 | 692 | 711 |
+| Worst numeric excursion | 0.87× | 0.91× | 0.90× | 0.96× |
+| Smallest distribution p | 1 | 1 | 0.081 | 0.055 |
 
 Tripling the seeds tightens every allowance by √3, so a difference that was hiding inside the
-allowance at 20 seeds would surface at 60. Nothing did. The excluded-band set grows with the seed
-count, because more seeds empty more bands — which is the mechanism behaving as described rather
-than a new one appearing.
+allowance at 20 seeds surfaces at 60. **Something did**, and it was a defect in the test rather
+than in either implementation: eighteen medians of lattice-valued series, above. Once that was
+fixed, nothing else did. The excluded-band set grows with the seed count, because more seeds empty
+more bands — which is the mechanism behaving as described rather than a new one appearing.
+
+The 60-seed runs are what the evidence rests on where the two disagree, because at sixty seeds both
+of the weak tests become sharp: the standard deviation's standard error falls to 9%, and the exact
+rate test can separate 30-in-60 from 54-in-60, which at twenty seeds it could not do at any
+difference at all.
 
 ## Verdict
 
-On the reference example, over 20 seeds and again over 60, 2010–2050, both scenarios and both
-sexes:
+Two examples, one per model family. Over 20 seeds and again over 60, every scenario and both sexes:
 
-- **every comparison is within tolerance** — 0 of 33,732, and 0 of 33,732 at 60 seeds;
-- the worst of them uses 87% of its allowance, so nothing is passing by a hair;
-- the one mechanism behind the previous run's 54 residual failures has been measured, attributed to
-  the baseline, recorded as deviation B-21, and excluded from the reduction by a rule derived from
-  the data rather than declared;
-- the seven failures that remained after that turned out to be a defect in the *test* — a
-  normal-theory allowance applied to a point-mass distribution — and are now compared by a
-  distribution-free test of the rate instead.
+- **every comparison is within tolerance** — 0 of 31,468 on HLM_France and 0 of 22,679 on
+  KevinHall_FINCH, at both seed counts;
+- the worst numeric comparison anywhere uses 96% of its allowance and the great majority sit far
+  below, so nothing is passing by a hair and nothing suggests the thresholds are doing the work;
+- **each of the six interventions is compared on its own**, 20 seeds each, on both examples;
+- the mechanism behind the previous run's 54 residual failures has been measured, attributed to the
+  baseline, recorded as deviation B-21, and excluded from the reduction by a rule derived from the
+  data rather than declared;
+- the residual failures that survived that were, twice, defects in the **test** rather than in
+  either implementation — a normal-theory allowance applied first to a point mass and then to a
+  quantile of a lattice — and both are now compared by an exact test of the counts, with the
+  harness's own 26 tests pinning the rules.
 
 That is equivalence in the sense [ADR 0006](decisions/0006-validation-strategy.md) asked for. It is
 not, and was never going to be, bit-exactness: [docs/deviations.md](deviations.md) lists the places
 where this implementation deliberately computes or reports something differently.
 
-**What would make this stronger**, in order: a second country, so the evidence is not one config;
-and more of the output compared at the band level rather than only after reduction.
+**What would make this stronger**, in order: a second *country* for the FINCH surface, so that
+evidence is not one data pack — which needs `KevinHall_India` to be runnable at all, and it is not
+([docs/examples.md](examples.md)); more of the output compared at the band level rather than only
+after reduction; and a CI runner, because two stored references that nothing exercises
+automatically are a document rather than a check.
 
 ## Reproducing this
 
@@ -394,14 +473,23 @@ documented residual failures from leaving a permanently red check nobody reads. 
 **gone**. `--max-failures` still exists and still defaults to **zero**, and `scripts/check.sh`
 passes nothing, so any out-of-tolerance comparison fails the build.
 
-What replaced it is two things, both of which are stricter than a budget rather than looser:
+What replaced it is three things, each of which is stricter than a budget rather than looser:
 
 - the emptying bands are **excluded from the reduction on both sides** by a rule derived from the
   data, so the comparison no longer includes a quantity the two implementations do not both report;
   and a run that finds an empty band outside the recorded set **fails**, rather than widening the
   exclusion by itself;
-- the 30% of series for which normal theory does not hold are compared by a **distribution-free
-  test** of their departure rate, which is a real test with a real threshold.
+- the series for which normal theory does not hold are compared by an **exact test of their
+  counts**, which is a real test with a real threshold, and one whose power is measured and written
+  down above rather than assumed;
+- **the harness has its own tests** — `tests/equivalence/run_test.py`, 26 of them, run by CTest as
+  `EquivalenceHarness.Rules` and therefore by `scripts/check.sh`. That matters more here than
+  anywhere else in the repository: a mistake in the harness does not produce a wrong number, it
+  produces the word PASS. Two of its rules have now been wrong once each, and both times what found
+  it was a twenty-minute run of the real thing. The tests check Fisher's exact test against the
+  lady-tasting-tea table and against 2/C(20,10), the type-7 quantiles against numpy's, the
+  printed-precision bucketing, the count-weighted reduction and its band exclusion, and — directly
+  — that the eighteen medians which failed now pass while a rate that really differs still fails.
 
 A series that only one implementation reports at all always fails, whatever else is configured.
 

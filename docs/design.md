@@ -420,14 +420,15 @@ disease list, in the config's own order.
 
 ## 10. Testing
 
-Four layers, all under `tests/`, all registered with CTest.
+Five layers, all under `tests/`, all registered with CTest.
 
 | Layer | What it is |
 |---|---|
 | Ported baseline tests | The baseline's 471 tests, adapted to this API, each preserving its intent and expected values. Where a baseline test encodes a baseline bug from `docs/audit/04-baseline-issues.md`, the expectation is changed and the finding ID is named in a comment. |
 | Tests the baseline lacks | Byte-for-byte reproducibility (twice, and 1 vs N threads); modulo-bias regression; ordered-sampling; unseeded-config rejection; RNG-in-parallel-region rejection; disease-registry mismatch diagnostics. |
 | Fixture-dependent tests | The 35 baseline tests that skip on a missing FINCH pack point at the synthetic fixture pack or the real upstream FINCH example, and **fail** rather than skip when it is missing. Thirty of them now run and pass; the five that do not assert the contents of console tables this build does not print ([docs/test-port-map.md](test-port-map.md)). |
-| Equivalence harness | `tests/equivalence/` — runs the baseline and this implementation on the same converted configs across ≥20 seeds and compares output distributions within documented tolerances (`docs/equivalence.md`). Two examples, `HLM_France` and `KevinHall_FINCH`. Not part of the default CTest run; driven by `scripts/check.sh`. There is **no failure budget**: any out-of-tolerance comparison fails ([ADR 0027](decisions/0027-equivalence-excludes-the-bands-only-one-side-fills.md)). |
+| Equivalence harness | `tests/equivalence/run.py` — runs the baseline and this implementation on the same converted configs across ≥20 seeds and compares output distributions within documented tolerances (`docs/equivalence.md`). Two examples, `HLM_France` and `KevinHall_FINCH`, and each of the six interventions on its own. Not part of the default CTest run — it needs the baseline binary and about twenty minutes — and driven by `scripts/check.sh`. There is **no failure budget**: any out-of-tolerance comparison fails ([ADR 0027](decisions/0027-equivalence-excludes-the-bands-only-one-side-fills.md)). |
+| The harness's own tests | `tests/equivalence/run_test.py`, registered as `EquivalenceHarness.Rules` and part of the ordinary CTest run. The harness decides whether this implementation agrees with the baseline, so a mistake in it says PASS rather than producing a wrong number — and two of its statistical rules have been wrong once each, both found by a twenty-minute run rather than by anything cheap. These check Fisher's exact test, the type-7 quantiles, the printed-precision bucketing, the count-weighted reduction and the lattice rule, in milliseconds. |
 
 `scripts/check.sh` configures and builds every preset, runs the tests, runs the equivalence harness,
 and fails on the first error.
