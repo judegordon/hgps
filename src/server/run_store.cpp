@@ -160,8 +160,11 @@ void RunRecord::set_elapsed_ms(double elapsed) {
 std::optional<nlohmann::json> RunRecord::manifest() const {
     // Read from disk rather than remembered: the manifest on disk is the record, and reading it
     // means a served manifest and a downloaded one cannot disagree.
-    const auto path = folder_ / "result_manifest.json";
-    std::ifstream stream{path};
+    const auto found = find_manifest(folder_);
+    if (!found.has_value()) {
+        return std::nullopt;
+    }
+    std::ifstream stream{*found};
     if (!stream) {
         return std::nullopt;
     }
@@ -172,6 +175,36 @@ std::optional<nlohmann::json> RunRecord::manifest() const {
     } catch (const nlohmann::json::exception &) {
         return std::nullopt;
     }
+}
+
+std::optional<std::filesystem::path> find_manifest(const std::filesystem::path &folder) {
+    std::error_code error;
+    for (const auto &entry : std::filesystem::directory_iterator{folder, error}) {
+        if (!entry.is_regular_file(error)) {
+            continue;
+        }
+        const auto name = entry.path().filename().string();
+        if (name.ends_with("_manifest.json") || name == "manifest.json") {
+            return entry.path();
+        }
+    }
+    return std::nullopt;
+}
+
+std::filesystem::path RunRecord::result_csv() const {
+    // The main CSV, not one of the income-stratified ones. Their names are the main one's stem
+    // plus a suffix, so the shortest `.csv` name is the main one — which is stabler than matching
+    // "LowIncome", "MiddleIncome" and "HighIncome" by spelling.
+    std::filesystem::path best;
+    for (const auto &name : results()) {
+        if (std::filesystem::path{name}.extension() != ".csv") {
+            continue;
+        }
+        if (best.empty() || name.size() < best.filename().string().size()) {
+            best = folder_ / name;
+        }
+    }
+    return best;
 }
 
 std::vector<std::string> RunRecord::results() const {
@@ -359,7 +392,11 @@ nlohmann::json RunStore::list() const {
         if (std::find(seen.begin(), seen.end(), id) != seen.end()) {
             continue;
         }
-        std::ifstream stream{entry.path() / "result_manifest.json"};
+        const auto manifest_path = find_manifest(entry.path());
+        if (!manifest_path.has_value()) {
+            continue;
+        }
+        std::ifstream stream{*manifest_path};
         if (!stream) {
             continue;
         }

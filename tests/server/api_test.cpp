@@ -386,6 +386,71 @@ TEST(ServerApi, ARunThatCannotBeBuiltIsNotARun) {
     served.wait_for_run(json_body(next).at("id").get<std::string>());
 }
 
+TEST(ServerApi, TheManifestIsFoundWhateverTheConfigurationCallsTheOutput) {
+    // The manifest is named after `output.file_name`, which the configuration decides. The
+    // synthetic fixture writes `result.csv`, so its manifest is `result_manifest.json` — and the
+    // server assumed that name. `HLM_France` writes `HealthGPS_Result_{TIMESTAMP}.csv`, so its
+    // manifest is `HealthGPS_Result_2026-…_manifest.json` and the server reported `"manifest":
+    // null` for every real example.
+    //
+    // Every test passed, because every test used the fixture. This one does not: it gives the
+    // fixture a name with a token in it, which is what an upstream configuration looks like.
+    ServedFixture served{"api_manifest_name"};
+    auto client = served.client();
+
+    auto document =
+        json_body(client.Get(std::string{"/api/examples/"} + ServedFixture::kExample))
+            .at("document");
+    document["output"]["file_name"] = "HealthGPS_Result_{TIMESTAMP}.csv";
+    const auto named = served.configs() / "Named";
+    std::filesystem::copy(served.configs() / ServedFixture::kExample, named,
+                          std::filesystem::copy_options::recursive |
+                              std::filesystem::copy_options::overwrite_existing);
+    {
+        std::ofstream stream{named / "config.json", std::ios::trunc};
+        stream << document.dump(2) << '\n';
+    }
+
+    const nlohmann::json body{{"example", "Named"}};
+    const auto created = client.Post("/api/runs", body.dump(), "application/json");
+    ASSERT_TRUE(created);
+    ASSERT_EQ(201, created->status) << created->body;
+    const auto id = json_body(created).at("id").get<std::string>();
+
+    const auto finished = served.wait_for_run(id);
+    ASSERT_EQ("completed", finished.value("state", std::string{})) << finished.dump(2);
+
+    ASSERT_FALSE(finished.at("manifest").is_null())
+        << "the manifest was not found; the run wrote: " << finished.at("results").dump();
+    EXPECT_TRUE(finished.at("manifest").contains("run"));
+
+    // And the summary endpoint finds the main CSV rather than an income-stratified one or nothing.
+    const auto summary = client.Get("/api/runs/" + id + "/summary");
+    ASSERT_TRUE(summary);
+    ASSERT_EQ(200, summary->status) << summary->body;
+    EXPECT_FALSE(json_body(summary).at("years").empty());
+
+    // The history reads manifests by the same rule, so this run is in it after a restart.
+    hgps::server::Options options;
+    options.host = "127.0.0.1";
+    options.port = 0;
+    options.runs_root = served.runs();
+    options.config_roots = {served.configs()};
+    hgps::server::Server restarted{options};
+    const auto port = restarted.start();
+    ASSERT_NE(0, port);
+    httplib::Client after{"127.0.0.1", port};
+    const auto listed = json_body(after.Get("/api/runs"));
+    restarted.stop();
+
+    bool found = false;
+    for (const auto &run : listed.at("runs")) {
+        found = found || run.value("id", std::string{}) == id;
+    }
+    EXPECT_TRUE(found) << "a run whose output has a configured name vanished from the history: "
+                       << listed.dump(2);
+}
+
 TEST(ServerApi, RunsListsTheHistoryFromManifestsAndSurvivesARestart) {
     const std::string name = "api_run_history";
     std::string id;

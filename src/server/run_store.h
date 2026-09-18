@@ -94,6 +94,9 @@ class RunRecord {
     /// @brief The result files beside the manifest, by name.
     std::vector<std::string> results() const;
 
+    /// @brief The main result CSV, or empty. Not an income-stratified one.
+    std::filesystem::path result_csv() const;
+
   private:
     /// @brief How many events one run may keep. A full-scale HLM_India emits about 80
     ///        `year_completed` events, so this is generous; a run that exceeded it would be
@@ -124,6 +127,14 @@ class RunRecord {
     api::CancellationToken cancellation_;
     std::atomic<bool> cancellation_requested_{false};
 };
+
+/// @brief The manifest in a run's directory, whatever it is called, or nullopt.
+///
+/// **Not a fixed name.** The manifest is named after `output.file_name`, which the configuration
+/// decides — `result_manifest.json` for the synthetic fixture and
+/// `HealthGPS_Result_2026-09-18_13-32-33_manifest.json` for `HLM_France`. Assuming the first was a
+/// bug that every test passed over, because every test used the fixture.
+std::optional<std::filesystem::path> find_manifest(const std::filesystem::path &folder);
 
 /// @brief Every run: the active one, and the completed ones on disk.
 class RunStore {

@@ -687,14 +687,7 @@ class Server::Impl {
             return;
         }
 
-        std::filesystem::path csv;
-        for (const auto &name : record->results()) {
-            if (std::filesystem::path{name}.extension() == ".csv" &&
-                name.find("_income") == std::string::npos) {
-                csv = record->folder() / name;
-                break;
-            }
-        }
+        const auto csv = record->result_csv();
         if (csv.empty()) {
             send_error(response, 404, "not_found",
                        fmt::format("run {} has written no result CSV yet", record->id()));
