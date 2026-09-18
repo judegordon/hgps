@@ -59,7 +59,7 @@ For comparison, the baseline is 41,400 lines of C++ for the whole model surface.
 | 8 | Converter policy-scenario option, and every example converted and loaded | **Done.** `--policy-scenario S1..S7` resolves audit D-02 without editing the upstream example. All six convert and load their configs; three run end to end, and the three that do not each stop at a named cause. |
 | 9 | Equivalence and performance for FINCH | **Done**, and it found more than the FINCH surface: two calibration defects here, and two defects in the comparison itself. See below. |
 | 10 | Test port completion and every preset | **Done.** 554 tests and the harness's own 26, four presets. |
-| 11 | Docs, ADRs, README, backlog, this file | **Done.** |
+| 11 | Docs, ADRs, README, backlog, this file | **Done.** `scripts/check.sh` exits 0: release 8 s, debug 76 s, asan-ubsan 219 s and tsan 523 s, all at 555 tests, then both equivalence comparisons against the checked-in references. |
 
 ## What the validation actually shows
 
@@ -90,10 +90,10 @@ agree they do nothing. Finding (2) below has the measurement.
 six interventions** — asserted by `tests/sim/reproducibility_test.cpp`, not just claimed.
 
 **Memory and threading.** The whole suite passes under AddressSanitizer + UndefinedBehaviorSanitizer
-(365 s) and under ThreadSanitizer (836 s), which is where audit finding B-02 — a data race in the
-baseline's lazily-populated repository — was confirmed in the first place. Six of those 836 seconds
-per test are the six interventions' byte-identical-at-1-and-4-threads checks, at about 85 s each —
-which is why they are six tests rather than the one that exceeded CTest's timeout.
+(219 s) and under ThreadSanitizer (523 s), which is where audit finding B-02 — a data race in the
+baseline's lazily-populated repository — was confirmed in the first place. The six interventions'
+byte-identical-at-1-and-4-threads checks are about 85 s each under ThreadSanitizer, which is why
+they are six tests rather than the one that exceeded CTest's 300 s timeout.
 
 Across every run this project has made — several hundred, over two examples, six interventions and
 both seed counts — this build has not once exited on a signal. The baseline has, on
