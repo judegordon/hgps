@@ -6,6 +6,7 @@
 // reference. So the first test here is not about events at all. It runs the same configuration twice,
 // once with a subscriber that records everything and once with none, and compares the result files
 // byte for byte.
+#include "support/fixture_packs.h"
 #include "support/simulation_harness.h"
 #include "support/test_paths.h"
 
@@ -88,15 +89,23 @@ class BusySubscriber final : public hgps::api::EventSubscriber {
     }
 };
 
+/// Both suites run against both synthetic packs: one has a single scenario and the other an active
+/// intervention and therefore two, which is the difference an event stream is most likely to have
+/// been written around (tests/support/fixture_packs.h).
+class EventStream : public hgps::test::FixturePackTest {};
+class Cancellation : public hgps::test::FixturePackTest {};
+
+HGPS_TEST_EVERY_FIXTURE_PACK(EventStream);
+HGPS_TEST_EVERY_FIXTURE_PACK(Cancellation);
+
 } // namespace
 
-TEST(EventStream, ARunWithASubscriberWritesTheSameBytesAsOneWithout) {
+TEST_P(EventStream, ARunWithASubscriberWritesTheSameBytesAsOneWithout) {
     Recorder recorder;
     const auto with =
-        hgps::test::run_simulation(hgps::test::synthetic_config(),
-                                   hgps::test::scratch_dir("events_with"), 1, &recorder);
-    const auto without = hgps::test::run_simulation(hgps::test::synthetic_config(),
-                                                    hgps::test::scratch_dir("events_without"));
+        hgps::test::run_simulation(pack().config(), pack_scratch("events_with"), 1, &recorder);
+    const auto without =
+        hgps::test::run_simulation(pack().config(), pack_scratch("events_without"));
 
     ASSERT_TRUE(with.succeeded) << with.report.to_string();
     ASSERT_TRUE(without.succeeded) << without.report.to_string();
@@ -108,15 +117,13 @@ TEST(EventStream, ARunWithASubscriberWritesTheSameBytesAsOneWithout) {
     EXPECT_FALSE(recorder.years.empty());
 }
 
-TEST(EventStream, ASubscriberThatWastesTimeStillChangesNothing) {
+TEST_P(EventStream, ASubscriberThatWastesTimeStillChangesNothing) {
     // The year timings are real wall-clock measurements, so a slow subscriber changes them. Nothing
     // in the simulation may read them.
     BusySubscriber busy;
     const auto slow =
-        hgps::test::run_simulation(hgps::test::synthetic_config(),
-                                   hgps::test::scratch_dir("events_slow"), 1, &busy);
-    const auto quick = hgps::test::run_simulation(hgps::test::synthetic_config(),
-                                                 hgps::test::scratch_dir("events_quick"));
+        hgps::test::run_simulation(pack().config(), pack_scratch("events_slow"), 1, &busy);
+    const auto quick = hgps::test::run_simulation(pack().config(), pack_scratch("events_quick"));
 
     ASSERT_TRUE(slow.succeeded) << slow.report.to_string();
     ASSERT_TRUE(quick.succeeded);
@@ -124,11 +131,10 @@ TEST(EventStream, ASubscriberThatWastesTimeStillChangesNothing) {
     EXPECT_GT(busy.sink, 0U);
 }
 
-TEST(EventStream, TheEventsArriveInTheDocumentedOrder) {
+TEST_P(EventStream, TheEventsArriveInTheDocumentedOrder) {
     Recorder recorder;
     const auto outcome =
-        hgps::test::run_simulation(hgps::test::synthetic_config(),
-                                   hgps::test::scratch_dir("events_order"), 1, &recorder);
+        hgps::test::run_simulation(pack().config(), pack_scratch("events_order"), 1, &recorder);
     ASSERT_TRUE(outcome.succeeded) << outcome.report.to_string();
 
     ASSERT_FALSE(recorder.order.empty());
@@ -156,11 +162,10 @@ TEST(EventStream, TheEventsArriveInTheDocumentedOrder) {
     EXPECT_LT(last_scenario_end, last_year) << "a scenario completed before its last year";
 }
 
-TEST(EventStream, RunStartedAnnouncesWhatTheRunWillDo) {
+TEST_P(EventStream, RunStartedAnnouncesWhatTheRunWillDo) {
     Recorder recorder;
     const auto outcome =
-        hgps::test::run_simulation(hgps::test::synthetic_config(),
-                                   hgps::test::scratch_dir("events_started"), 1, &recorder);
+        hgps::test::run_simulation(pack().config(), pack_scratch("events_started"), 1, &recorder);
     ASSERT_TRUE(outcome.succeeded) << outcome.report.to_string();
     ASSERT_TRUE(recorder.started.has_value());
 
@@ -169,22 +174,31 @@ TEST(EventStream, RunStartedAnnouncesWhatTheRunWillDo) {
     EXPECT_NE(0U, started.seed);
     EXPECT_GT(started.cohort_size, 0U);
     EXPECT_LT(started.start_time, started.stop_time);
-    EXPECT_EQ(std::vector<std::string>{"Baseline"}, started.scenarios);
+    // What the run announces is what the configuration asked for. This asserted the first pack's
+    // one-scenario list until the second pack, which has an intervention active, ran it too.
+    hgps::api::Report load_report;
+    const auto loaded = hgps::api::load_configuration(pack().config(), {}, load_report);
+    ASSERT_TRUE(loaded.has_value()) << load_report.to_string();
+    const std::vector<std::string> expected =
+        loaded->active_intervention().has_value()
+            ? std::vector<std::string>{"Baseline", "Intervention"}
+            : std::vector<std::string>{"Baseline"};
+    EXPECT_EQ(expected, started.scenarios);
 
     // The promise `total_years` makes is that it is the number of YearCompleted events an
     // uncancelled run will emit — which is what a progress bar divides by.
     EXPECT_EQ(started.total_years, recorder.years.size());
 }
 
-TEST(EventStream, EveryYearOfEveryScenarioIsReportedExactlyOnce) {
-    auto document = hgps::test::synthetic_config_document();
+TEST_P(EventStream, EveryYearOfEveryScenarioIsReportedExactlyOnce) {
+    auto document = hgps::test::config_document(pack());
     document["running"]["interventions"]["active_type_id"] = "simple";
     document["running"]["trial_runs"] = 2;
-    const auto config = hgps::test::write_config_variant("events_two_scenarios", document);
+    const auto config = hgps::test::write_config_variant(pack(), "events_two_scenarios", document);
 
     Recorder recorder;
     const auto outcome = hgps::test::run_simulation(
-        config, hgps::test::scratch_dir("events_two_scenarios_out"), 1, &recorder);
+        config, pack_scratch("events_two_scenarios_out"), 1, &recorder);
     ASSERT_TRUE(outcome.succeeded) << outcome.report.to_string();
 
     const auto start = recorder.started->start_time;
@@ -220,11 +234,10 @@ TEST(EventStream, EveryYearOfEveryScenarioIsReportedExactlyOnce) {
     EXPECT_EQ(2U, recorder.scenario_starts[3].run);
 }
 
-TEST(EventStream, RunCompletedListsEveryFileIncludingTheManifest) {
+TEST_P(EventStream, RunCompletedListsEveryFileIncludingTheManifest) {
     Recorder recorder;
     const auto outcome =
-        hgps::test::run_simulation(hgps::test::synthetic_config(),
-                                   hgps::test::scratch_dir("events_files"), 1, &recorder);
+        hgps::test::run_simulation(pack().config(), pack_scratch("events_files"), 1, &recorder);
     ASSERT_TRUE(outcome.succeeded) << outcome.report.to_string();
     ASSERT_TRUE(recorder.completed.has_value());
 
@@ -239,15 +252,14 @@ TEST(EventStream, RunCompletedListsEveryFileIncludingTheManifest) {
                         outcome.manifest_path));
 }
 
-TEST(EventStream, TheScenarioNamesMatchWhatRunStartedAnnounced) {
-    auto document = hgps::test::synthetic_config_document();
+TEST_P(EventStream, TheScenarioNamesMatchWhatRunStartedAnnounced) {
+    auto document = hgps::test::config_document(pack());
     document["running"]["interventions"]["active_type_id"] = "simple";
-    const auto config = hgps::test::write_config_variant("events_names", document);
+    const auto config = hgps::test::write_config_variant(pack(), "events_names", document);
 
     Recorder recorder;
     const auto outcome =
-        hgps::test::run_simulation(config, hgps::test::scratch_dir("events_names_out"), 1,
-                                   &recorder);
+        hgps::test::run_simulation(config, pack_scratch("events_names_out"), 1, &recorder);
     ASSERT_TRUE(outcome.succeeded) << outcome.report.to_string();
     ASSERT_TRUE(recorder.started.has_value());
 
@@ -261,12 +273,12 @@ TEST(EventStream, TheScenarioNamesMatchWhatRunStartedAnnounced) {
     }
 }
 
-TEST(Cancellation, ADefaultTokenIsNeverCancelled) {
+TEST(CancellationToken, ADefaultTokenIsNeverCancelled) {
     const hgps::api::CancellationToken token;
     EXPECT_FALSE(token.cancelled());
 }
 
-TEST(Cancellation, ACopyOfATokenSharesItsFlag) {
+TEST(CancellationToken, ACopyOfATokenSharesItsFlag) {
     const hgps::api::CancellationToken token;
     const auto copy = token;
     copy.cancel();
@@ -274,14 +286,14 @@ TEST(Cancellation, ACopyOfATokenSharesItsFlag) {
                                      "copy cannot stop the run it handed the original to";
 }
 
-TEST(Cancellation, ARunCancelledUpFrontDoesNoYearsAndStillWritesItsFiles) {
+TEST_P(Cancellation, ARunCancelledUpFrontDoesNoYearsAndStillWritesItsFiles) {
     hgps::api::CancellationToken token;
     token.cancel();
 
     Recorder recorder;
-    const auto outcome =
-        hgps::test::run_simulation(hgps::test::synthetic_config(),
-                                   hgps::test::scratch_dir("cancel_upfront"), 1, &recorder, token);
+    const auto outcome = hgps::test::run_simulation(pack().config(),
+                                                    pack_scratch("cancel_upfront"), 1, &recorder,
+                                                    token);
 
     EXPECT_TRUE(outcome.succeeded) << outcome.report.to_string();
     EXPECT_TRUE(outcome.cancelled);
@@ -319,23 +331,26 @@ class CancelAfter final : public hgps::api::EventSubscriber {
 
 } // namespace
 
-TEST(Cancellation, ACancelledRunIsAPrefixOfTheRunThatWouldHaveHappened) {
+TEST_P(Cancellation, ACancelledRunIsAPrefixOfTheRunThatWouldHaveHappened) {
     // The contract: cancellation lands between years, so the years that did run are exactly the
     // years the full run would have produced — the same rows, byte for byte, as the full run's
     // first N.
-    const auto full = hgps::test::run_simulation(hgps::test::synthetic_config(),
-                                                hgps::test::scratch_dir("cancel_full"));
+    const auto full = hgps::test::run_simulation(pack().config(), pack_scratch("cancel_full"));
     ASSERT_TRUE(full.succeeded) << full.report.to_string();
 
     hgps::api::CancellationToken token;
     CancelAfter canceller{token, 3};
-    const auto partial =
-        hgps::test::run_simulation(hgps::test::synthetic_config(),
-                                   hgps::test::scratch_dir("cancel_partial"), 1, &canceller,
-                                   token);
+    const auto partial = hgps::test::run_simulation(pack().config(),
+                                                    pack_scratch("cancel_partial"), 1, &canceller,
+                                                    token);
 
     ASSERT_TRUE(partial.succeeded) << partial.report.to_string();
     EXPECT_TRUE(partial.cancelled);
+
+    // Three years, whatever the configuration: a scenario that has not started when the cancel
+    // arrives is not started at all. A pack with an intervention active reported four until that
+    // was fixed — the baseline's three, plus the intervention's own first year, which happens
+    // before its year loop reaches a cancellation check.
     EXPECT_EQ(3U, partial.years_completed);
     EXPECT_LT(partial.years_completed, full.years_completed);
 

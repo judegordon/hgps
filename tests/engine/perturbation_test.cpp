@@ -5,6 +5,7 @@
 // refused rather than silently ignored, and that a run which used it says so in its manifest.
 #include "engine/perturbation.h"
 
+#include "support/fixture_packs.h"
 #include "support/simulation_harness.h"
 #include "support/test_paths.h"
 
@@ -34,6 +35,12 @@ nlohmann::json read_json(const std::filesystem::path &path) {
     std::ifstream stream{path};
     return nlohmann::json::parse(stream);
 }
+
+/// The run-level half of these tests goes through both synthetic packs; the parsing half has no
+/// configuration in it (tests/support/fixture_packs.h).
+class PerturbedRun : public hgps::test::FixturePackTest {};
+
+HGPS_TEST_EVERY_FIXTURE_PACK(PerturbedRun);
 
 } // namespace
 
@@ -143,9 +150,8 @@ TEST(Perturbation, ARuleForAChannelTheOutputDoesNotHaveIsReported) {
     EXPECT_EQ("mean_nonsense", missed.front());
 }
 
-TEST(PerturbedRun, IsOffByDefaultAndTheManifestSaysSo) {
-    const auto outcome = hgps::test::run_simulation(hgps::test::synthetic_config(),
-                                                   hgps::test::scratch_dir("perturb_off"));
+TEST_P(PerturbedRun, IsOffByDefaultAndTheManifestSaysSo) {
+    const auto outcome = hgps::test::run_simulation(pack().config(), pack_scratch("perturb_off"));
     ASSERT_TRUE(outcome.succeeded) << outcome.report.to_string();
 
     const auto manifest = read_json(outcome.manifest_path);
@@ -154,13 +160,13 @@ TEST(PerturbedRun, IsOffByDefaultAndTheManifestSaysSo) {
     EXPECT_TRUE(manifest.at("perturbation").is_null());
 }
 
-TEST(PerturbedRun, ChangesTheResultsAndTheManifestRecordsWhatItWas) {
-    const auto clean = hgps::test::run_simulation(hgps::test::synthetic_config(),
-                                                 hgps::test::scratch_dir("perturb_clean"));
+TEST_P(PerturbedRun, ChangesTheResultsAndTheManifestRecordsWhatItWas) {
+    const auto clean =
+        hgps::test::run_simulation(pack().config(), pack_scratch("perturb_clean"));
     ASSERT_TRUE(clean.succeeded) << clean.report.to_string();
 
     const auto dirty = hgps::test::run_simulation_perturbed(
-        hgps::test::synthetic_config(), hgps::test::scratch_dir("perturb_dirty"),
+        pack().config(), pack_scratch("perturb_dirty"),
         "mean_bmi=scale:1.01");
     ASSERT_TRUE(dirty.succeeded) << dirty.report.to_string();
 
@@ -170,12 +176,12 @@ TEST(PerturbedRun, ChangesTheResultsAndTheManifestRecordsWhatItWas) {
     EXPECT_EQ("mean_bmi=scale:1.01", manifest.at("perturbation").get<std::string>());
 }
 
-TEST(PerturbedRun, AChannelThatNeverExistedFailsTheRun) {
+TEST_P(PerturbedRun, AChannelThatNeverExistedFailsTheRun) {
     // The run happens and the files are written, but it did not do what it was asked, so it is not a
     // success. That is what keeps a mistyped channel from producing a clean unperturbed run that the
     // harness's failure test would then report as "the harness cannot detect this".
     const auto outcome = hgps::test::run_simulation_perturbed(
-        hgps::test::synthetic_config(), hgps::test::scratch_dir("perturb_typo"),
+        pack().config(), pack_scratch("perturb_typo"),
         "mean_bmi=scale:1.01;no_such_channel=scale:2.0");
 
     EXPECT_FALSE(outcome.succeeded);
@@ -183,9 +189,9 @@ TEST(PerturbedRun, AChannelThatNeverExistedFailsTheRun) {
     EXPECT_NE(std::string::npos, outcome.report.to_string().find("no_such_channel"));
 }
 
-TEST(PerturbedRun, AnUnparsableSpecificationIsRefusedBeforeAnythingRuns) {
+TEST_P(PerturbedRun, AnUnparsableSpecificationIsRefusedBeforeAnythingRuns) {
     const auto outcome = hgps::test::run_simulation_perturbed(
-        hgps::test::synthetic_config(), hgps::test::scratch_dir("perturb_unparsable"),
+        pack().config(), pack_scratch("perturb_unparsable"),
         "mean_bmi=multiply:2");
 
     EXPECT_FALSE(outcome.succeeded);

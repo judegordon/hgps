@@ -8,6 +8,7 @@
 //
 //   same config + same seed + same data + same binary => byte-identical CSV output, every run,
 //   regardless of thread count.
+#include "support/fixture_packs.h"
 #include "support/simulation_harness.h"
 #include "support/test_paths.h"
 
@@ -61,15 +62,20 @@ std::string first_difference(const std::string &left, const std::string &right) 
     }
 }
 
+/// The contract is checked against both synthetic packs, because a determinism defect has more
+/// places to hide in a run with more moving parts: the second pack has two scenarios and therefore
+/// a migration journal to replay (tests/support/fixture_packs.h).
+class Reproducibility : public hgps::test::FixturePackTest {};
+
+HGPS_TEST_EVERY_FIXTURE_PACK(Reproducibility);
+
 } // namespace
 
-TEST(Reproducibility, TwoRunsOfTheSameConfigAreByteIdentical) {
-    const auto first = hgps::test::run_simulation(hgps::test::synthetic_config(),
-                                                  hgps::test::scratch_dir("repro_first"));
+TEST_P(Reproducibility, TwoRunsOfTheSameConfigAreByteIdentical) {
+    const auto first = hgps::test::run_simulation(pack().config(), pack_scratch("repro_first"));
     ASSERT_TRUE(first.succeeded) << first.report.to_string();
 
-    const auto second = hgps::test::run_simulation(hgps::test::synthetic_config(),
-                                                   hgps::test::scratch_dir("repro_second"));
+    const auto second = hgps::test::run_simulation(pack().config(), pack_scratch("repro_second"));
     ASSERT_TRUE(second.succeeded) << second.report.to_string();
 
     const auto left = read_file(first.csv_path);
@@ -79,17 +85,15 @@ TEST(Reproducibility, TwoRunsOfTheSameConfigAreByteIdentical) {
     EXPECT_EQ(left, right) << "the two runs differ at " << first_difference(left, right);
 }
 
-TEST(Reproducibility, TheOutputIsIdenticalAtOneThreadAndAtManyThreads) {
+TEST_P(Reproducibility, TheOutputIsIdenticalAtOneThreadAndAtManyThreads) {
     // The baseline is bit-identical across thread counts for a baseline-only run but not with an
     // intervention active, because its rows arrive in thread-completion order (audit B-01,
     // experiments D and F). Here the thread count only affects the RNG-free parallel sections,
     // whose reductions have a fixed block order (determinism clause D5).
-    const auto single = hgps::test::run_simulation(hgps::test::synthetic_config(),
-                                                   hgps::test::scratch_dir("repro_t1"), 1);
+    const auto single = hgps::test::run_simulation(pack().config(), pack_scratch("repro_t1"), 1);
     ASSERT_TRUE(single.succeeded) << single.report.to_string();
 
-    const auto many = hgps::test::run_simulation(hgps::test::synthetic_config(),
-                                                 hgps::test::scratch_dir("repro_t8"), 8);
+    const auto many = hgps::test::run_simulation(pack().config(), pack_scratch("repro_t8"), 8);
     ASSERT_TRUE(many.succeeded) << many.report.to_string();
 
     const auto left = read_file(single.csv_path);
@@ -100,20 +104,21 @@ TEST(Reproducibility, TheOutputIsIdenticalAtOneThreadAndAtManyThreads) {
                            << first_difference(left, right);
 }
 
-TEST(Reproducibility, WithAnInterventionActiveTheOutputIsStillByteIdentical) {
+TEST_P(Reproducibility, WithAnInterventionActiveTheOutputIsStillByteIdentical) {
     // This is the case the baseline fails: three same-seed runs with an intervention produced
     // three different files, identical only after sorting.
-    auto document = hgps::test::synthetic_config_document();
+    auto document = hgps::test::config_document(pack());
     document["running"]["interventions"]["active_type_id"] = "simple";
 
-    const auto config = hgps::test::write_config_variant("repro_intervention_config", document);
+    const auto config =
+        hgps::test::write_config_variant(pack(), "repro_intervention_config", document);
 
     const auto first =
-        hgps::test::run_simulation(config, hgps::test::scratch_dir("repro_int_first"));
+        hgps::test::run_simulation(config, pack_scratch("repro_int_first"));
     ASSERT_TRUE(first.succeeded) << first.report.to_string();
 
     const auto second =
-        hgps::test::run_simulation(config, hgps::test::scratch_dir("repro_int_second"), 4);
+        hgps::test::run_simulation(config, pack_scratch("repro_int_second"), 4);
     ASSERT_TRUE(second.succeeded) << second.report.to_string();
 
     const auto left = read_file(first.csv_path);
@@ -134,9 +139,10 @@ TEST(Reproducibility, WithAnInterventionActiveTheOutputIsStillByteIdentical) {
 // twice at four, to catch one that depends on the thread count.
 namespace {
 
-void expect_intervention_is_reproducible(const std::string &identifier,
+void expect_intervention_is_reproducible(const hgps::test::FixturePack &pack,
+                                         const std::string &identifier,
                                          const nlohmann::json &extra) {
-    auto document = hgps::test::synthetic_config_document();
+    auto document = hgps::test::config_document(pack);
     auto definition = document["running"]["interventions"]["types"]["simple"];
     for (const auto &member : extra.items()) {
         definition[member.key()] = member.value();
@@ -144,14 +150,15 @@ void expect_intervention_is_reproducible(const std::string &identifier,
     document["running"]["interventions"]["types"][identifier] = definition;
     document["running"]["interventions"]["active_type_id"] = identifier;
 
-    const auto config = hgps::test::write_config_variant("repro_" + identifier + "_config",
-                                                         document);
+    const auto config = hgps::test::write_config_variant(
+        pack, "repro_" + identifier + "_" + pack.id + "_config", document);
 
     std::vector<std::string> outputs;
     for (const auto &[label, threads] : std::vector<std::pair<std::string, std::size_t>>{
              {"one_a", 1}, {"one_b", 1}, {"many_a", 4}, {"many_b", 4}}) {
         const auto outcome = hgps::test::run_simulation(
-            config, hgps::test::scratch_dir("repro_" + identifier + "_" + label), threads);
+            config, hgps::test::scratch_dir("repro_" + identifier + "_" + pack.id + "_" + label),
+            threads);
         ASSERT_TRUE(outcome.succeeded) << identifier << ": " << outcome.report.to_string();
         outputs.push_back(read_file(outcome.csv_path));
         ASSERT_FALSE(outputs.back().empty()) << identifier;
@@ -217,56 +224,59 @@ nlohmann::json intervention_definition(const std::string &identifier) {
 
 } // namespace
 
-TEST(Reproducibility, SimpleIsByteIdenticalAtOneThreadAndAtManyThreadsTwice) {
-    expect_intervention_is_reproducible("simple", intervention_definition("simple"));
+TEST_P(Reproducibility, SimpleIsByteIdenticalAtOneThreadAndAtManyThreadsTwice) {
+    expect_intervention_is_reproducible(pack(), "simple", intervention_definition("simple"));
 }
 
-TEST(Reproducibility, MarketingIsByteIdenticalAtOneThreadAndAtManyThreadsTwice) {
-    expect_intervention_is_reproducible("marketing", intervention_definition("marketing"));
+TEST_P(Reproducibility, MarketingIsByteIdenticalAtOneThreadAndAtManyThreadsTwice) {
+    expect_intervention_is_reproducible(pack(), "marketing", intervention_definition("marketing"));
 }
 
-TEST(Reproducibility, DynamicMarketingIsByteIdenticalAtOneThreadAndAtManyThreadsTwice) {
-    expect_intervention_is_reproducible("dynamic_marketing",
+TEST_P(Reproducibility, DynamicMarketingIsByteIdenticalAtOneThreadAndAtManyThreadsTwice) {
+    expect_intervention_is_reproducible(pack(), "dynamic_marketing",
                                         intervention_definition("dynamic_marketing"));
 }
 
-TEST(Reproducibility, FiscalIsByteIdenticalAtOneThreadAndAtManyThreadsTwice) {
-    expect_intervention_is_reproducible("fiscal", intervention_definition("fiscal"));
+TEST_P(Reproducibility, FiscalIsByteIdenticalAtOneThreadAndAtManyThreadsTwice) {
+    expect_intervention_is_reproducible(pack(), "fiscal", intervention_definition("fiscal"));
 }
 
-TEST(Reproducibility, PhysicalActivityIsByteIdenticalAtOneThreadAndAtManyThreadsTwice) {
-    expect_intervention_is_reproducible("physical_activity",
+TEST_P(Reproducibility, PhysicalActivityIsByteIdenticalAtOneThreadAndAtManyThreadsTwice) {
+    expect_intervention_is_reproducible(pack(), "physical_activity",
                                         intervention_definition("physical_activity"));
 }
 
-TEST(Reproducibility, FoodLabellingIsByteIdenticalAtOneThreadAndAtManyThreadsTwice) {
-    expect_intervention_is_reproducible("food_labelling",
+TEST_P(Reproducibility, FoodLabellingIsByteIdenticalAtOneThreadAndAtManyThreadsTwice) {
+    expect_intervention_is_reproducible(pack(), "food_labelling",
                                         intervention_definition("food_labelling"));
 }
 
-TEST(Reproducibility, ADifferentSeedGivesDifferentOutput) {
+TEST_P(Reproducibility, ADifferentSeedGivesDifferentOutput) {
     // The other half of the contract: reproducible must not mean insensitive.
-    auto document = hgps::test::synthetic_config_document();
-    document["running"]["seed"] = 987654321;
+    auto document = hgps::test::config_document(pack());
+    // One more than the pack's own seed, rather than a constant: the second pack's seed is the
+    // constant this test used to use, and against that pack the "different" run was the same run.
+    document["running"]["seed"] = document["running"]["seed"].get<std::uint64_t>() + 1;
 
-    const auto config = hgps::test::write_config_variant("repro_other_seed_config", document);
+    const auto config =
+        hgps::test::write_config_variant(pack(), "repro_other_seed_config", document);
 
-    const auto baseline = hgps::test::run_simulation(hgps::test::synthetic_config(),
-                                                     hgps::test::scratch_dir("repro_seed_a"));
+    const auto baseline =
+        hgps::test::run_simulation(pack().config(), pack_scratch("repro_seed_a"));
     ASSERT_TRUE(baseline.succeeded) << baseline.report.to_string();
 
-    const auto other = hgps::test::run_simulation(config, hgps::test::scratch_dir("repro_seed_b"));
+    const auto other = hgps::test::run_simulation(config, pack_scratch("repro_seed_b"));
     ASSERT_TRUE(other.succeeded) << other.report.to_string();
 
     EXPECT_NE(read_file(baseline.csv_path), read_file(other.csv_path));
 }
 
-TEST(Reproducibility, TheMetadataRecordsTheSeedThatWasUsed) {
+TEST_P(Reproducibility, TheMetadataRecordsTheSeedThatWasUsed) {
     // Baseline finding B-06: the results file records `seed().value_or(0)`, so an unseeded run
     // claims seed 0 and re-running with 0 does not reproduce it. Here the seed is required, and
     // every run's derived seed is recorded so a single run can be reproduced on its own.
-    const auto outcome = hgps::test::run_simulation(hgps::test::synthetic_config(),
-                                                    hgps::test::scratch_dir("repro_metadata"));
+    const auto outcome =
+        hgps::test::run_simulation(pack().config(), pack_scratch("repro_metadata"));
     ASSERT_TRUE(outcome.succeeded) << outcome.report.to_string();
 
     std::ifstream stream{outcome.json_path};
@@ -275,7 +285,8 @@ TEST(Reproducibility, TheMetadataRecordsTheSeedThatWasUsed) {
     ASSERT_TRUE(document.contains("metadata"));
     const auto &metadata = document["metadata"];
 
-    EXPECT_EQ(123456789U, metadata["seed"].get<std::uint32_t>());
+    EXPECT_EQ(hgps::test::config_document(pack())["running"]["seed"].get<std::uint32_t>(),
+              metadata["seed"].get<std::uint32_t>());
     ASSERT_TRUE(metadata.contains("run_seeds"));
     EXPECT_EQ(1U, metadata["run_seeds"].size());
     EXPECT_EQ(64U, metadata["config_sha256"].get<std::string>().size());

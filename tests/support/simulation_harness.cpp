@@ -92,16 +92,15 @@ RunOutcome run_simulation_perturbed(const std::filesystem::path &config_path,
     return outcome;
 }
 
-nlohmann::json synthetic_config_document() {
-    std::ifstream stream{synthetic_config()};
+nlohmann::json config_document(const FixturePack &pack) {
+    std::ifstream stream{pack.config()};
     return nlohmann::json::parse(stream);
 }
 
-std::filesystem::path write_config_variant(const std::string &test_name,
+std::filesystem::path write_config_variant(const FixturePack &pack, const std::string &test_name,
                                            const nlohmann::json &document) {
     const auto directory = scratch_dir(test_name) / "model";
-    std::filesystem::copy(synthetic_model_dir(), directory,
-                          std::filesystem::copy_options::recursive);
+    std::filesystem::copy(pack.directory, directory, std::filesystem::copy_options::recursive);
 
     // The variant's data source has to point at the pack's data half, which the copy moved away
     // from.

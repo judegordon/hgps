@@ -1,5 +1,7 @@
 #pragma once
 
+#include "fixture_packs.h"
+
 #include "hgps/engine.h"
 
 #include <filesystem>
@@ -49,14 +51,15 @@ RunOutcome run_simulation_perturbed(const std::filesystem::path &config_path,
                                     const std::filesystem::path &output_folder,
                                     const std::string &perturbation);
 
-/// @brief The synthetic config as JSON, for a test that needs to change something in it.
-nlohmann::json synthetic_config_document();
+/// @brief A pack's config as JSON, for a test that needs to change something in it.
+nlohmann::json config_document(const FixturePack &pack);
 
-/// @brief Writes a config document into a directory that already holds the model pack's files,
-///        so relative paths still resolve. Returns the new config's path.
+/// @brief Writes a config document into a copy of a pack's directory, so the relative paths in it
+///        still resolve. Returns the new config's path.
 ///
-/// The model pack's directory is read-only for tests, so the pack is copied.
-std::filesystem::path write_config_variant(const std::string &test_name,
+/// The generated pack is read-only for tests, so the pack is copied. The copy is recursive
+/// because the second pack keeps its model files in subdirectories.
+std::filesystem::path write_config_variant(const FixturePack &pack, const std::string &test_name,
                                            const nlohmann::json &document);
 
 } // namespace hgps::test

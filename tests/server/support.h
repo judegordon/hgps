@@ -3,6 +3,7 @@
 
 #include "server.h"
 
+#include "support/fixture_packs.h"
 #include "support/simulation_harness.h"
 #include "support/test_paths.h"
 
@@ -23,16 +24,20 @@ namespace hgps::test {
 /// test does not leave a socket behind.
 class ServedFixture {
   public:
-    /// @brief The example id the default configs root offers.
+    /// @brief The example ids the default configs root offers — one per synthetic pack.
     ///
-    /// The synthetic pack keeps its config in `model/` and its tables in `data/` beside it, and
-    /// the config's `data.source` is the relative `../data`. The server's example list is "a
-    /// directory holding a config.json", so the pack is laid out under a root of its own as
-    /// `<root>/Synthetic/config.json` and `<root>/data/`, which keeps that relative path meaning
-    /// what it meant. `data/` has no config.json, so it is not listed as an example.
+    /// Each pack keeps its config in its own directory and its tables in `data/` beside it, and a
+    /// config's `data.source` is the relative `../data`. The server's example list is "a directory
+    /// holding a config.json", so the packs are laid out under a root of their own as
+    /// `<root>/<pack id>/config.json` with one shared `<root>/data/`, which keeps that relative
+    /// path meaning what it meant. `data/` has no config.json, so it is not listed as an example.
     ///
     /// Copied rather than linked, deliberately: the server resolves symlinks before checking a
     /// path is inside its roots, so a link out of a root is refused — which is the rule working.
+    ///
+    /// **Both packs are laid out, always.** Every server test that runs a configuration runs
+    /// against each of them in turn (tests/support/fixture_packs.h), and a listing endpoint that
+    /// sees two configurations rather than one is closer to what a user has.
     static constexpr const char *kExample = "Synthetic";
 
     explicit ServedFixture(const std::string &name,
@@ -42,7 +47,9 @@ class ServedFixture {
         configs_ = scratch_dir(name + "_configs");
         const auto recursive = std::filesystem::copy_options::recursive |
                                std::filesystem::copy_options::overwrite_existing;
-        std::filesystem::copy(synthetic_model_dir(), configs_ / kExample, recursive);
+        for (const auto &pack : fixture_packs()) {
+            std::filesystem::copy(pack.directory, configs_ / pack.id, recursive);
+        }
         std::filesystem::copy(synthetic_data_dir(), configs_ / "data", recursive);
 
         server::Options options;
@@ -119,6 +126,21 @@ class ServedFixture {
     std::filesystem::path configs_;
     std::unique_ptr<server::Server> server_;
     std::uint16_t port_{0};
+};
+
+/// @brief A server test that runs once per synthetic pack.
+///
+/// `ServedFixture` lays out every pack under one configs root, so a parameterised test names the
+/// pack it is driving and the server sees both — which is also what makes the listing endpoint's
+/// test mean something.
+class ServedPackTest : public FixturePackTest {
+  protected:
+    /// @brief The example id of the pack under test, as `/api/examples` reports it.
+    std::string example() const { return pack().id; }
+
+    std::filesystem::path pack_scratch(const std::string &name) const {
+        return scratch_dir(name + "_" + pack().id);
+    }
 };
 
 } // namespace hgps::test

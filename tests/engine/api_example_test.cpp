@@ -1,6 +1,7 @@
 // The documented example, run, and checked against the document.
 #include "api_example.h"
 
+#include "support/fixture_packs.h"
 #include "support/simulation_harness.h"
 #include "support/test_paths.h"
 
@@ -79,11 +80,21 @@ TEST(ApiExample, TheDocumentQuotesThisFile) {
                                  "drifted apart; the file is the original.";
 }
 
-TEST(ApiExample, ItRunsAndWritesResults) {
-    auto document = hgps::test::synthetic_config_document();
-    const auto folder = hgps::test::scratch_dir("api_example_out");
+namespace {
+
+/// The published example runs against both synthetic packs, because it is the one piece of code in
+/// the tree a reader is invited to copy (tests/support/fixture_packs.h).
+class ApiExampleRun : public hgps::test::FixturePackTest {};
+
+HGPS_TEST_EVERY_FIXTURE_PACK(ApiExampleRun);
+
+} // namespace
+
+TEST_P(ApiExampleRun, ItRunsAndWritesResults) {
+    auto document = hgps::test::config_document(pack());
+    const auto folder = pack_scratch("api_example_out");
     document["output"]["folder"] = folder.string();
-    const auto config = hgps::test::write_config_variant("api_example", document);
+    const auto config = hgps::test::write_config_variant(pack(), "api_example", document);
 
     EXPECT_EQ(0, hgps::example::run_one(config));
 

@@ -1,14 +1,20 @@
 // Every endpoint docs/server-api.md publishes, driven over a real socket.
 //
-// In process, on a free port, against the synthetic fixture pack — so the whole API is exercised
+// In process, on a free port, against the synthetic fixture packs — so the whole API is exercised
 // by `ctest` rather than by somebody starting the binary and reaching for curl. An HTTP API whose
 // only test is "the binary starts" is an HTTP API with no tests.
+//
+// Every test that runs or loads a configuration is parameterised over **both** packs
+// (tests/support/fixture_packs.h). Forty-five tests here once passed while the server had a
+// hard-coded output file name, because all forty-five used the one pack that happens to produce
+// it; the second pack produces a different one deliberately.
 #include "support.h"
 
 #include "hgps/engine.h"
 
 #include <algorithm>
 #include <atomic>
+#include <set>
 #include <fstream>
 #include <thread>
 #include <sstream>
@@ -22,6 +28,22 @@ using hgps::test::ServedFixture;
 
 nlohmann::json json_body(const httplib::Result &result) {
     return ServedFixture::json_of(result);
+}
+
+/// A server test that drives one synthetic pack; the server always serves both.
+class ServerApi : public hgps::test::ServedPackTest {};
+
+HGPS_TEST_EVERY_FIXTURE_PACK(ServerApi);
+
+/// @brief The name of the CSV a finished run wrote, from what the run says it wrote.
+std::string result_csv_of(const nlohmann::json &finished) {
+    for (const auto &name : finished.at("results")) {
+        const auto text = name.get<std::string>();
+        if (text.ends_with(".csv")) {
+            return text;
+        }
+    }
+    return {};
 }
 
 } // namespace
@@ -56,29 +78,43 @@ TEST(ServerApi, ExamplesListsWhatTheConfigRootsHold) {
 
     const auto document = json_body(client.Get("/api/examples"));
     const auto examples = document.at("examples");
-    ASSERT_EQ(1U, examples.size());
-    EXPECT_EQ(ServedFixture::kExample, examples.at(0).at("id").get<std::string>());
-    EXPECT_TRUE(examples.at(0).at("readable").get<bool>());
+
+    // Every synthetic pack, and nothing else — `data/` is a directory in the same root with no
+    // config.json in it, so it is not an example.
+    std::set<std::string> listed;
+    for (const auto &entry : examples) {
+        listed.insert(entry.at("id").get<std::string>());
+        EXPECT_TRUE(entry.at("readable").get<bool>()) << entry.dump();
+    }
+    std::set<std::string> expected;
+    for (const auto &pack : hgps::test::fixture_packs()) {
+        expected.insert(pack.id);
+    }
+    EXPECT_EQ(expected, listed);
 }
 
-TEST(ServerApi, OneExampleIsLoadedAndSummarised) {
+TEST_P(ServerApi, OneExampleIsLoadedAndSummarised) {
     ServedFixture served{"api_example_one"};
     auto client = served.client();
 
-    const auto response = client.Get(std::string{"/api/examples/"} + ServedFixture::kExample);
+    const auto response = client.Get(std::string{"/api/examples/"} + example());
     ASSERT_TRUE(response);
     ASSERT_EQ(200, response->status) << response->body;
 
     const auto document = json_body(response);
-    EXPECT_EQ(ServedFixture::kExample, document.at("id").get<std::string>());
+    EXPECT_EQ(example(), document.at("id").get<std::string>());
 
     // The document as written, for an editor to open…
     EXPECT_TRUE(document.at("document").contains("running"));
     // …and what the engine understood, which is not the same thing.
     const auto summary = document.at("summary");
-    EXPECT_EQ(123456789U, summary.at("seed").get<std::uint32_t>());
-    EXPECT_EQ(2010, summary.at("start_time").get<int>());
-    EXPECT_TRUE(summary.at("active_intervention").is_null());
+    const auto written = document.at("document");
+    EXPECT_EQ(written.at("running").at("seed").get<std::uint32_t>(),
+              summary.at("seed").get<std::uint32_t>());
+    EXPECT_EQ(written.at("running").at("start_time").get<int>(),
+              summary.at("start_time").get<int>());
+    EXPECT_EQ(written.at("running").at("interventions").at("active_type_id"),
+              summary.at("active_intervention"));
     EXPECT_TRUE(summary.at("baseline_compat").empty());
 }
 
@@ -96,14 +132,12 @@ TEST(ServerApi, AnExampleThatIsNotThereIsA404AndNotAPathToTraverse) {
 
 // --- validation ---------------------------------------------------------------------------------
 
-TEST(ServerApi, ValidateAcceptsAGoodDocument) {
+TEST_P(ServerApi, ValidateAcceptsAGoodDocument) {
     ServedFixture served{"api_validate_ok"};
     auto client = served.client();
 
-    const auto example =
-        json_body(client.Get(std::string{"/api/examples/"} + ServedFixture::kExample));
-    const nlohmann::json body{{"document", example.at("document")},
-                              {"base", ServedFixture::kExample}};
+    const auto loaded = json_body(client.Get(std::string{"/api/examples/"} + example()));
+    const nlohmann::json body{{"document", loaded.at("document")}, {"base", example()}};
 
     const auto response = client.Post("/api/configs/validate", body.dump(), "application/json");
     ASSERT_TRUE(response);
@@ -115,17 +149,17 @@ TEST(ServerApi, ValidateAcceptsAGoodDocument) {
     EXPECT_FALSE(document.at("summary").is_null());
 }
 
-TEST(ServerApi, ValidateLocatesEveryProblemAtTheFieldThatCausedIt) {
+TEST_P(ServerApi, ValidateLocatesEveryProblemAtTheFieldThatCausedIt) {
     ServedFixture served{"api_validate_bad"};
     auto client = served.client();
 
     auto document =
-        json_body(client.Get(std::string{"/api/examples/"} + ServedFixture::kExample))
+        json_body(client.Get(std::string{"/api/examples/"} + example()))
             .at("document");
     document["running"].erase("seed");
     document["running"]["stop_time"] = "not a year";
 
-    const nlohmann::json body{{"document", document}, {"base", ServedFixture::kExample}};
+    const nlohmann::json body{{"document", document}, {"base", example()}};
     const auto response = client.Post("/api/configs/validate", body.dump(), "application/json");
     ASSERT_TRUE(response);
     // Not an error of the request: an invalid document is the *answer*, and a 200 says so.
@@ -149,18 +183,18 @@ TEST(ServerApi, ValidateLocatesEveryProblemAtTheFieldThatCausedIt) {
     EXPECT_TRUE(located) << "no diagnostic named the field it was about: " << result.dump(2);
 }
 
-TEST(ServerApi, ValidateCanBeToldNotToInsistTheFilesExistYet) {
+TEST_P(ServerApi, ValidateCanBeToldNotToInsistTheFilesExistYet) {
     ServedFixture served{"api_validate_files"};
     auto client = served.client();
 
     auto document =
-        json_body(client.Get(std::string{"/api/examples/"} + ServedFixture::kExample))
+        json_body(client.Get(std::string{"/api/examples/"} + example()))
             .at("document");
     document["inputs"]["dataset"]["name"] = "not-written-yet.csv";
 
     const auto ask = [&](bool require) {
         const nlohmann::json body{{"document", document},
-                                  {"base", ServedFixture::kExample},
+                                  {"base", example()},
                                   {"require_files_exist", require}};
         return json_body(client.Post("/api/configs/validate", body.dump(), "application/json"));
     };
@@ -171,18 +205,16 @@ TEST(ServerApi, ValidateCanBeToldNotToInsistTheFilesExistYet) {
                                                        "are missing";
 }
 
-TEST(ServerApi, ConcurrentValidationsOfTheSameDocumentDoNotFightOverAFile) {
+TEST_P(ServerApi, ConcurrentValidationsOfTheSameDocumentDoNotFightOverAFile) {
     // Validation writes the document to a scratch file in the example's own directory, because a
     // model file names its CSVs relative to the config's directory. Two clients validating the
     // *same* document would pick the same name if the name were only the body's hash — and the
     // first to finish would delete the file the second was still loading.
     ServedFixture served{"api_validate_race"};
 
-    const auto example =
-        ServedFixture::json_of(served.client().Get(std::string{"/api/examples/"} +
-                                                   ServedFixture::kExample));
-    const nlohmann::json body{{"document", example.at("document")},
-                              {"base", ServedFixture::kExample}};
+    const auto loaded =
+        ServedFixture::json_of(served.client().Get(std::string{"/api/examples/"} + example()));
+    const nlohmann::json body{{"document", loaded.at("document")}, {"base", example()}};
     const auto payload = body.dump();
 
     constexpr int kClients = 8;
@@ -210,7 +242,7 @@ TEST(ServerApi, ConcurrentValidationsOfTheSameDocumentDoNotFightOverAFile) {
     // And no scratch file is left behind.
     int leftovers = 0;
     for (const auto &entry :
-         std::filesystem::directory_iterator{served.configs() / ServedFixture::kExample}) {
+         std::filesystem::directory_iterator{served.configs() / example()}) {
         if (entry.path().filename().string().starts_with(".hgps-validate-")) {
             ++leftovers;
         }
@@ -257,11 +289,11 @@ TEST(ServerApi, TheSchemaIsServedWithItsReferencesResolved) {
 
 // --- runs ---------------------------------------------------------------------------------------
 
-TEST(ServerApi, ARunGoesFromStartingToCompletedAndWritesItsFiles) {
+TEST_P(ServerApi, ARunGoesFromStartingToCompletedAndWritesItsFiles) {
     ServedFixture served{"api_run"};
     auto client = served.client();
 
-    const nlohmann::json body{{"example", ServedFixture::kExample}};
+    const nlohmann::json body{{"example", example()}};
     const auto created = client.Post("/api/runs", body.dump(), "application/json");
     ASSERT_TRUE(created);
     ASSERT_EQ(201, created->status) << created->body;
@@ -278,18 +310,24 @@ TEST(ServerApi, ARunGoesFromStartingToCompletedAndWritesItsFiles) {
     ASSERT_EQ("completed", finished.value("state", std::string{})) << finished.dump(2);
     EXPECT_FALSE(finished.at("manifest").is_null());
 
-    const auto results = finished.at("results");
-    EXPECT_NE(results.end(), std::find(results.begin(), results.end(), "result.csv"));
-    EXPECT_NE(results.end(), std::find(results.begin(), results.end(), "result_manifest.json"));
+    // What it wrote, by the names the configuration gave them rather than by this test's idea of
+    // what a result is called.
+    const auto csv = result_csv_of(finished);
+    EXPECT_FALSE(csv.empty()) << finished.at("results").dump();
+    bool has_manifest = false;
+    for (const auto &name : finished.at("results")) {
+        has_manifest = has_manifest || name.get<std::string>().ends_with("_manifest.json");
+    }
+    EXPECT_TRUE(has_manifest) << finished.at("results").dump();
 }
 
-TEST(ServerApi, ASecondRunIsRefusedRatherThanQueued) {
+TEST_P(ServerApi, ASecondRunIsRefusedRatherThanQueued) {
     // The engine's own contract: two `execute` calls must not overlap in one process
     // (docs/api.md). A queue would turn a stated constraint into an unstated wait.
     ServedFixture served{"api_run_second"};
     auto client = served.client();
 
-    const nlohmann::json body{{"example", ServedFixture::kExample}};
+    const nlohmann::json body{{"example", example()}};
     const auto first = client.Post("/api/runs", body.dump(), "application/json");
     ASSERT_TRUE(first);
     ASSERT_EQ(201, first->status) << first->body;
@@ -311,11 +349,11 @@ TEST(ServerApi, ASecondRunIsRefusedRatherThanQueued) {
     served.wait_for_run(id);
 }
 
-TEST(ServerApi, ARunTakesTheCompatibilityFlagsAndTheManifestRecordsThem) {
+TEST_P(ServerApi, ARunTakesTheCompatibilityFlagsAndTheManifestRecordsThem) {
     ServedFixture served{"api_run_compat"};
     auto client = served.client();
 
-    const nlohmann::json body{{"example", ServedFixture::kExample},
+    const nlohmann::json body{{"example", example()},
                               {"baseline_compat", nlohmann::json::array({"B-24"})}};
     const auto created = client.Post("/api/runs", body.dump(), "application/json");
     ASSERT_TRUE(created);
@@ -326,25 +364,25 @@ TEST(ServerApi, ARunTakesTheCompatibilityFlagsAndTheManifestRecordsThem) {
     EXPECT_EQ(nlohmann::json::array({"B-24"}), finished.at("manifest").at("baseline_compat"));
 }
 
-TEST(ServerApi, AnUnknownCompatibilityFlagIsRefusedBeforeAnythingRuns) {
+TEST_P(ServerApi, AnUnknownCompatibilityFlagIsRefusedBeforeAnythingRuns) {
     ServedFixture served{"api_run_bad_compat"};
     auto client = served.client();
 
-    const nlohmann::json body{{"example", ServedFixture::kExample},
+    const nlohmann::json body{{"example", example()},
                               {"baseline_compat", nlohmann::json::array({"B-99"})}};
     const auto response = client.Post("/api/runs", body.dump(), "application/json");
     ASSERT_TRUE(response);
     EXPECT_EQ(400, response->status) << response->body;
 
     // And the slot was released, so the next run is not refused for a run that never started.
-    const nlohmann::json good{{"example", ServedFixture::kExample}};
+    const nlohmann::json good{{"example", example()}};
     const auto next = client.Post("/api/runs", good.dump(), "application/json");
     ASSERT_TRUE(next);
     EXPECT_EQ(201, next->status) << next->body;
     served.wait_for_run(json_body(next).at("id").get<std::string>());
 }
 
-TEST(ServerApi, ARunThatCannotBeBuiltIsNotARun) {
+TEST_P(ServerApi, ARunThatCannotBeBuiltIsNotARun) {
     // Found by driving the page: a configuration that fails to build was accepted, registered, and
     // then left in the list as `starting` for ever — and it held the one-run-at-a-time slot, so
     // nothing else could start either. Nothing was simulated and nothing was written, so it is not
@@ -354,11 +392,11 @@ TEST(ServerApi, ARunThatCannotBeBuiltIsNotARun) {
 
     // A document that loads and cannot be built: the dataset names a file that is not a dataset.
     auto document =
-        json_body(client.Get(std::string{"/api/examples/"} + ServedFixture::kExample))
+        json_body(client.Get(std::string{"/api/examples/"} + example()))
             .at("document");
     document["running"]["diseases"] = nlohmann::json::array({"no_such_disease"});
     const auto broken = served.configs() / "Broken";
-    std::filesystem::copy(served.configs() / ServedFixture::kExample, broken,
+    std::filesystem::copy(served.configs() / example(), broken,
                           std::filesystem::copy_options::recursive |
                               std::filesystem::copy_options::overwrite_existing);
     {
@@ -379,31 +417,32 @@ TEST(ServerApi, ARunThatCannotBeBuiltIsNotARun) {
         << "an attempt that never ran is in the history: " << listed.dump(2);
 
     // And the next run is accepted, which is the part that actually bites.
-    const nlohmann::json good{{"example", ServedFixture::kExample}};
+    const nlohmann::json good{{"example", example()}};
     const auto next = client.Post("/api/runs", good.dump(), "application/json");
     ASSERT_TRUE(next);
     ASSERT_EQ(201, next->status) << next->body;
     served.wait_for_run(json_body(next).at("id").get<std::string>());
 }
 
-TEST(ServerApi, TheManifestIsFoundWhateverTheConfigurationCallsTheOutput) {
-    // The manifest is named after `output.file_name`, which the configuration decides. The
-    // synthetic fixture writes `result.csv`, so its manifest is `result_manifest.json` — and the
+TEST_P(ServerApi, TheManifestIsFoundWhateverTheConfigurationCallsTheOutput) {
+    // The manifest is named after `output.file_name`, which the configuration decides. The first
+    // synthetic pack writes `result.csv`, so its manifest is `result_manifest.json` — and the
     // server assumed that name. `HLM_France` writes `HealthGPS_Result_{TIMESTAMP}.csv`, so its
     // manifest is `HealthGPS_Result_2026-…_manifest.json` and the server reported `"manifest":
     // null` for every real example.
     //
-    // Every test passed, because every test used the fixture. This one does not: it gives the
-    // fixture a name with a token in it, which is what an upstream configuration looks like.
+    // Every test passed, because every test used that pack. This one renames the output whatever
+    // the pack under test calls it, which is what an upstream configuration looks like — and the
+    // second pack now carries a token of its own, so the rest of this file covers it too.
     ServedFixture served{"api_manifest_name"};
     auto client = served.client();
 
     auto document =
-        json_body(client.Get(std::string{"/api/examples/"} + ServedFixture::kExample))
+        json_body(client.Get(std::string{"/api/examples/"} + example()))
             .at("document");
     document["output"]["file_name"] = "HealthGPS_Result_{TIMESTAMP}.csv";
     const auto named = served.configs() / "Named";
-    std::filesystem::copy(served.configs() / ServedFixture::kExample, named,
+    std::filesystem::copy(served.configs() / example(), named,
                           std::filesystem::copy_options::recursive |
                               std::filesystem::copy_options::overwrite_existing);
     {
@@ -451,7 +490,7 @@ TEST(ServerApi, TheManifestIsFoundWhateverTheConfigurationCallsTheOutput) {
                        << listed.dump(2);
 }
 
-TEST(ServerApi, RunsListsTheHistoryFromManifestsAndSurvivesARestart) {
+TEST_P(ServerApi, RunsListsTheHistoryFromManifestsAndSurvivesARestart) {
     const std::string name = "api_run_history";
     std::string id;
     std::filesystem::path runs;
@@ -459,7 +498,7 @@ TEST(ServerApi, RunsListsTheHistoryFromManifestsAndSurvivesARestart) {
     {
         ServedFixture served{name};
         auto client = served.client();
-        const nlohmann::json body{{"example", ServedFixture::kExample}};
+        const nlohmann::json body{{"example", example()}};
         const auto created = client.Post("/api/runs", body.dump(), "application/json");
         ASSERT_TRUE(created);
         ASSERT_EQ(201, created->status) << created->body;
@@ -498,11 +537,11 @@ TEST(ServerApi, RunsListsTheHistoryFromManifestsAndSurvivesARestart) {
     EXPECT_TRUE(found) << "the run was not in the restarted server's list: " << listed.dump(2);
 }
 
-TEST(ServerApi, CancelIsAcceptedRatherThanAcknowledged) {
+TEST_P(ServerApi, CancelIsAcceptedRatherThanAcknowledged) {
     ServedFixture served{"api_cancel"};
     auto client = served.client();
 
-    const nlohmann::json body{{"example", ServedFixture::kExample}};
+    const nlohmann::json body{{"example", example()}};
     const auto created = client.Post("/api/runs", body.dump(), "application/json");
     ASSERT_TRUE(created);
     ASSERT_EQ(201, created->status) << created->body;
@@ -530,37 +569,40 @@ TEST(ServerApi, CancelIsAcceptedRatherThanAcknowledged) {
     EXPECT_EQ(409, again->status) << again->body;
 }
 
-TEST(ServerApi, AResultFileIsServedByNameAndNothingElseIs) {
+TEST_P(ServerApi, AResultFileIsServedByNameAndNothingElseIs) {
     ServedFixture served{"api_results"};
     auto client = served.client();
 
-    const nlohmann::json body{{"example", ServedFixture::kExample}};
+    const nlohmann::json body{{"example", example()}};
     const auto created = client.Post("/api/runs", body.dump(), "application/json");
     ASSERT_EQ(201, created->status) << created->body;
     const auto id = json_body(created).at("id").get<std::string>();
-    ASSERT_EQ("completed", served.wait_for_run(id).value("state", std::string{}));
+    const auto finished = served.wait_for_run(id);
+    ASSERT_EQ("completed", finished.value("state", std::string{}));
 
-    const auto csv = client.Get("/api/runs/" + id + "/results/result.csv");
+    const auto name = result_csv_of(finished);
+    ASSERT_FALSE(name.empty()) << finished.at("results").dump();
+
+    const auto csv = client.Get("/api/runs/" + id + "/results/" + name);
     ASSERT_TRUE(csv);
     ASSERT_EQ(200, csv->status);
     EXPECT_NE(std::string::npos, csv->get_header_value("Content-Type").find("text/csv"));
-    EXPECT_NE(std::string::npos,
-              csv->get_header_value("Content-Disposition").find("result.csv"));
+    EXPECT_NE(std::string::npos, csv->get_header_value("Content-Disposition").find(name));
     EXPECT_TRUE(csv->body.starts_with("source,run,time")) << csv->body.substr(0, 80);
 
     // A client names a run and a file *name*; there is nothing here to traverse.
-    for (const auto *name : {"nope.csv", "..", "config.json"}) {
-        const auto refused = client.Get(std::string{"/api/runs/"} + id + "/results/" + name);
-        ASSERT_TRUE(refused) << name;
-        EXPECT_EQ(404, refused->status) << name << ": " << refused->body;
+    for (const auto *other : {"nope.csv", "..", "config.json"}) {
+        const auto refused = client.Get(std::string{"/api/runs/"} + id + "/results/" + other);
+        ASSERT_TRUE(refused) << other;
+        EXPECT_EQ(404, refused->status) << other << ": " << refused->body;
     }
 }
 
-TEST(ServerApi, TheSummaryReducesTheResultCsvForCharting) {
+TEST_P(ServerApi, TheSummaryReducesTheResultCsvForCharting) {
     ServedFixture served{"api_summary"};
     auto client = served.client();
 
-    const nlohmann::json body{{"example", ServedFixture::kExample}};
+    const nlohmann::json body{{"example", example()}};
     const auto created = client.Post("/api/runs", body.dump(), "application/json");
     ASSERT_EQ(201, created->status) << created->body;
     const auto id = json_body(created).at("id").get<std::string>();
@@ -573,7 +615,11 @@ TEST(ServerApi, TheSummaryReducesTheResultCsvForCharting) {
     const auto document = json_body(response);
     const auto years = document.at("years");
     ASSERT_FALSE(years.empty());
-    EXPECT_EQ(2010, years.front().get<int>());
+
+    const auto written =
+        json_body(client.Get(std::string{"/api/examples/"} + example())).at("document");
+    EXPECT_EQ(written.at("running").at("start_time").get<int>(), years.front().get<int>());
+    EXPECT_EQ(written.at("running").at("stop_time").get<int>(), years.back().get<int>());
 
     ASSERT_FALSE(document.at("series").empty());
     for (const auto &series : document.at("series")) {
@@ -607,11 +653,11 @@ TEST(ServerApi, AnUnknownApiPathIsA404AndNotTheIndexPage) {
 
 // --- the event stream ----------------------------------------------------------------------------
 
-TEST(ServerApi, TheEventStreamReplaysAndThenEnds) {
+TEST_P(ServerApi, TheEventStreamReplaysAndThenEnds) {
     ServedFixture served{"api_events"};
     auto client = served.client();
 
-    const nlohmann::json body{{"example", ServedFixture::kExample}};
+    const nlohmann::json body{{"example", example()}};
     const auto created = client.Post("/api/runs", body.dump(), "application/json");
     ASSERT_EQ(201, created->status) << created->body;
     const auto id = json_body(created).at("id").get<std::string>();
@@ -683,7 +729,7 @@ TEST(ServerApi, AStartedServerCanSimplyBeDropped) {
     SUCCEED();
 }
 
-TEST(ServerApi, StoppingTheServerDoesNotAbandonARunMidWrite) {
+TEST_P(ServerApi, StoppingTheServerDoesNotAbandonARunMidWrite) {
     // Without this, stopping the server detached a thread that was still writing a result file and
     // then returned from main — so Ctrl-C during a run could truncate its output, which is the
     // one thing this project's output contract cannot tolerate. `stop()` cancels the run and
@@ -693,8 +739,7 @@ TEST(ServerApi, StoppingTheServerDoesNotAbandonARunMidWrite) {
     const auto configs = hgps::test::scratch_dir("api_stop_configs");
     const auto recursive = std::filesystem::copy_options::recursive |
                            std::filesystem::copy_options::overwrite_existing;
-    std::filesystem::copy(hgps::test::synthetic_model_dir(),
-                          configs / ServedFixture::kExample, recursive);
+    std::filesystem::copy(pack().directory, configs / example(), recursive);
     std::filesystem::copy(hgps::test::synthetic_data_dir(), configs / "data", recursive);
 
     hgps::server::Options options;
@@ -710,7 +755,7 @@ TEST(ServerApi, StoppingTheServerDoesNotAbandonARunMidWrite) {
         ASSERT_NE(0, port);
 
         httplib::Client client{"127.0.0.1", port};
-        const nlohmann::json body{{"example", ServedFixture::kExample}};
+        const nlohmann::json body{{"example", example()}};
         const auto created = client.Post("/api/runs", body.dump(), "application/json");
         ASSERT_TRUE(created);
         ASSERT_EQ(201, created->status) << created->body;
@@ -722,10 +767,13 @@ TEST(ServerApi, StoppingTheServerDoesNotAbandonARunMidWrite) {
     }
 
     // The run's manifest either exists and is complete JSON, or the run never got that far. What
-    // must not happen is a half-written one.
-    const auto manifest = runs / id / "result_manifest.json";
-    if (std::filesystem::is_regular_file(manifest)) {
-        std::ifstream stream{manifest};
+    // must not happen is a half-written one. The manifest is named after `output.file_name`, which
+    // the configuration decides, so it is found by its suffix rather than by a fixed name.
+    for (const auto &entry : std::filesystem::directory_iterator{runs / id}) {
+        if (!entry.path().filename().string().ends_with("_manifest.json")) {
+            continue;
+        }
+        std::ifstream stream{entry.path()};
         nlohmann::json document;
         ASSERT_NO_THROW(stream >> document) << "the manifest was left half-written";
         EXPECT_TRUE(document.contains("run"));

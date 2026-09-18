@@ -169,6 +169,12 @@ For offline runs there is a synthetic fixture pack:
 Its numbers are invented. It exists so that tests and CI can run without the network, and it must
 never be used for analysis.
 
+`gen-fixtures` writes **two** configurations over that one data store: `model/`, and `model-b/`,
+which differs from it in its file layout, output folder and file name, scenario set, disease set,
+seed, horizon and age range. Every test that runs a configuration runs against both, so a test
+cannot pass by assuming what one of them happens to say
+([ADR 0044](docs/decisions/0044-two-fixture-packs-and-a-parameterised-suite.md)).
+
 ## Validating
 
 ```bash

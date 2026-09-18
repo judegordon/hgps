@@ -26,6 +26,12 @@ inline std::filesystem::path synthetic_model_dir() { return synthetic_pack_dir()
 /// @brief The runnable synthetic config.
 inline std::filesystem::path synthetic_config() { return synthetic_model_dir() / "config.json"; }
 
+/// @brief The second model pack: the same data, arranged so that nothing about the first is safe
+///        to assume (tools/gen-fixtures/model_pack.h). `fixture_packs.h` is how tests reach it.
+inline std::filesystem::path synthetic_variant_model_dir() {
+    return synthetic_pack_dir() / "model-b";
+}
+
 inline std::filesystem::path examples_dir() { return std::filesystem::path{HGPS_EXAMPLES_DIR}; }
 
 inline std::filesystem::path upstream_examples_dir() {

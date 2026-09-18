@@ -38,12 +38,16 @@ add_custom_command(
     COMMENT "Generating the synthetic data pack"
     VERBATIM)
 add_custom_target(hgps_fixtures DEPENDS "${HGPS_FIXTURE_PACK}/data/index.json")
-add_dependencies(hgps_tests hgps_fixtures)
+add_dependencies(hgps_tests hgps_fixtures healthgps)
 
 # Paths the tests need, as compile definitions rather than __FILE__ arithmetic. The baseline
 # derives its FINCH fixture path from __FILE__ and silently skips 35 tests when it does not
 # exist (audit B-11); here the path is supplied by the build and a missing fixture fails.
 target_compile_definitions(hgps_tests PRIVATE
+    # The CLI as a program rather than as a library: tests/app/cli_run_test.cpp runs it in a working
+    # directory of its own, which is the only way to test that a configuration's own output.folder
+    # is honoured.
+    HGPS_CLI_EXECUTABLE="$<TARGET_FILE:healthgps>"
     HGPS_TEST_DATA_DIR="${CMAKE_CURRENT_BINARY_DIR}/fixtures"
     HGPS_FIXTURE_PACK_DIR="${HGPS_FIXTURE_PACK}"
     HGPS_EXAMPLES_DIR="${CMAKE_SOURCE_DIR}/examples"

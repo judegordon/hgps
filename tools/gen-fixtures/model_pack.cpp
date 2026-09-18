@@ -28,11 +28,13 @@ void write(const std::filesystem::path &path, const std::string &contents) {
 double expected_energy(int age) { return 1500.0 + 900.0 * (1.0 - std::exp(-0.09 * age)); }
 double expected_bmi(int age) { return 15.0 + 11.0 * (1.0 - std::exp(-0.07 * age)); }
 
-std::string factors_mean_csv(const FixturePackSpec &spec, bool male) {
+/// The FactorsMean table has to cover the configured age range, which a pack may set above the
+/// data's top age — the loader says so with a located error when it does not.
+std::string factors_mean_csv(bool male, int top_age) {
     const double sex_scale = male ? 1.0 : 0.94;
 
     std::string out = "age,Energy,BMI\n";
-    for (int age = 0; age <= spec.max_age; ++age) {
+    for (int age = 0; age <= top_age; ++age) {
         out += fmt::format("{},{:.6f},{:.6f}\n", age, expected_energy(age) * sex_scale,
                            expected_bmi(age) * sex_scale);
     }
@@ -160,7 +162,103 @@ std::string dynamic_model_json(const FixturePackSpec &spec) {
     return document.dump(2) + "\n";
 }
 
-std::string config_json(const FixturePackSpec &spec) {
+/// @brief What one model pack calls its files, and what its config asks the engine to do.
+///
+/// Two packs are generated from one description so that the differences between them are a list
+/// rather than two copies of a config builder that could drift apart. `model_pack.h` says why the
+/// second pack exists.
+struct PackLayout {
+    std::string static_model;
+    std::string dynamic_model;
+    std::string factors_mean_male;
+    std::string factors_mean_female;
+    std::string dataset;
+    std::string output_folder;
+    std::string output_file_name;
+    unsigned comorbidities;
+    long long seed;
+
+    /// Years after `spec.first_year` that the run starts, and how many years it simulates.
+    int start_offset;
+    int years;
+
+    /// Added to `spec.max_age` to give `inputs.settings.age_range`'s upper bound. A configured
+    /// range wider than the data's is legal — `KevinHall_FINCH` ships one — and a narrower one is
+    /// refused, because the cohort is drawn from the data (src/engine/build_modules.cpp).
+    int top_age_offset;
+
+    double size_fraction;
+    std::vector<std::string> diseases;
+
+    /// The `interventions.active_type_id`; empty for a baseline-only run.
+    std::string active_intervention;
+};
+
+PackLayout primary_layout() {
+    return PackLayout{.static_model = "static_model.json",
+                      .dynamic_model = "dynamic_model.json",
+                      .factors_mean_male = "Synthetic.FactorsMean.Male.csv",
+                      .factors_mean_female = "Synthetic.FactorsMean.Female.csv",
+                      .dataset = "Synthetic.DataFile.csv",
+                      .output_folder = "results",
+                      .output_file_name = "result.csv",
+                      .comorbidities = 2,
+                      .seed = 123456789,
+                      .start_offset = 0,
+                      .years = 5,
+                      .top_age_offset = 0,
+                      .size_fraction = 0.005,
+                      .diseases = {"asthma", "diabetes", "breastcancer"},
+                      .active_intervention = {}};
+}
+
+PackLayout variant_layout() {
+    // Every field here differs from the primary layout, and each difference is something the code
+    // could plausibly have assumed: the model files are not beside the config, the output is not
+    // called result.csv and is not the same name twice, the folder is nested, there are two
+    // scenarios rather than one, and the disease set is neither the whole set nor in the pack's
+    // order.
+    return PackLayout{.static_model = "models/static.json",
+                      .dynamic_model = "models/dynamic.json",
+                      .factors_mean_male = "tables/mean-male.csv",
+                      .factors_mean_female = "tables/mean-female.csv",
+                      .dataset = "tables/survey.csv",
+                      .output_folder = "out/nested/deeper/results",
+                      .output_file_name = "synthland_{TIMESTAMP}_B.csv",
+                      .comorbidities = 1,
+                      .seed = 987654321,
+                      .start_offset = 1,
+                      .years = 6,
+                      .top_age_offset = 5,
+                      .size_fraction = 0.004,
+                      .diseases = {"breastcancer", "asthma"},
+                      .active_intervention = "food_labelling"};
+}
+
+/// @brief The `food_labelling` definition the variant pack activates.
+///
+/// A coverage rate strictly between 0 and 1 and at least three years of policy, because that is
+/// what it takes for deviation B-24 to be reachable at all: somebody has to fail one draw, pass a
+/// later one, and be wrongly offered the impact again in a third.
+json food_labelling_definition(const FixturePackSpec &spec) {
+    return json{
+        {"active_period", json{{"start_time", spec.first_year + 2}, {"finish_time", nullptr}}},
+        {"impact_type", "absolute"},
+        {"coverage_rates", json::array({0.3, 0.6})},
+        {"coverage_cutoff_time", 20},
+        {"child_cutoff_age", 18},
+        {"coefficients", json::array({0.1, 0.11, 0.12, 0.13})},
+        {"adjustments", json::array({json{{"risk_factor", "Energy"}, {"value", 0.25}}})},
+        {"impacts", json::array({json{{"risk_factor", "BMI"},
+                                      {"impact_value", -0.05},
+                                      {"from_age", 5},
+                                      {"to_age", nullptr}}})}};
+}
+
+std::string config_json(const FixturePackSpec &spec, const PackLayout &layout) {
+    const int start_time = spec.first_year + layout.start_offset;
+    const int top_age = spec.max_age + layout.top_age_offset;
+
     json document;
     document["$schema"] = "schemas/v2/config.json";
     document["version"] = 2;
@@ -185,7 +283,7 @@ std::string config_json(const FixturePackSpec &spec) {
     document["data"] = json{{"source", "../data"}};
 
     document["inputs"] =
-        json{{"dataset", json{{"name", "Synthetic.DataFile.csv"},
+        json{{"dataset", json{{"name", layout.dataset},
                               {"format", "csv"},
                               {"delimiter", ","},
                               {"encoding", "ASCII"},
@@ -194,8 +292,8 @@ std::string config_json(const FixturePackSpec &spec) {
                                                {"Energy", "double"},
                                                {"BMI", "double"}}}}},
              {"settings", json{{"country_code", spec.alpha3},
-                               {"size_fraction", 0.005},
-                               {"age_range", json::array({0, spec.max_age})}}}};
+                               {"size_fraction", layout.size_fraction},
+                               {"age_range", json::array({0, top_age})}}}};
 
     document["modelling"] = json{
         {"ses_model",
@@ -206,43 +304,54 @@ std::string config_json(const FixturePackSpec &spec) {
                       json{{"name", "Energy"}, {"level", 1}, {"range", json::array({800, 4000})}},
                       json{{"name", "BMI"}, {"level", 2}, {"range", json::array({12, 45})}}})},
         {"risk_factor_models",
-         json{{"static", "static_model.json"}, {"dynamic", "dynamic_model.json"}}},
+         json{{"static", layout.static_model}, {"dynamic", layout.dynamic_model}}},
         {"baseline_adjustments",
          json{{"format", "csv"},
               {"delimiter", ","},
               {"encoding", "ASCII"},
-              {"file_names", json{{"factorsmean_male", "Synthetic.FactorsMean.Male.csv"},
-                                  {"factorsmean_female", "Synthetic.FactorsMean.Female.csv"}}}}}};
+              {"file_names", json{{"factorsmean_male", layout.factors_mean_male},
+                                  {"factorsmean_female", layout.factors_mean_female}}}}}};
+
+    // The primary pack's `simple` policy, plus — for a pack that activates it — a `food_labelling`
+    // one. Both packs carry every type they define validated, whether or not one is active.
+    json types{{"simple",
+                json{{"active_period",
+                      json{{"start_time", spec.first_year + 2}, {"finish_time", nullptr}}},
+                     {"impact_type", "absolute"},
+                     {"impacts", json::array({json{{"risk_factor", "BMI"},
+                                                   {"impact_value", -1.0},
+                                                   {"from_age", 0},
+                                                   {"to_age", nullptr}}})}}}};
+    if (layout.active_intervention == "food_labelling") {
+        types["food_labelling"] = food_labelling_definition(spec);
+    }
+
+    json active_type_id;
+    if (!layout.active_intervention.empty()) {
+        active_type_id = layout.active_intervention;
+    }
 
     // A short horizon: enough years for the dynamic model and the journal to matter, short
     // enough that a test runs in well under a second.
-    document["running"] = json{
-        {"seed", 123456789},
-        {"start_time", spec.first_year},
-        {"stop_time", spec.first_year + 4},
-        {"trial_runs", 1},
-        {"diseases", json::array({"asthma", "diabetes", "breastcancer"})},
-        {"interventions",
-         json{{"active_type_id", nullptr},
-              {"types",
-               json{{"simple",
-                     json{{"active_period", json{{"start_time", spec.first_year + 2},
-                                                 {"finish_time", nullptr}}},
-                          {"impact_type", "absolute"},
-                          {"impacts", json::array({json{{"risk_factor", "BMI"},
-                                                        {"impact_value", -1.0},
-                                                        {"from_age", 0},
-                                                        {"to_age", nullptr}}})}}}}}}}};
+    document["running"] =
+        json{{"seed", layout.seed},
+             {"start_time", start_time},
+             {"stop_time", start_time + layout.years - 1},
+             {"trial_runs", 1},
+             {"diseases", layout.diseases},
+             {"interventions",
+              json{{"active_type_id", active_type_id}, {"types", std::move(types)}}}};
 
-    document["output"] =
-        json{{"comorbidities", 2}, {"folder", "results"}, {"file_name", "result.csv"}};
+    document["output"] = json{{"comorbidities", layout.comorbidities},
+                              {"folder", layout.output_folder},
+                              {"file_name", layout.output_file_name}};
 
     return document.dump(2) + "\n";
 }
 
-} // namespace
-
-std::size_t write_model_pack(const std::filesystem::path &output, const FixturePackSpec &spec) {
+/// @brief Writes one pack in the layout it describes. The two packs differ only in their layout.
+std::size_t write_pack(const std::filesystem::path &output, const FixturePackSpec &spec,
+                       const PackLayout &layout) {
     std::size_t written = 0;
     const auto emit = [&written, &output](const std::string &relative,
                                           const std::string &contents) {
@@ -250,14 +359,28 @@ std::size_t write_model_pack(const std::filesystem::path &output, const FixtureP
         ++written;
     };
 
-    emit("config.json", config_json(spec));
-    emit("static_model.json", static_model_json(spec));
-    emit("dynamic_model.json", dynamic_model_json(spec));
-    emit("Synthetic.FactorsMean.Male.csv", factors_mean_csv(spec, true));
-    emit("Synthetic.FactorsMean.Female.csv", factors_mean_csv(spec, false));
-    emit("Synthetic.DataFile.csv", dataset_csv(spec));
+    const int top_age = spec.max_age + layout.top_age_offset;
+
+    emit("config.json", config_json(spec, layout));
+    emit(layout.static_model, static_model_json(spec));
+    emit(layout.dynamic_model, dynamic_model_json(spec));
+    emit(layout.factors_mean_male, factors_mean_csv(true, top_age));
+    emit(layout.factors_mean_female, factors_mean_csv(false, top_age));
+    emit(layout.dataset, dataset_csv(spec));
 
     return written;
+}
+
+} // namespace
+
+std::size_t write_model_pack(const std::filesystem::path &output,
+                             const FixturePackSpec &spec) {
+    return write_pack(output, spec, primary_layout());
+}
+
+std::size_t write_variant_model_pack(const std::filesystem::path &output,
+                                     const FixturePackSpec &spec) {
+    return write_pack(output, spec, variant_layout());
 }
 
 } // namespace hgps::tools

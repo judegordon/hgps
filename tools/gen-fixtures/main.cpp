@@ -17,8 +17,9 @@ void print_usage() {
 Usage:
   gen-fixtures --output DIR [--first-year Y] [--last-year Y] [--max-age N]
 
-Writes DIR/data (a data store in the upstream layout) and DIR/model (a runnable config v2 with
-its model definitions, FactorsMean tables and input dataset).
+Writes DIR/data (a data store in the upstream layout) and two runnable configurations over it:
+DIR/model, and DIR/model-b, which differs from it in its file layout, output name, scenario set
+and disease set so that no test can pass by assuming the shape of the first.
 
 Every number written is invented: closed-form functions of age, year and sex, with no random
 component. The output is byte-identical on every run. The pack carries a SYNTHETIC.md saying so.
@@ -79,8 +80,12 @@ int main(int argc, char **argv) {
     try {
         const auto data_files = hgps::tools::write_fixture_pack(output / "data", spec);
         const auto model_files = hgps::tools::write_model_pack(output / "model", spec);
-        std::cout << "gen-fixtures: wrote " << data_files << " data files and " << model_files
-                  << " model files to " << output.string() << '\n';
+        // A second configuration over the same data, arranged so that nothing about the first is
+        // safe to assume. model_pack.h says what it differs in and why.
+        const auto variant_files = hgps::tools::write_variant_model_pack(output / "model-b", spec);
+        std::cout << "gen-fixtures: wrote " << data_files << " data files and "
+                  << model_files + variant_files << " model files in two configurations to "
+                  << output.string() << '\n';
     } catch (const std::exception &error) {
         std::cerr << "gen-fixtures: " << error.what() << '\n';
         return EXIT_FAILURE;

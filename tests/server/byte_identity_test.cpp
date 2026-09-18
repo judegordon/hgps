@@ -13,10 +13,12 @@
 
 #include "hgps/engine.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -45,14 +47,32 @@ std::string first_difference(const std::string &left, const std::string &right) 
                      std::to_string(right.size());
 }
 
+/// @brief The CSV a finished run wrote, by the name the configuration gave it.
+std::filesystem::path result_csv_of(const std::filesystem::path &runs, const std::string &id,
+                                    const nlohmann::json &finished) {
+    for (const auto &name : finished.at("results")) {
+        const auto text = name.get<std::string>();
+        if (text.ends_with(".csv")) {
+            return runs / id / text;
+        }
+    }
+    return {};
+}
+
+/// Both synthetic packs: the second one's output is not called `result.csv` and is not the same
+/// name twice, which is the shape a real configuration has (tests/support/fixture_packs.h).
+class ServerByteIdentity : public hgps::test::ServedPackTest {};
+
+HGPS_TEST_EVERY_FIXTURE_PACK(ServerByteIdentity);
+
 } // namespace
 
-TEST(ServerByteIdentity, ARunStartedOverHttpIsByteIdenticalToTheSameRunInProcess) {
+TEST_P(ServerByteIdentity, ARunStartedOverHttpIsByteIdenticalToTheSameRunInProcess) {
     hgps::test::ServedFixture served{"identity"};
     auto client = served.client();
 
     // Through the server.
-    const nlohmann::json body{{"example", hgps::test::ServedFixture::kExample}};
+    const nlohmann::json body{{"example", example()}};
     const auto created = client.Post("/api/runs", body.dump(), "application/json");
     ASSERT_TRUE(created);
     ASSERT_EQ(201, created->status) << created->body;
@@ -60,13 +80,14 @@ TEST(ServerByteIdentity, ARunStartedOverHttpIsByteIdenticalToTheSameRunInProcess
     const auto finished = served.wait_for_run(id);
     ASSERT_EQ("completed", finished.value("state", std::string{})) << finished.dump(2);
 
-    const auto served_csv = served.runs() / id / "result.csv";
-    ASSERT_TRUE(std::filesystem::is_regular_file(served_csv)) << served_csv;
+    const auto served_csv = result_csv_of(served.runs(), id, finished);
+    ASSERT_TRUE(std::filesystem::is_regular_file(served_csv))
+        << served_csv << ", from " << finished.at("results").dump();
 
     // The same configuration, through the public API — which is exactly what the CLI does, four
     // calls of it, and is why `run_simulation` exists in tests/support (ADR 0032).
-    const auto direct_folder = hgps::test::scratch_dir("identity_direct");
-    const auto config = served.configs() / hgps::test::ServedFixture::kExample / "config.json";
+    const auto direct_folder = pack_scratch("identity_direct");
+    const auto config = served.configs() / example() / "config.json";
     const auto direct = hgps::test::run_simulation(config, direct_folder);
     ASSERT_TRUE(direct.succeeded) << direct.report.to_string();
 
@@ -79,31 +100,36 @@ TEST(ServerByteIdentity, ARunStartedOverHttpIsByteIdenticalToTheSameRunInProcess
         << first_difference(over_http, in_process);
 }
 
-TEST(ServerByteIdentity, TheDownloadedCsvIsTheFileOnDiskAndNotAReEncodingOfIt) {
+TEST_P(ServerByteIdentity, TheDownloadedCsvIsTheFileOnDiskAndNotAReEncodingOfIt) {
     // The download endpoint reads and writes bytes. A transcoding — a newline translation, a
     // trailing byte lost — would make every downloaded result subtly different from the one the
     // engine wrote, and nothing else here would notice.
     hgps::test::ServedFixture served{"identity_download"};
     auto client = served.client();
 
-    const nlohmann::json body{{"example", hgps::test::ServedFixture::kExample}};
+    const nlohmann::json body{{"example", example()}};
     const auto created = client.Post("/api/runs", body.dump(), "application/json");
     ASSERT_EQ(201, created->status) << created->body;
     const auto id = json_body_of(created).at("id").get<std::string>();
-    ASSERT_EQ("completed", served.wait_for_run(id).value("state", std::string{}));
+    const auto finished = served.wait_for_run(id);
+    ASSERT_EQ("completed", finished.value("state", std::string{}));
 
-    const auto downloaded = client.Get("/api/runs/" + id + "/results/result.csv");
+    const auto path = result_csv_of(served.runs(), id, finished);
+    ASSERT_FALSE(path.empty()) << finished.at("results").dump();
+
+    const auto downloaded =
+        client.Get("/api/runs/" + id + "/results/" + path.filename().string());
     ASSERT_TRUE(downloaded);
     ASSERT_EQ(200, downloaded->status);
 
-    const auto on_disk = read_file(served.runs() / id / "result.csv");
+    const auto on_disk = read_file(path);
     ASSERT_FALSE(on_disk.empty());
     EXPECT_EQ(on_disk, downloaded->body)
         << "the download differs from the file; first difference at "
         << first_difference(on_disk, downloaded->body);
 }
 
-TEST(ServerByteIdentity, TwoRunsOverHttpOfTheSameConfigAgreeByteForByte) {
+TEST_P(ServerByteIdentity, TwoRunsOverHttpOfTheSameConfigAgreeByteForByte) {
     // The determinism contract, through the server rather than around it. The engine asserts this
     // of itself; this asserts that the server's per-run output folder, its thread and its
     // subscriber have not introduced a difference.
@@ -112,15 +138,15 @@ TEST(ServerByteIdentity, TwoRunsOverHttpOfTheSameConfigAgreeByteForByte) {
 
     std::vector<std::string> outputs;
     for (int attempt = 0; attempt < 2; ++attempt) {
-        const nlohmann::json body{{"example", hgps::test::ServedFixture::kExample},
+        const nlohmann::json body{{"example", example()},
                                   {"threads", attempt == 0 ? 1 : 4}};
         const auto created = client.Post("/api/runs", body.dump(), "application/json");
         ASSERT_TRUE(created);
         ASSERT_EQ(201, created->status) << created->body;
         const auto id = json_body_of(created).at("id").get<std::string>();
-        ASSERT_EQ("completed", served.wait_for_run(id).value("state", std::string{}))
-            << "attempt " << attempt;
-        outputs.push_back(read_file(served.runs() / id / "result.csv"));
+        const auto finished = served.wait_for_run(id);
+        ASSERT_EQ("completed", finished.value("state", std::string{})) << "attempt " << attempt;
+        outputs.push_back(read_file(result_csv_of(served.runs(), id, finished)));
         ASSERT_FALSE(outputs.back().empty()) << "attempt " << attempt;
     }
 

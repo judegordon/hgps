@@ -7,6 +7,7 @@
 #include "data/store.h"
 
 #include "diagnostics/issue_report.h"
+#include "support/fixture_packs.h"
 #include "support/simulation_harness.h"
 #include "support/test_paths.h"
 
@@ -184,23 +185,33 @@ TEST(PopulationImpactFractionData, AScenarioTheStoreDoesNotHaveIsAnError) {
     EXPECT_TRUE(report.has_errors());
 }
 
-TEST(PopulationImpactFractionRun, ReducesIncidenceInTheInterventionScenarioOnly) {
+namespace {
+
+/// The run-level half goes through both synthetic packs (tests/support/fixture_packs.h); the
+/// store-level tests above read the one data store both packs share.
+class PopulationImpactFractionRun : public hgps::test::FixturePackTest {};
+
+HGPS_TEST_EVERY_FIXTURE_PACK(PopulationImpactFractionRun);
+
+} // namespace
+
+TEST_P(PopulationImpactFractionRun, ReducesIncidenceInTheInterventionScenarioOnly) {
     // The whole mechanism, end to end, through the public API: a run with fractions against the same
     // run without them. The baseline scenario must be untouched — a PIF is a policy, not a correction —
     // and the intervention scenario's incidence must fall.
-    auto without = hgps::test::synthetic_config_document();
+    auto without = hgps::test::config_document(pack());
     without["running"]["interventions"]["active_type_id"] = "simple";
-    const auto plain = hgps::test::write_config_variant("pif_off", without);
+    const auto plain = hgps::test::write_config_variant(pack(), "pif_off", without);
 
     auto with = without;
     with["population_impact_fraction"] = {{"enabled", true},
                                           {"risk_factor", "Smoking"},
                                           {"scenario", "Scenario2"}};
-    const auto policy = hgps::test::write_config_variant("pif_on", with);
+    const auto policy = hgps::test::write_config_variant(pack(), "pif_on", with);
 
-    const auto off = hgps::test::run_simulation(plain, hgps::test::scratch_dir("pif_off_out"));
+    const auto off = hgps::test::run_simulation(plain, pack_scratch("pif_off_out"));
     ASSERT_TRUE(off.succeeded) << off.report.to_string();
-    const auto on = hgps::test::run_simulation(policy, hgps::test::scratch_dir("pif_on_out"));
+    const auto on = hgps::test::run_simulation(policy, pack_scratch("pif_on_out"));
     ASSERT_TRUE(on.succeeded) << on.report.to_string();
 
     const auto before = incidence_totals(off.csv_path);
@@ -232,16 +243,16 @@ TEST(PopulationImpactFractionRun, ReducesIncidenceInTheInterventionScenarioOnly)
         << "incidence should fall on balance: the fractions multiply the probability by (1 - PIF)";
 }
 
-TEST(PopulationImpactFractionRun, IsDeterministic) {
-    auto document = hgps::test::synthetic_config_document();
+TEST_P(PopulationImpactFractionRun, IsDeterministic) {
+    auto document = hgps::test::config_document(pack());
     document["running"]["interventions"]["active_type_id"] = "simple";
     document["population_impact_fraction"] = {{"enabled", true},
                                               {"risk_factor", "Smoking"},
                                               {"scenario", "Scenario1"}};
-    const auto config = hgps::test::write_config_variant("pif_repeat", document);
+    const auto config = hgps::test::write_config_variant(pack(), "pif_repeat", document);
 
-    const auto first = hgps::test::run_simulation(config, hgps::test::scratch_dir("pif_repeat_a"));
-    const auto second = hgps::test::run_simulation(config, hgps::test::scratch_dir("pif_repeat_b"), 4);
+    const auto first = hgps::test::run_simulation(config, pack_scratch("pif_repeat_a"));
+    const auto second = hgps::test::run_simulation(config, pack_scratch("pif_repeat_b"), 4);
     ASSERT_TRUE(first.succeeded) << first.report.to_string();
     ASSERT_TRUE(second.succeeded) << second.report.to_string();
 
@@ -256,15 +267,15 @@ TEST(PopulationImpactFractionRun, IsDeterministic) {
            "count";
 }
 
-TEST(PopulationImpactFractionRun, AMissingRiskFactorStopsTheRunBeforeItStarts) {
-    auto document = hgps::test::synthetic_config_document();
+TEST_P(PopulationImpactFractionRun, AMissingRiskFactorStopsTheRunBeforeItStarts) {
+    auto document = hgps::test::config_document(pack());
     document["running"]["interventions"]["active_type_id"] = "simple";
     document["population_impact_fraction"] = {{"enabled", true},
                                               {"risk_factor", "Joint"},
                                               {"scenario", "Scenario1"}};
-    const auto config = hgps::test::write_config_variant("pif_missing", document);
+    const auto config = hgps::test::write_config_variant(pack(), "pif_missing", document);
 
-    const auto outcome = hgps::test::run_simulation(config, hgps::test::scratch_dir("pif_missing_out"));
+    const auto outcome = hgps::test::run_simulation(config, pack_scratch("pif_missing_out"));
     EXPECT_FALSE(outcome.succeeded);
     EXPECT_TRUE(outcome.report.has_errors()) << outcome.report.to_string();
     EXPECT_EQ(0U, outcome.years_completed);

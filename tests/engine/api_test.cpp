@@ -4,6 +4,7 @@
 // These tests include `hgps/engine.h` and nothing internal, on purpose — they are the closest thing
 // the suite has to a second host, and the only place the published surface is checked for being
 // usable rather than merely compilable.
+#include "support/fixture_packs.h"
 #include "support/simulation_harness.h"
 #include "support/test_paths.h"
 
@@ -29,14 +30,21 @@ hgps::api::LoadOptions into(const std::filesystem::path &folder) {
     return options;
 }
 
+/// Every test that loads or runs a configuration runs against both synthetic packs. The second is
+/// arranged so that nothing about the first is safe to assume — tests/support/fixture_packs.h says
+/// what it differs in and why — so a test that passes on one and not the other is a finding about
+/// the code rather than about the fixture.
+class PublicApi : public hgps::test::FixturePackTest {};
+
+HGPS_TEST_EVERY_FIXTURE_PACK(PublicApi);
+
 } // namespace
 
-TEST(PublicApi, TheFourStepsSucceedOnTheSyntheticExample) {
-    const auto folder = hgps::test::scratch_dir("api_four_steps");
+TEST_P(PublicApi, TheFourStepsSucceedOnTheSyntheticExample) {
+    const auto folder = pack_scratch("api_four_steps");
     hgps::api::Report report;
 
-    auto configuration =
-        hgps::api::load_configuration(hgps::test::synthetic_config(), into(folder), report);
+    auto configuration = hgps::api::load_configuration(pack().config(), into(folder), report);
     ASSERT_TRUE(configuration.has_value()) << report.to_string();
     EXPECT_FALSE(report.has_errors());
 
@@ -56,14 +64,13 @@ TEST(PublicApi, TheFourStepsSucceedOnTheSyntheticExample) {
     EXPECT_TRUE(std::filesystem::is_regular_file(summary.result_json));
 }
 
-TEST(PublicApi, TheConfigurationAnswersWhatACallerNeedsBeforeRunning) {
-    const auto folder = hgps::test::scratch_dir("api_configuration");
+TEST_P(PublicApi, TheConfigurationAnswersWhatACallerNeedsBeforeRunning) {
+    const auto folder = pack_scratch("api_configuration");
     hgps::api::Report report;
-    auto configuration =
-        hgps::api::load_configuration(hgps::test::synthetic_config(), into(folder), report);
+    auto configuration = hgps::api::load_configuration(pack().config(), into(folder), report);
     ASSERT_TRUE(configuration.has_value()) << report.to_string();
 
-    EXPECT_EQ(hgps::test::synthetic_config(), configuration->path());
+    EXPECT_EQ(pack().config(), configuration->path());
     EXPECT_EQ(64U, configuration->sha256().size()) << configuration->sha256();
     EXPECT_NE(0U, configuration->seed());
     EXPECT_LT(configuration->start_time(), configuration->stop_time());
@@ -74,28 +81,25 @@ TEST(PublicApi, TheConfigurationAnswersWhatACallerNeedsBeforeRunning) {
     EXPECT_FALSE(configuration->output_file_name().empty());
 }
 
-TEST(PublicApi, TheConfigurationSha256IsTheFilesBytes) {
-    const auto folder = hgps::test::scratch_dir("api_sha_bytes");
+TEST_P(PublicApi, TheConfigurationSha256IsTheFilesBytes) {
+    const auto folder = pack_scratch("api_sha_bytes");
     hgps::api::Report report;
-    auto configuration =
-        hgps::api::load_configuration(hgps::test::synthetic_config(), into(folder), report);
+    auto configuration = hgps::api::load_configuration(pack().config(), into(folder), report);
     ASSERT_TRUE(configuration.has_value()) << report.to_string();
 
     // Two loads of the same file agree, and that is what a stored equivalence reference and a run
     // manifest are keyed by.
     hgps::api::Report second_report;
-    auto second = hgps::api::load_configuration(hgps::test::synthetic_config(),
-                                                into(hgps::test::scratch_dir("api_sha_bytes_2")),
-                                                second_report);
+    auto second = hgps::api::load_configuration(
+        pack().config(), into(pack_scratch("api_sha_bytes_2")), second_report);
     ASSERT_TRUE(second.has_value());
     EXPECT_EQ(configuration->sha256(), second->sha256());
 }
 
-TEST(PublicApi, TheRunDescriptionMatchesTheConfiguration) {
-    const auto folder = hgps::test::scratch_dir("api_description");
+TEST_P(PublicApi, TheRunDescriptionMatchesTheConfiguration) {
+    const auto folder = pack_scratch("api_description");
     hgps::api::Report report;
-    auto configuration =
-        hgps::api::load_configuration(hgps::test::synthetic_config(), into(folder), report);
+    auto configuration = hgps::api::load_configuration(pack().config(), into(folder), report);
     ASSERT_TRUE(configuration.has_value()) << report.to_string();
     const auto data = hgps::api::resolve_data(*configuration, report);
     ASSERT_TRUE(data.has_value()) << report.to_string();
@@ -121,12 +125,12 @@ TEST(PublicApi, TheRunDescriptionMatchesTheConfiguration) {
               description.scenarios.size());
 }
 
-TEST(PublicApi, AnInterventionAddsASecondAnnouncedScenario) {
-    auto document = hgps::test::synthetic_config_document();
+TEST_P(PublicApi, AnInterventionAddsASecondAnnouncedScenario) {
+    auto document = hgps::test::config_document(pack());
     document["running"]["interventions"]["active_type_id"] = "simple";
-    const auto config = hgps::test::write_config_variant("api_intervention", document);
+    const auto config = hgps::test::write_config_variant(pack(), "api_intervention", document);
 
-    const auto folder = hgps::test::scratch_dir("api_intervention_out");
+    const auto folder = pack_scratch("api_intervention_out");
     hgps::api::Report report;
     auto configuration = hgps::api::load_configuration(config, into(folder), report);
     ASSERT_TRUE(configuration.has_value()) << report.to_string();
@@ -143,8 +147,45 @@ TEST(PublicApi, AnInterventionAddsASecondAnnouncedScenario) {
     EXPECT_EQ("Intervention", run->description().scenarios[1]);
 }
 
-TEST(PublicApi, ABadConfigurationComesBackAsDiagnosticsNotAnException) {
-    const auto missing = hgps::test::scratch_dir("api_missing") / "nope.json";
+TEST_P(PublicApi, AnAgeRangeThePopulationDataDoesNotFitInIsRefusedWithALocation) {
+    // The cohort is drawn from the population data, and several per-age tables are built over the
+    // configured range, so a person the data supplies and the range does not cover indexes a table
+    // with a key it has not got. That used to be `map::at: key not found` with no location, three
+    // calls deep in a disease model; the baseline reaches the same place inside a parallel loop.
+    //
+    // Refused rather than narrowed: making the range mean "simulate only these ages" would change
+    // which ages receive births, deaths and migration, which is a modelling decision.
+    auto document = hgps::test::config_document(pack());
+    const auto top = document["inputs"]["settings"]["age_range"][1].get<int>();
+    document["inputs"]["settings"]["age_range"] = {0, top - 20};
+    const auto config = hgps::test::write_config_variant(pack(), "api_narrow_ages", document);
+
+    hgps::api::Report report;
+    const auto configuration =
+        hgps::api::load_configuration(config, into(pack_scratch("api_narrow_ages_out")), report);
+    ASSERT_TRUE(configuration.has_value()) << report.to_string();
+
+    const auto data = hgps::api::resolve_data(*configuration, report);
+    ASSERT_TRUE(data.has_value()) << report.to_string();
+
+    auto run = hgps::api::build_run(*configuration, *data, report);
+    EXPECT_FALSE(run.has_value()) << "a range the data does not fit in was accepted";
+    ASSERT_TRUE(report.has_errors());
+
+    // Located at the field, and it names both ranges so a reader can see which to change.
+    bool located = false;
+    for (const auto &diagnostic : report.diagnostics()) {
+        if (diagnostic.location.field == "/inputs/settings/age_range") {
+            located = true;
+            EXPECT_NE(std::string::npos, diagnostic.message.find("population data"))
+                << diagnostic.message;
+        }
+    }
+    EXPECT_TRUE(located) << report.to_string();
+}
+
+TEST_P(PublicApi, ABadConfigurationComesBackAsDiagnosticsNotAnException) {
+    const auto missing = pack_scratch("api_missing") / "nope.json";
     hgps::api::Report report;
 
     const auto configuration = hgps::api::load_configuration(missing, hgps::api::LoadOptions{},
@@ -158,11 +199,11 @@ TEST(PublicApi, ABadConfigurationComesBackAsDiagnosticsNotAnException) {
     EXPECT_NE(std::string::npos, report.to_string().find("nope.json"));
 }
 
-TEST(PublicApi, EveryDiagnosticCarriesACodeAndSomewhereToLook) {
-    auto document = hgps::test::synthetic_config_document();
+TEST_P(PublicApi, EveryDiagnosticCarriesACodeAndSomewhereToLook) {
+    auto document = hgps::test::config_document(pack());
     document["running"]["stop_time"] = document["running"]["start_time"];
     document["running"]["turbo"] = true;
-    const auto config = hgps::test::write_config_variant("api_diagnostics", document);
+    const auto config = hgps::test::write_config_variant(pack(), "api_diagnostics", document);
 
     hgps::api::Report report;
     const auto configuration = hgps::api::load_configuration(config, hgps::api::LoadOptions{},
@@ -179,14 +220,13 @@ TEST(PublicApi, EveryDiagnosticCarriesACodeAndSomewhereToLook) {
     EXPECT_TRUE(report.contains("config_unknown_property")) << report.to_string();
 }
 
-TEST(PublicApi, AWarningComesBackAlongsideAUsableConfiguration) {
+TEST_P(PublicApi, AWarningComesBackAlongsideAUsableConfiguration) {
     // The synthetic config's one diagnostic is the documented gender2 default, which is a warning:
     // the load succeeds and the report is not empty, and a caller that only checks the optional
     // never sees it.
-    const auto folder = hgps::test::scratch_dir("api_warning");
+    const auto folder = pack_scratch("api_warning");
     hgps::api::Report report;
-    const auto configuration =
-        hgps::api::load_configuration(hgps::test::synthetic_config(), into(folder), report);
+    const auto configuration = hgps::api::load_configuration(pack().config(), into(folder), report);
 
     ASSERT_TRUE(configuration.has_value()) << report.to_string();
     EXPECT_FALSE(report.has_errors());
@@ -194,37 +234,34 @@ TEST(PublicApi, AWarningComesBackAlongsideAUsableConfiguration) {
     EXPECT_TRUE(report.contains("config_default_applied")) << report.to_string();
 }
 
-TEST(PublicApi, TheTwoOutputFolderOptionsAreNotBothAllowed) {
-    const auto folder = hgps::test::scratch_dir("api_two_folders");
+TEST_P(PublicApi, TheTwoOutputFolderOptionsAreNotBothAllowed) {
+    const auto folder = pack_scratch("api_two_folders");
     hgps::api::LoadOptions options;
     options.output_folder = folder.string();
     options.output_folder_override = folder.string();
 
     hgps::api::Report report;
-    const auto configuration =
-        hgps::api::load_configuration(hgps::test::synthetic_config(), options, report);
+    const auto configuration = hgps::api::load_configuration(pack().config(), options, report);
     EXPECT_FALSE(configuration.has_value());
     EXPECT_NE(std::string::npos, report.to_string().find("one place")) << report.to_string();
 }
 
-TEST(PublicApi, TheCommandLineStyleOverrideStillRefusesADoubledFolder) {
+TEST_P(PublicApi, TheCommandLineStyleOverrideStillRefusesADoubledFolder) {
     // The synthetic config names an output folder of its own, so `--output` is the mistake the
     // loader has always reported. The host override is the one that may replace it.
     hgps::api::LoadOptions options;
-    options.output_folder = hgps::test::scratch_dir("api_cli_folder").string();
+    options.output_folder = pack_scratch("api_cli_folder").string();
 
     hgps::api::Report report;
-    const auto configuration =
-        hgps::api::load_configuration(hgps::test::synthetic_config(), options, report);
+    const auto configuration = hgps::api::load_configuration(pack().config(), options, report);
     EXPECT_FALSE(configuration.has_value());
     EXPECT_NE(std::string::npos, report.to_string().find("command line")) << report.to_string();
 }
 
-TEST(PublicApi, ARunCanBeExecutedWithoutASubscriberOrAToken) {
-    const auto folder = hgps::test::scratch_dir("api_no_subscriber");
+TEST_P(PublicApi, ARunCanBeExecutedWithoutASubscriberOrAToken) {
+    const auto folder = pack_scratch("api_no_subscriber");
     hgps::api::Report report;
-    auto configuration =
-        hgps::api::load_configuration(hgps::test::synthetic_config(), into(folder), report);
+    auto configuration = hgps::api::load_configuration(pack().config(), into(folder), report);
     ASSERT_TRUE(configuration.has_value()) << report.to_string();
     const auto data = hgps::api::resolve_data(*configuration, report);
     ASSERT_TRUE(data.has_value());

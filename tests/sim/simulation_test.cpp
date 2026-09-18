@@ -10,6 +10,7 @@
 
 #include "config/loader.h"
 #include "diagnostics/internal_error.h"
+#include "support/fixture_packs.h"
 #include "support/simulation_harness.h"
 #include "support/test_paths.h"
 
@@ -88,11 +89,36 @@ double total(const std::vector<Row> &rows, const std::string &channel, int time,
     return sum;
 }
 
+/// The simulation is exercised against both synthetic packs, so nothing here may assert a horizon,
+/// a scenario set, a disease list or an age range — every one of those differs between them, and
+/// every one of them was a literal in this file (tests/support/fixture_packs.h).
+class TestSimulation : public hgps::test::FixturePackTest {
+  protected:
+    nlohmann::json document() const { return hgps::test::config_document(pack()); }
+
+    int start_year() const { return document()["running"]["start_time"].get<int>(); }
+    int stop_year() const { return document()["running"]["stop_time"].get<int>(); }
+    int top_age() const { return document()["inputs"]["settings"]["age_range"][1].get<int>(); }
+
+    std::vector<std::string> diseases() const {
+        return document()["running"]["diseases"].get<std::vector<std::string>>();
+    }
+
+    /// @brief The scenarios the pack's own configuration produces, in order.
+    std::vector<std::string> scenarios() const {
+        if (document()["running"]["interventions"]["active_type_id"].is_null()) {
+            return {"Baseline"};
+        }
+        return {"Baseline", "Intervention"};
+    }
+};
+
+HGPS_TEST_EVERY_FIXTURE_PACK(TestSimulation);
+
 } // namespace
 
-TEST(TestSimulation, RunsTheWholeHorizonAndWritesEveryYear) {
-    const auto outcome = hgps::test::run_simulation(hgps::test::synthetic_config(),
-                                                    hgps::test::scratch_dir("sim_horizon"));
+TEST_P(TestSimulation, RunsTheWholeHorizonAndWritesEveryYear) {
+    const auto outcome = hgps::test::run_simulation(pack().config(), pack_scratch("sim_horizon"));
     ASSERT_TRUE(outcome.succeeded) << outcome.report.to_string();
 
     const auto rows = read_rows(outcome.csv_path);
@@ -105,29 +131,36 @@ TEST(TestSimulation, RunsTheWholeHorizonAndWritesEveryYear) {
         sources.insert(row.source);
     }
 
-    // The synthetic config runs 2010–2014 inclusive.
-    EXPECT_EQ(std::set<int>({2010, 2011, 2012, 2013, 2014}), years);
-    EXPECT_EQ(std::set<std::string>({"Baseline"}), sources);
+    // Every year of the pack's own horizon, and every scenario its own configuration produces.
+    std::set<int> expected_years;
+    for (int year = start_year(); year <= stop_year(); ++year) {
+        expected_years.insert(year);
+    }
+    EXPECT_EQ(expected_years, years);
 
-    // Two sexes for every age in the configured range, for every year.
-    EXPECT_EQ(5U * 2U * 50U, rows.size());
+    const auto expected_scenarios = scenarios();
+    EXPECT_EQ(std::set<std::string>(expected_scenarios.begin(), expected_scenarios.end()), sources);
+
+    // Two sexes for every age in the configured range, for every year of every scenario.
+    const auto ages = static_cast<std::size_t>(top_age()) + 1U;
+    EXPECT_EQ(expected_years.size() * expected_scenarios.size() * 2U * ages, rows.size());
 }
 
-TEST(TestSimulation, AChannelExistsOnlyWhenAModelActuallyAssignsIt) {
+TEST_P(TestSimulation, AChannelExistsOnlyWhenAModelActuallyAssignsIt) {
     // project_requirements defaults switch income and physical activity on for every config,
     // including this one, whose HLM models assign neither. Emitting the channels anyway put six
     // columns of zeros in the reference example's output; the baseline instead decides by
     // sampling the first 1,000 people, so its column set depends on the cohort's contents.
     // Neither is right: the channel exists when the project asks for the dimension *and* a
     // loaded model gives it to people.
-    auto document = hgps::test::synthetic_config_document();
-    document["project_requirements"]["income"]["enabled"] = true;
-    document["project_requirements"]["physical_activity"]["enabled"] = true;
+    auto config_doc = document();
+    config_doc["project_requirements"]["income"]["enabled"] = true;
+    config_doc["project_requirements"]["physical_activity"]["enabled"] = true;
     // region and ethnicity are not switched on here: the run refuses them outright without the
     // prevalence data, which is a different rule with its own test.
-    const auto config = hgps::test::write_config_variant("sim_channels_config", document);
+    const auto config = hgps::test::write_config_variant(pack(), "sim_channels_config", config_doc);
 
-    const auto outcome = hgps::test::run_simulation(config, hgps::test::scratch_dir("sim_channels"));
+    const auto outcome = hgps::test::run_simulation(config, pack_scratch("sim_channels"));
     ASSERT_TRUE(outcome.succeeded) << outcome.report.to_string();
 
     std::ifstream stream{outcome.csv_path};
@@ -146,7 +179,7 @@ TEST(TestSimulation, AChannelExistsOnlyWhenAModelActuallyAssignsIt) {
     }
 }
 
-TEST(TestSimulation, AChannelThatIsBothADeclaredFactorAndAMemberIsCountedOnce) {
+TEST_P(TestSimulation, AChannelThatIsBothADeclaredFactorAndAMemberIsCountedOnce) {
     // The generalised form of the baseline's
     // AnalysisModuleDoesNotDoubleCountIncomeFieldsWhenMapped, and the regression test for the bug
     // the equivalence harness found: `gender` is declared as a level-0 risk factor, so it is in
@@ -156,8 +189,8 @@ TEST(TestSimulation, AChannelThatIsBothADeclaredFactorAndAMemberIsCountedOnce) {
     //
     // The property that catches the whole class: for a channel whose value is the same for
     // everyone in a band, the band's mean is that value.
-    const auto outcome = hgps::test::run_simulation(hgps::test::synthetic_config(),
-                                                    hgps::test::scratch_dir("sim_no_double"));
+    const auto outcome =
+        hgps::test::run_simulation(pack().config(), pack_scratch("sim_no_double"));
     ASSERT_TRUE(outcome.succeeded) << outcome.report.to_string();
 
     const auto rows = read_rows(outcome.csv_path);
@@ -183,14 +216,14 @@ TEST(TestSimulation, AChannelThatIsBothADeclaredFactorAndAMemberIsCountedOnce) {
     EXPECT_GT(checked, 100U) << "the fixture should have populated bands to check";
 }
 
-TEST(TestSimulation, RowsAreInSourceRunTimeGenderIndexOrder) {
+TEST_P(TestSimulation, RowsAreInSourceRunTimeGenderIndexOrder) {
     // Determinism clause D10 and ADR 0020: the row order is the output contract, and the
     // baseline's is thread-completion order (audit B-01).
-    auto document = hgps::test::synthetic_config_document();
-    document["running"]["interventions"]["active_type_id"] = "simple";
-    const auto config = hgps::test::write_config_variant("sim_order_config", document);
+    auto config_doc = document();
+    config_doc["running"]["interventions"]["active_type_id"] = "simple";
+    const auto config = hgps::test::write_config_variant(pack(), "sim_order_config", config_doc);
 
-    const auto outcome = hgps::test::run_simulation(config, hgps::test::scratch_dir("sim_order"));
+    const auto outcome = hgps::test::run_simulation(config, pack_scratch("sim_order"));
     ASSERT_TRUE(outcome.succeeded) << outcome.report.to_string();
 
     const auto rows = read_rows(outcome.csv_path);
@@ -225,54 +258,54 @@ TEST(TestSimulation, RowsAreInSourceRunTimeGenderIndexOrder) {
     }
 }
 
-TEST(TestSimulation, ThePopulationAgesAndPeopleDieAndAreBorn) {
-    const auto outcome = hgps::test::run_simulation(hgps::test::synthetic_config(),
-                                                    hgps::test::scratch_dir("sim_lifecycle"));
+TEST_P(TestSimulation, ThePopulationAgesAndPeopleDieAndAreBorn) {
+    const auto outcome =
+        hgps::test::run_simulation(pack().config(), pack_scratch("sim_lifecycle"));
     ASSERT_TRUE(outcome.succeeded) << outcome.report.to_string();
 
     const auto rows = read_rows(outcome.csv_path);
 
     // Nobody dies in the first year: the analysis runs before any year has elapsed.
-    EXPECT_DOUBLE_EQ(0.0, total(rows, "deaths", 2010, "Baseline"));
+    EXPECT_DOUBLE_EQ(0.0, total(rows, "deaths", start_year(), "Baseline"));
 
     // And people do die later.
-    EXPECT_GT(total(rows, "deaths", 2012, "Baseline"), 0.0);
+    EXPECT_GT(total(rows, "deaths", start_year() + 2, "Baseline"), 0.0);
 
     // Newborns appear: the count at age 0 is positive in a later year.
     double newborns = 0.0;
     for (const auto &row : rows) {
-        if (row.time == 2013 && row.index == 0) {
+        if (row.time == start_year() + 3 && row.index == 0) {
             newborns += row.values.at("count");
         }
     }
     EXPECT_GT(newborns, 0.0);
 
     // The cohort does not collapse or explode.
-    const auto first_year = total(rows, "count", 2010, "Baseline");
-    const auto last_year = total(rows, "count", 2014, "Baseline");
+    const auto first_year = total(rows, "count", start_year(), "Baseline");
+    const auto last_year = total(rows, "count", stop_year(), "Baseline");
     EXPECT_GT(last_year, first_year * 0.8);
     EXPECT_LT(last_year, first_year * 1.2);
 }
 
-TEST(TestSimulation, TheImmigrationShortfallIsReported) {
+TEST_P(TestSimulation, TheImmigrationShortfallIsReported) {
     // Deviation B-21. Immigration into an (age, sex) band clones somebody already in it, so an
     // empty band cannot be filled and the cohort falls short of the demographic projection. The
     // baseline does the same and says nothing; here every year's metrics carry the shortfall, so
     // a run reports its own divergence from the projection instead of leaving it to be found by
     // comparison. The synthetic pack's population table stops at the configured top age, so its
     // top band empties every year and the shortfall is reliably non-zero.
-    const auto outcome = hgps::test::run_simulation(hgps::test::synthetic_config(),
-                                                    hgps::test::scratch_dir("sim_shortfall"));
+    const auto outcome =
+        hgps::test::run_simulation(pack().config(), pack_scratch("sim_shortfall"));
     ASSERT_TRUE(outcome.succeeded) << outcome.report.to_string();
 
     std::ifstream stream{outcome.json_path};
-    const auto document = nlohmann::json::parse(stream);
-    ASSERT_TRUE(document.contains("results"));
+    const auto results_json = nlohmann::json::parse(stream);
+    ASSERT_TRUE(results_json.contains("results"));
 
     int years_with_the_metric = 0;
     double worst_shortfall = 0.0;
-    const int first_year = 2010;
-    for (const auto &entry : document["results"]) {
+    const int first_year = start_year();
+    for (const auto &entry : results_json["results"]) {
         if (entry["time"].get<int>() == first_year) {
             // The first year is the initial cohort, reported before any year has elapsed: there
             // is no migration step and so nothing to report about one.
@@ -300,14 +333,15 @@ TEST(TestSimulation, TheImmigrationShortfallIsReported) {
         worst_shortfall = std::max(worst_shortfall, people);
     }
 
-    // The first year has no migration step, so four of the five years report.
-    EXPECT_EQ(4, years_with_the_metric);
+    // The first year of each scenario has no migration step, so every other year reports.
+    const auto reporting_years = stop_year() - start_year();
+    EXPECT_EQ(reporting_years * static_cast<int>(scenarios().size()), years_with_the_metric);
     EXPECT_GT(worst_shortfall, 0.0);
 }
 
-TEST(TestSimulation, RiskFactorsAreCalibratedTowardsTheirExpectedMeans) {
-    const auto outcome = hgps::test::run_simulation(hgps::test::synthetic_config(),
-                                                    hgps::test::scratch_dir("sim_calibration"));
+TEST_P(TestSimulation, RiskFactorsAreCalibratedTowardsTheirExpectedMeans) {
+    const auto outcome =
+        hgps::test::run_simulation(pack().config(), pack_scratch("sim_calibration"));
     ASSERT_TRUE(outcome.succeeded) << outcome.report.to_string();
 
     const auto rows = read_rows(outcome.csv_path);
@@ -316,7 +350,7 @@ TEST(TestSimulation, RiskFactorsAreCalibratedTowardsTheirExpectedMeans) {
     // 15 + 11(1 - exp(-0.07 age)) for BMI, with females at 94% of those. The adjustment shifts
     // the simulated mean onto the expected one, so a mid-range age should land close.
     for (const auto &row : rows) {
-        if (row.time != 2010 || row.index != 30 || row.gender != "male") {
+        if (row.time != start_year() || row.index != 30 || row.gender != "male") {
             continue;
         }
 
@@ -328,18 +362,18 @@ TEST(TestSimulation, RiskFactorsAreCalibratedTowardsTheirExpectedMeans) {
     }
 }
 
-TEST(TestSimulation, DiseasesAppearAndTheBurdenIsReported) {
-    const auto outcome = hgps::test::run_simulation(hgps::test::synthetic_config(),
-                                                    hgps::test::scratch_dir("sim_disease"));
+TEST_P(TestSimulation, DiseasesAppearAndTheBurdenIsReported) {
+    const auto outcome =
+        hgps::test::run_simulation(pack().config(), pack_scratch("sim_disease"));
     ASSERT_TRUE(outcome.succeeded) << outcome.report.to_string();
 
     const auto rows = read_rows(outcome.csv_path);
 
     // Prevalence is a share in [0, 1] per age, and somebody has each disease.
-    for (const auto *disease : {"asthma", "diabetes", "breastcancer"}) {
+    for (const auto &disease : diseases()) {
         double prevalence = 0.0;
         for (const auto &row : rows) {
-            const auto value = row.values.at(std::string{"prevalence_"} + disease);
+            const auto value = row.values.at("prevalence_" + disease);
             EXPECT_GE(value, 0.0) << disease;
             EXPECT_LE(value, 1.0) << disease;
             prevalence += value;
@@ -354,9 +388,9 @@ TEST(TestSimulation, DiseasesAppearAndTheBurdenIsReported) {
     }
 }
 
-TEST(TestSimulation, WeightCategoriesPartitionThePopulation) {
-    const auto outcome = hgps::test::run_simulation(hgps::test::synthetic_config(),
-                                                    hgps::test::scratch_dir("sim_weight"));
+TEST_P(TestSimulation, WeightCategoriesPartitionThePopulation) {
+    const auto outcome =
+        hgps::test::run_simulation(pack().config(), pack_scratch("sim_weight"));
     ASSERT_TRUE(outcome.succeeded) << outcome.report.to_string();
 
     for (const auto &row : read_rows(outcome.csv_path)) {
@@ -475,26 +509,26 @@ TEST(ScenarioTest, OnlyTheImplementedInterventionCanBeBuilt) {
                  hgps::diag::InternalError);
 }
 
-TEST(TestSimulation, AnActiveInterventionLowersTheFactorItTargets) {
-    auto document = hgps::test::synthetic_config_document();
-    document["running"]["interventions"]["active_type_id"] = "simple";
-    const auto config = hgps::test::write_config_variant("sim_effect_config", document);
+TEST_P(TestSimulation, AnActiveInterventionLowersTheFactorItTargets) {
+    auto config_doc = document();
+    config_doc["running"]["interventions"]["active_type_id"] = "simple";
+    const auto config = hgps::test::write_config_variant(pack(), "sim_effect_config", config_doc);
 
-    const auto outcome = hgps::test::run_simulation(config, hgps::test::scratch_dir("sim_effect"));
+    const auto outcome = hgps::test::run_simulation(config, pack_scratch("sim_effect"));
     ASSERT_TRUE(outcome.succeeded) << outcome.report.to_string();
 
     const auto rows = read_rows(outcome.csv_path);
 
-    // The policy starts in 2012 and takes 1.0 off BMI, so the intervention's mean BMI in the
-    // last year must be below the baseline's. Before it starts the two futures are identical,
-    // because they share the run seed and the journal.
-    const auto baseline_before = total(rows, "mean_bmi", 2010, "Baseline");
-    const auto intervention_before = total(rows, "mean_bmi", 2010, "Intervention");
+    // `simple` takes 1.0 off BMI from its own start year onwards, so the intervention's mean BMI
+    // in the last year must be below the baseline's. In the run's first year the two futures are
+    // identical, because they share the run seed and the journal and the policy has not run.
+    const auto baseline_before = total(rows, "mean_bmi", start_year(), "Baseline");
+    const auto intervention_before = total(rows, "mean_bmi", start_year(), "Intervention");
     EXPECT_DOUBLE_EQ(baseline_before, intervention_before)
         << "the two futures must be identical before the policy starts";
 
-    const auto baseline_after = total(rows, "mean_bmi", 2014, "Baseline");
-    const auto intervention_after = total(rows, "mean_bmi", 2014, "Intervention");
+    const auto baseline_after = total(rows, "mean_bmi", stop_year(), "Baseline");
+    const auto intervention_after = total(rows, "mean_bmi", stop_year(), "Intervention");
     EXPECT_LT(intervention_after, baseline_after);
 }
 
@@ -570,13 +604,13 @@ TEST(ScenarioJournalTest, RecordsAndReplaysResidualMortality) {
     EXPECT_FALSE(journal.contains_residual_mortality(1, 2010));
 }
 
-TEST(TestSimulation, MultipleTrialRunsAppearAndDoNotShareSeeds) {
-    auto document = hgps::test::synthetic_config_document();
-    document["running"]["trial_runs"] = 3;
-    document["running"]["stop_time"] = document["running"]["start_time"].get<int>() + 1;
-    const auto config = hgps::test::write_config_variant("sim_runs_config", document);
+TEST_P(TestSimulation, MultipleTrialRunsAppearAndDoNotShareSeeds) {
+    auto config_doc = document();
+    config_doc["running"]["trial_runs"] = 3;
+    config_doc["running"]["stop_time"] = config_doc["running"]["start_time"].get<int>() + 1;
+    const auto config = hgps::test::write_config_variant(pack(), "sim_runs_config", config_doc);
 
-    const auto outcome = hgps::test::run_simulation(config, hgps::test::scratch_dir("sim_runs"));
+    const auto outcome = hgps::test::run_simulation(config, pack_scratch("sim_runs"));
     ASSERT_TRUE(outcome.succeeded) << outcome.report.to_string();
 
     const auto rows = read_rows(outcome.csv_path);
@@ -623,16 +657,16 @@ TEST(TestSimulation, MultipleTrialRunsAppearAndDoNotShareSeeds) {
         << "the calibrated band means should not depend on the seed";
 }
 
-TEST(TestSimulation, ADryRunValidatesWithoutWriting) {
+TEST_P(TestSimulation, ADryRunValidatesWithoutWriting) {
     // What --dry-run does, without the CLI: load everything, report, and produce no files.
     hgps::diag::IssueReport report;
     const auto config =
-        hgps::config::load(hgps::test::synthetic_config(), hgps::config::LoadOptions{}, report);
+        hgps::config::load(pack().config(), hgps::config::LoadOptions{}, report);
 
     ASSERT_TRUE(config.has_value()) << report.to_string();
     EXPECT_FALSE(report.has_errors());
 
-    // The only diagnostic the synthetic config produces is the documented gender2 default.
+    // The only diagnostic either synthetic config produces is the documented gender2 default.
     EXPECT_EQ(1U, report.warning_count()) << report.to_string();
     EXPECT_TRUE(report.contains(hgps::diag::IssueCode::config_default_applied));
 }
