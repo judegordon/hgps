@@ -27,17 +27,33 @@ struct LinearModelParams {
     std::map<core::Identifier, double> coefficients;
     std::map<core::Identifier, double> log_coefficients;
 
-    /// @brief Each coefficient's name resolved to a risk-factor index, in the map's own order.
+    /// @brief What the evaluator needs to know about one coefficient that does not change per
+    ///        person: its risk-factor index, and which of the three name-shaped questions it is.
+    ///
+    /// Every field here was computed from the *string* on every call — a hash probe for the index,
+    /// a prefix test for the age terms, a case-insensitive comparison for `gender2` and another for
+    /// the five metadata rows — once per coefficient per person per year. On `KevinHall_FINCH` that
+    /// was about a third of the profile ([docs/performance.md](../../../docs/performance.md)).
+    struct ResolvedPredictor {
+        /// `factor_index()`'s index for the name, interned rather than looked up: see
+        /// `resolve_predictors`.
+        std::uint32_t index{};
+        /// The power for `age`, `age1`, `age2`, …, or 0 when the name is not an age term. Only
+        /// consulted when the caller capped the age, which it may do per call.
+        int age_power{0};
+        bool gender2{false};
+        /// `Intercept`, `StdDev`, `Min`, `Max`, `Lambda` — rows the model files carry beside the
+        /// real coefficients. Skipped by the plain sum and not by the logged one, as before.
+        bool metadata{false};
+    };
+
+    /// @brief One entry per coefficient, in the map's own order, which is the summation order.
     ///
     /// Empty until `resolve_predictors` is called, and empty is a valid state: the evaluator falls
-    /// back to resolving each name as it goes, which is the same lookup one step later. That is why
-    /// a test can build one of these by hand and evaluate it without ceremony.
-    ///
-    /// Filled, it removes a hash probe and an identifier comparison per coefficient per person per
-    /// year — about a third of the `KevinHall_FINCH` profile
-    /// ([docs/performance.md](../../../docs/performance.md)).
-    std::vector<std::uint32_t> coefficient_indices;
-    std::vector<std::uint32_t> log_coefficient_indices;
+    /// back to asking the name each time, which is the same work one step later. That is why a test
+    /// can build one of these by hand and evaluate it without ceremony.
+    std::vector<ResolvedPredictor> resolved_coefficients;
+    std::vector<ResolvedPredictor> resolved_log_coefficients;
 };
 
 /// @brief Resolves a model's coefficient names to risk-factor indices, once.

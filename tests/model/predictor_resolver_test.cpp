@@ -375,25 +375,46 @@ TEST(LinearModelResolution, ItResolvesOneIndexPerCoefficientInTheMapsOwnOrder) {
     auto model = every_kind_of_predictor();
     hgps::model::resolve_predictors(model);
 
-    ASSERT_EQ(model.coefficients.size(), model.coefficient_indices.size());
-    ASSERT_EQ(model.log_coefficients.size(), model.log_coefficient_indices.size());
+    ASSERT_EQ(model.coefficients.size(), model.resolved_coefficients.size());
+    ASSERT_EQ(model.log_coefficients.size(), model.resolved_log_coefficients.size());
 
     // Positional, because the map's order is the summation order and a second map keyed by name
     // would put back the lookup this removes.
     std::size_t position = 0;
     for (const auto &[name, coefficient] : model.coefficients) {
-        EXPECT_EQ(hgps::model::factor_index().find(name), model.coefficient_indices[position])
+        const auto &resolved = model.resolved_coefficients[position];
+        EXPECT_EQ(hgps::model::factor_index().find(name), resolved.index) << name.to_string();
+        EXPECT_EQ(hgps::model::is_metadata_predictor(name.to_string()), resolved.metadata)
             << name.to_string();
         ++position;
     }
+
+    // And the three name-shaped questions, answered once here instead of per person per year.
+    const auto of = [&model](const char *name) {
+        std::size_t at = 0;
+        for (const auto &[key, coefficient] : model.coefficients) {
+            if (key.to_string() == name) {
+                return model.resolved_coefficients[at];
+            }
+            ++at;
+        }
+        ADD_FAILURE() << name << " is not in the model";
+        return LinearModelParams::ResolvedPredictor{};
+    };
+    EXPECT_EQ(2, of("age2").age_power);
+    EXPECT_TRUE(of("gender2").gender2);
+    EXPECT_TRUE(of("stddev").metadata);
+    EXPECT_EQ(0, of("bmi").age_power);
+    EXPECT_FALSE(of("bmi").gender2);
+    EXPECT_FALSE(of("bmi").metadata);
 }
 
 TEST(LinearModelResolution, ItIsIdempotentAndSurvivesTheCoefficientsChanging) {
     auto model = every_kind_of_predictor();
     hgps::model::resolve_predictors(model);
-    const auto first = model.coefficient_indices;
+    const auto first = model.resolved_coefficients.front().index;
     hgps::model::resolve_predictors(model);
-    EXPECT_EQ(first, model.coefficient_indices);
+    EXPECT_EQ(first, model.resolved_coefficients.front().index);
 
     // A coefficient added afterwards leaves the vector the wrong length, and the evaluator falls
     // back to resolving names rather than trusting indices that are not this model's. Adding one
@@ -401,7 +422,7 @@ TEST(LinearModelResolution, ItIsIdempotentAndSurvivesTheCoefficientsChanging) {
     const auto person = a_person();
     const auto before = hgps::model::evaluate_linear_model(person, model);
     model.coefficients[Identifier{"age"}] = 1.0;
-    EXPECT_NE(model.coefficients.size(), model.coefficient_indices.size());
+    EXPECT_NE(model.coefficients.size(), model.resolved_coefficients.size());
     EXPECT_DOUBLE_EQ(before + 41.0, hgps::model::evaluate_linear_model(person, model));
 }
 
@@ -436,7 +457,8 @@ TEST(LinearModelResolution, ResolvingBeforeTheDerivedNamesExistWouldBeTheOldDefe
     model.coefficients[Identifier{"age"}] = 1.0;
     hgps::model::resolve_predictors(model);
 
-    ASSERT_EQ(1U, model.coefficient_indices.size());
-    EXPECT_EQ(hgps::model::factor_index().find(Identifier{"age"}), model.coefficient_indices[0]);
-    EXPECT_NE(hgps::model::FactorIndex::unknown, model.coefficient_indices[0]);
+    ASSERT_EQ(1U, model.resolved_coefficients.size());
+    EXPECT_EQ(hgps::model::factor_index().find(Identifier{"age"}),
+              model.resolved_coefficients[0].index);
+    EXPECT_NE(hgps::model::FactorIndex::unknown, model.resolved_coefficients[0].index);
 }

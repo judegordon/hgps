@@ -39,32 +39,38 @@ int age_power(const std::string &key) {
     return power == 0 ? 1 : power;
 }
 
-/// The index a caller passes when it has not resolved the name: "look it up yourself".
-constexpr std::uint32_t kUnresolved = 0xFFFFFFFEU;
+/// One name's answers to the three questions the evaluator asks of it, computed from the string.
+///
+/// This is what `resolve_predictors` stores, and what an unresolved model computes per call.
+LinearModelParams::ResolvedPredictor describe(const core::Identifier &name) {
+    const auto &key = name.to_string();
+    LinearModelParams::ResolvedPredictor resolved;
+    resolved.index = factor_index().intern(name);
+    resolved.age_power = is_age_predictor(key) ? age_power(key) : 0;
+    resolved.gender2 = is_gender2_predictor(key);
+    resolved.metadata = is_metadata_predictor(key);
+    return resolved;
+}
 
 /// The value of a predictor, or nullopt — the non-throwing core of get_linear_predictor_value.
 ///
-/// `index` is the name's risk-factor index when the model has been through `resolve_predictors`,
-/// and `kUnresolved` when it has not. The only thing it changes is whether the hash probe happens
-/// here or one call down; nothing else in this function depends on it.
+/// Everything it needs about the *name* arrives in `resolved`, so nothing here reads a string
+/// unless the fallback path does. `options.capped_age` is still consulted per call, because the
+/// caller may cap the age for one model and not another.
 std::optional<double> try_predictor_value(const Person &person, const core::Identifier &name,
-                                          std::uint32_t index,
+                                          const LinearModelParams::ResolvedPredictor &resolved,
                                           const LinearModelEvalOptions &options) {
-    const auto &key = name.to_string();
-
-    if (options.capped_age.has_value() && is_age_predictor(key)) {
-        return std::pow(*options.capped_age, age_power(key));
+    if (options.capped_age.has_value() && resolved.age_power != 0) {
+        return std::pow(*options.capped_age, resolved.age_power);
     }
 
-    if (is_gender2_predictor(key)) {
+    if (resolved.gender2) {
         // No indicator configured means the male default, as upstream.
         return gender2_regression_value(person, options.gender2_indicator.value_or(
                                                     core::Gender::male));
     }
 
-    const auto stored = index == kUnresolved ? person.try_risk_factor_value(name)
-                                             : person.try_risk_factor_value(index, name);
-    if (stored) {
+    if (const auto stored = person.try_risk_factor_value(resolved.index, name)) {
         return stored;
     }
 
@@ -77,13 +83,13 @@ std::optional<double> try_predictor_value(const Person &person, const core::Iden
     return std::nullopt;
 }
 
-/// The index for the term at `position`, or `kUnresolved` when the model was never resolved.
-std::uint32_t index_at(const std::vector<std::uint32_t> &indices, std::size_t position,
-                       std::size_t expected) {
-    // A size mismatch means the coefficients changed after `resolve_predictors` ran, so the stored
-    // indices are not this model's any more. Falling back rather than trusting them is the only
-    // safe reading, and it is the same lookup one step later.
-    return indices.size() == expected ? indices[position] : kUnresolved;
+/// The stored description for the term at `position`, or a fresh one when the model was never
+/// resolved — or was resolved and then had its coefficients changed, which a size mismatch says.
+/// Falling back is the only safe reading, and it is the same work one step later.
+LinearModelParams::ResolvedPredictor
+describe_at(const std::vector<LinearModelParams::ResolvedPredictor> &resolved,
+            std::size_t position, std::size_t expected, const core::Identifier &name) {
+    return resolved.size() == expected ? resolved[position] : describe(name);
 }
 
 } // namespace
@@ -110,21 +116,21 @@ void resolve_predictors(LinearModelParams &model) {
     // .ItIsIdempotentAndSurvivesTheCoefficientsChanging` is what found it, by resolving a model
     // before building the person it is evaluated against.
     const auto resolve = [](const std::map<core::Identifier, double> &coefficients) {
-        std::vector<std::uint32_t> indices;
-        indices.reserve(coefficients.size());
+        std::vector<LinearModelParams::ResolvedPredictor> resolved;
+        resolved.reserve(coefficients.size());
         for (const auto &[name, _] : coefficients) {
-            indices.push_back(factor_index().intern(name));
+            resolved.push_back(describe(name));
         }
-        return indices;
+        return resolved;
     };
 
-    model.coefficient_indices = resolve(model.coefficients);
-    model.log_coefficient_indices = resolve(model.log_coefficients);
+    model.resolved_coefficients = resolve(model.coefficients);
+    model.resolved_log_coefficients = resolve(model.log_coefficients);
 }
 
 double get_linear_predictor_value(const Person &person, const core::Identifier &name,
                                   const LinearModelEvalOptions &options) {
-    if (const auto value = try_predictor_value(person, name, kUnresolved, options)) {
+    if (const auto value = try_predictor_value(person, name, describe(name), options)) {
         return *value;
     }
 
@@ -146,12 +152,13 @@ double evaluate_linear_model(const Person &person, const LinearModelParams &mode
     // back.
     std::size_t position = 0;
     for (const auto &[name, coefficient] : model.coefficients) {
-        const auto index = index_at(model.coefficient_indices, position, model.coefficients.size());
+        const auto resolved = describe_at(model.resolved_coefficients, position,
+                                          model.coefficients.size(), name);
         ++position;
-        if (is_metadata_predictor(name)) {
+        if (resolved.metadata) {
             continue;
         }
-        const auto value = try_predictor_value(person, name, index, options);
+        const auto value = try_predictor_value(person, name, resolved, options);
         if (!value.has_value()) {
             // Every coefficient name is checked against the registered factor set when its model
             // file is loaded (ADR 0018), so an unresolvable name here is a bug, not a user mistake.
@@ -165,10 +172,10 @@ double evaluate_linear_model(const Person &person, const LinearModelParams &mode
 
     position = 0;
     for (const auto &[name, coefficient] : model.log_coefficients) {
-        const auto index =
-            index_at(model.log_coefficient_indices, position, model.log_coefficients.size());
+        const auto resolved = describe_at(model.resolved_log_coefficients, position,
+                                          model.log_coefficients.size(), name);
         ++position;
-        const auto value = try_predictor_value(person, name, index, options);
+        const auto value = try_predictor_value(person, name, resolved, options);
         if (!value.has_value()) {
             throw diag::InternalError(
                 fmt::format("linear model log predictor '{}' does not resolve for this person",
