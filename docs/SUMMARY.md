@@ -237,7 +237,14 @@ server would not be a host of this engine but a fork of it.
    wrongly offered it again in. The test was wrong about the fixture, not the code — and a test that
    had passed for the wrong reason would have been worse than a failing one.
 
-8. **Having a second implementor changed what the API's gaps mean.** Two of the seven
+8. **`scripts/dev.sh` exited immediately, and then leaked vite.** `wait -n` is bash 4.3 and up and
+   macOS ships bash 3.2, so the script started both processes and killed them through its own trap a
+   second later. With that fixed, its trap killed the subshell running `npm run dev` rather than
+   vite, which npm spawns as a child — so vite survived holding port 5173, which is exactly the
+   stray process the trap exists to prevent. Both found by running it, neither by reading it, and
+   the script had been committed in between.
+
+9. **Having a second implementor changed what the API's gaps mean.** Two of the seven
    [docs/api.md](api.md) lists are now *felt* rather than predicted: the summary endpoint parses a
    CSV the engine wrote seconds earlier in the same process, and cancel is a `202` plus an event.
    Neither is closed, deliberately — the cost is concrete now, which is a better basis for the design
@@ -248,10 +255,11 @@ server would not be a host of this engine but a fork of it.
 - **The frontend has no end-to-end test.** Its unit tests cover the four places a mistake is silent,
   and its correctness rests on the server's byte-identity test. Three defects were found by a person
   opening it in a browser, three more — lifetime and concurrency faults in the server — by reading
-  the code back afterwards, and one more by pointing the server at the real examples instead of the
-  synthetic fixture. **Seven defects, none found by a test.** The tests that now cover them were
-  written afterwards, and the last one is the most uncomfortable: 44 passing server tests all used a
-  fixture whose output happens to be named the one way the code assumed.
+  the code back afterwards, one by pointing the server at the real examples instead of the synthetic
+  fixture, and two in `scripts/dev.sh` by running it. **Nine defects in this run's new code, none of
+  them found by a test.** The tests that now cover them were written afterwards, and two are worth
+  naming: 45 passing server tests all used a fixture whose output happens to be named the one way
+  the code assumed, and `dev.sh` was committed as working on the strength of having been read.
 - **India was compared at a hundredth of its cohort**, 12,406 people rather than 1,240,613. Nothing
   in the India result is evidence about the example as shipped.
 - **Population impact fraction has never met the baseline.** Only the synthetic pack exercises it end
