@@ -39,13 +39,23 @@ int age_power(const std::string &key) {
     return power == 0 ? 1 : power;
 }
 
-/// One name's answers to the three questions the evaluator asks of it, computed from the string.
+/// One name's answers to the questions the evaluator asks of it, computed from the string.
 ///
-/// This is what `resolve_predictors` stores, and what an unresolved model computes per call.
-LinearModelParams::ResolvedPredictor describe(const core::Identifier &name) {
+/// `assign_index` is the difference between the two callers, and it is not a detail.
+/// `resolve_predictors` runs while the model is being loaded, before any person exists, so a name
+/// it uses has often been interned by nothing — and `find` would answer `unknown`, which means
+/// "only the string resolver can answer this" and would be frozen in for the life of the model. So
+/// it **interns**.
+///
+/// The per-call fallback must not. Interning writes to a process-wide table, and a model that has
+/// not been resolved is evaluated by whoever built it — today only tests, and nothing in a parallel
+/// region, but a write on a read path is the shape of a race waiting for a caller. It **finds**,
+/// which is exactly what `Person::try_risk_factor_value(name)` did before any of this, including
+/// how it treats `unknown`.
+LinearModelParams::ResolvedPredictor describe(const core::Identifier &name, bool assign_index) {
     const auto &key = name.to_string();
     LinearModelParams::ResolvedPredictor resolved;
-    resolved.index = factor_index().intern(name);
+    resolved.index = assign_index ? factor_index().intern(name) : factor_index().find(name);
     resolved.age_power = is_age_predictor(key) ? age_power(key) : 0;
     resolved.gender2 = is_gender2_predictor(key);
     resolved.metadata = is_metadata_predictor(key);
@@ -89,7 +99,7 @@ std::optional<double> try_predictor_value(const Person &person, const core::Iden
 LinearModelParams::ResolvedPredictor
 describe_at(const std::vector<LinearModelParams::ResolvedPredictor> &resolved,
             std::size_t position, std::size_t expected, const core::Identifier &name) {
-    return resolved.size() == expected ? resolved[position] : describe(name);
+    return resolved.size() == expected ? resolved[position] : describe(name, false);
 }
 
 } // namespace
@@ -119,7 +129,7 @@ void resolve_predictors(LinearModelParams &model) {
         std::vector<LinearModelParams::ResolvedPredictor> resolved;
         resolved.reserve(coefficients.size());
         for (const auto &[name, _] : coefficients) {
-            resolved.push_back(describe(name));
+            resolved.push_back(describe(name, true));
         }
         return resolved;
     };
@@ -130,7 +140,7 @@ void resolve_predictors(LinearModelParams &model) {
 
 double get_linear_predictor_value(const Person &person, const core::Identifier &name,
                                   const LinearModelEvalOptions &options) {
-    if (const auto value = try_predictor_value(person, name, describe(name), options)) {
+    if (const auto value = try_predictor_value(person, name, describe(name, false), options)) {
         return *value;
     }
 

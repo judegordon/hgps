@@ -123,9 +123,9 @@ class Person {
     /// hands it in instead. `key` is still needed, because a name the index table has never seen
     /// can only be answered by the derived-predictor resolver, which works from the string.
     ///
-    /// **`index` must be `factor_index().find(key)`**, taken after `indexed_dispatcher()` has been
-    /// built. Anything else makes this a different function from the one above; see
-    /// `model::resolve_predictors`, which is the only thing that should be producing one.
+    /// **`index` must be `factor_index().find(key)` or `intern(key)`**, taken after
+    /// `intern_derived_predictors()` has run. Anything else makes this a different function from
+    /// the one above; `model::resolve_predictors` is what should be producing one.
     std::optional<double> try_risk_factor_value(std::uint32_t index,
                                                 const core::Identifier &key) const;
 
