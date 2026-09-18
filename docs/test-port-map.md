@@ -137,11 +137,14 @@ the CLI's argument parser, the index-keyed factor store and the two branches of 
 the perturbation knob and the population impact fraction tables. None of those has a baseline
 counterpart, because none of those things exists there.
 
-Outside both tables, and outside the C++ suite: `tests/equivalence/run_test.py` holds **30 tests
+Outside both tables, and outside the C++ suite: `tests/equivalence/run_test.py` holds **39 tests
 for the equivalence harness itself**, which CTest runs as the single entry `EquivalenceHarness.Rules`;
 `self_check.py` is two more CTest entries that run the harness against this build twice over. The
-baseline has no counterpart because it has no harness. Four of the 30 are new this run and pin that a
-staged working directory cannot write back into the example it was staged from
+baseline has no counterpart because it has no harness. Nine of the 39 are new this run: six pin the
+deviation-impact measurement ([ADR 0041](decisions/0041-deliberate-deviations-are-switchable.md))
+and three pin the `std_income` exclusion's two halves, the second of which the rule had never
+checked. Four more, from the previous run, pin that a staged working directory cannot write back
+into the example it was staged from
 ([ADR 0039](decisions/0039-scratch-directories-copy-what-they-may-write.md)); each of them fails
 against the behaviour it replaced.
 
