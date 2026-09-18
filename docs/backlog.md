@@ -31,9 +31,9 @@ at the top any more, which is the first time that has been true.
 
 ### 1. Interventions on the Kevin Hall model surface — `needs-ruling`
 
-**Value: high. Effort: none here, and that is the point.** It was item 8; it is first now because
-everything above it is done and because it is the largest thing this build refuses that a user could
-reasonably want.
+**Value: high. Effort: none here, and that is the point.** It was item 8 in the previous run's
+ranking; it is first now because everything above it is done, and because it is the largest thing
+this build refuses that a user could reasonably want.
 
 An intervention selected on the `StaticLinear`/`KevinHall` surface has **no effect at all** in the
 baseline, and the run reports success: `Scenario::apply` has exactly one call site in the whole
@@ -120,10 +120,10 @@ specific rather than hypothetical: the emptying-band exclusion is **1,641 bands 
 against 785 on `HLM_France`, and at 1.24 million almost none of those bands would empty at all — so
 the full-scale comparison would exclude far less and test more; and a rare disease that gives 0, 1 or
 2 cases at this cohort size gives hundreds at the shipped one, which moves several of the comparisons
-off the lattice that item 10 is about.
+off the lattice that item 11 is about.
 
 So this is worth doing once, on a machine that can be left alone for a few days, and the stored
-reference would be large — which is item 10.
+reference would be large — which is item 8.
 
 ### 6. A second country for the FINCH surface — `validation`, and it needs upstream
 
@@ -185,7 +185,24 @@ Still only worth doing if someone needs it.
 
 ## Smaller things
 
-### 10. The lattice detector should classify on the numerator — `validation`
+### 10. Make the GCC entries required — `platform`
+
+**Value: medium. Effort: one line, now.** The two GCC entries in the CI matrix carry
+`experimental: true`, which makes them `continue-on-error`. That flag was put there because nothing
+knew what GCC would say about a warning set — `-Werror` with `-Wconversion`, `-Wsign-conversion`,
+`-Wold-style-cast` and `-Wdouble-promotion` — that only clang had ever seen, and a red tick in a
+commit that cannot act on it is a red tick nobody reads.
+
+**Now something knows: GCC is green**, on both presets, after the four build defects CI found were
+fixed ([docs/build-notes.md](build-notes.md)). So the flag has done its job and its reason has
+expired. Deleting it makes a GCC regression fail the build instead of being reported quietly, which
+is the whole point of having the entries.
+
+The only argument for keeping it is that GCC has been green for exactly one run. That is an argument
+for doing this at the start of the next run rather than at the end of this one, not for leaving it
+indefinitely.
+
+### 11. The lattice detector should classify on the numerator — `validation`
 
 **Value: medium-high. Effort: low-medium, and the measurement is already taken.** The equivalence
 harness compares a quantile of a **lattice-valued** series with an exact test of the counts rather
@@ -213,7 +230,7 @@ excludes is not evidence, which is the same rule this project applied to the one
 residual ([docs/equivalence.md](equivalence.md), "The threshold was not changed"). The detector
 either measures the right quantity or it does not.
 
-### 11. A schema for the model definition files — `docs`
+### 12. A schema for the model definition files — `docs`
 
 **Value: medium. Effort: low.** `schemas/v2/` covers the config. The static and dynamic model
 files have no published schema, which is why their member names were wrong for a week in the
@@ -222,14 +239,14 @@ and its R row-index columns. The shapes are documented only in `src/config/model
 the three loader test files. Write them, and extend `schema_agreement_test.cpp` to cover them the
 way it covers the config.
 
-### 12. Sector, and `demographic_models` — `scope`
+### 13. Sector, and `demographic_models` — `scope`
 
 **Value: low. Effort: low.** `person.sector` (urban/rural) is assigned nowhere; the channel
 appears if the mapping declares the factor. `modelling.demographic_models` is carried through as
 opaque JSON, deliberately — its shape belongs to the model family that reads it — and no model
 family reads it yet.
 
-### 13. The fixture pack's top-age artefact — `validation`
+### 14. The fixture pack's top-age artefact — `validation`
 
 **Value: low. Effort: low.** The synthetic pack's population table stops at the same age as the
 config's `age_range`, so anyone reaching the top age leaves the cohort and the pack's simulated
@@ -237,7 +254,7 @@ death rate runs above what its mortality table implies. Recorded in the pack's o
 Extending the pack's age range by a few years above the configured one would remove the artefact;
 nothing depends on it, because no test reads the pack's death rates as a check on anything.
 
-### 14. Report four things upstream — `docs`
+### 15. Report four things upstream — `docs`
 
 **Value: low here, high upstream. Effort: low.** Four findings belong to the people who own the
 data and the baseline, and telling them is not done:

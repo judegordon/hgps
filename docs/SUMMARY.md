@@ -292,9 +292,9 @@ If that answer is not available, the next run is **item 2**, resolving names to 
 site — about 31% of the FINCH profile, and the largest remaining performance item, with the check
 that matters already established: byte-for-byte comparison of the result files before and after.
 
-Two smaller things are nearly free and would remove hedges from this document: **remove
-`experimental: true` from the GCC matrix entries**, which is now a one-line change rather than an
-unknown, and **fix the lattice detector** to classify on the numerator (item 10), which would either
-explain or remove the six India residuals the previous run recorded.
+Two smaller things are nearly free and would remove hedges from this document: **make the GCC
+entries required** by deleting `experimental: true` (item 10), which is now a one-line change rather
+than an unknown, and **fix the lattice detector** to classify on the numerator (item 11), which
+would either explain or remove the six India residuals the previous run recorded.
 
 [docs/backlog.md](backlog.md) has the rest, ranked, with what each costs.
