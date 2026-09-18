@@ -7,7 +7,7 @@ intervention scenario. Both run both scenarios, one trial run, seed 1, on:
 
 | | |
 |---|---|
-| Host | Apple M5, 10 cores, 16 GB, macOS 26.6.2 |
+| Host | Apple M5, 10 cores, 16 GB, macOS 26.6.2 — every figure here but the Linux ones below |
 | Compiler | Apple clang 21.0.0, `-O3`, `-ffp-contract=off` |
 | Baseline | `/tmp/hgps-build/baseline-release`, built as [docs/build-notes.md](build-notes.md) records |
 | This build | `out/build/release`, `--threads 1` |
@@ -163,6 +163,35 @@ run was byte-identical with the defect present, because something else happened 
 every name that run uses before the models were built. What found it was a unit test that resolves a
 model before building the person it is evaluated against: it failed in release and passed in debug,
 because a different test had interned the name first.
+
+### Linux, for the first time
+
+Every other number in this document is macOS and Apple clang, on one laptop, and that has been under
+*what a reader should be sceptical about* since the document existed. A CI job now runs
+`scripts/measure.sh` — the same script a person runs — on the Linux runner and uploads its JSON.
+Three runs of each example, clang, release, `ubuntu-latest`:
+
+| | Wall, best of 3 | Median | CPU, best | Peak memory |
+|---|---:|---:|---:|---:|
+| `HLM_France` | 3.03 s | 3.06 s | 3.02 s | **30.1 MiB** |
+| `KevinHall_FINCH` | 12.44 s | 12.48 s | 12.43 s | **64.9 MiB** |
+
+**Read these as indicative only.** A GitHub-hosted runner is a shared virtual machine with
+neighbours, and this document already records a 20% measurement error from Spotlight indexing on a
+machine nobody else was using. Nothing in the job compares against a stored number or can fail the
+build, because a regression test on these would fail on the weather.
+
+Two things in them are worth having anyway, and both survive the noise.
+
+**The ratio between the two examples does.** FINCH is 4.11× France on the Linux runner and 3.95× on
+the laptop — the same shape of workload, measured twice on machines that differ by a factor of two
+and a half in absolute speed. That is the thing a single job can say.
+
+**And the memory is lower on Linux than on macOS**, by 29% on France (30.1 against 42.7 MiB) and 17%
+on FINCH (64.9 against 78 MiB). The same binary, the same inputs, the same allocations: what differs
+is glibc's allocator against libmalloc and how each returns pages. It is not a property of this code
+and it is not worth chasing; it is worth knowing before anybody quotes one of these figures as *the*
+memory this program uses.
 
 ### Loading
 
