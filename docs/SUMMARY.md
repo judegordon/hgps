@@ -64,8 +64,9 @@ For comparison, the baseline is 41,400 lines of C++ for the whole model surface.
 ## What the validation actually shows
 
 **Component level.** 554 tests, of which 229 are in files the baseline has no counterpart for. The
-strongest are the ones that carry the baseline's expected numbers over unchanged and still pass: the univariate-summary moment
-recurrence, the SHA-256 digests, the weight-model LMS classification, and
+strongest are the ones that carry the baseline's expected numbers over unchanged and still pass:
+the univariate-summary moment recurrence, the SHA-256 digests, the weight-model LMS classification,
+and
 `TestRelativeRiskLookup.ReferenceDataLookup`, 44 expected relative risks interpolated from a real
 7×5 table.
 
@@ -76,8 +77,11 @@ data repository (audit B-11). Running them for the first time is how four of thi
 were found.
 
 **End to end.** Two examples, two model families, six intervention scenarios, 20 seeds each and 60
-for the two primary runs. Every comparison within tolerance, and the worst numeric one uses 96% of
-its allowance while the great majority sit far below — which matters, because a set of comparisons
+for the two primary runs — 347,768 comparisons. The two primary runs are at zero out of tolerance
+at both seed counts; across the whole sweep one comparison exceeds its allowance, by 1.6%, and
+[docs/equivalence.md](equivalence.md) sets out why the evidence makes that the test's expected tail
+rather than a difference in the code. The next-highest excursion anywhere is 0.963× of its
+allowance and the great majority sit far below — which matters, because a set of comparisons
 clustered at 0.99× would mean the thresholds were doing the work rather than the code.
 
 One qualification the comparison itself uncovered, and it narrows what the intervention runs show:
@@ -176,10 +180,9 @@ the whole FINCH surface cost an example that uses none of it nothing measurable.
   `KevinHall_FINCH` for the FINCH one. `HLM_India` runs here — 42 minutes for its 1.2 million
   people — but is not compared against the baseline, which was this run's scope ruling, and the
   baseline has not been run on it at all. `KevinHall_India` — the obvious second FINCH-surface
-  country —
-  **cannot be compared at all**: both implementations stop in its first simulated year, because its
-  configured lower bound on `Weight` is above what its own weight quantile curve produces for the
-  lightest newborns. [docs/examples.md](examples.md) has both implementations' messages side by
+  country — **cannot be compared at all**: both implementations stop in its first simulated year,
+  because its configured lower bound on `Weight` is above what its own weight quantile curve
+  produces for the lightest newborns. [docs/examples.md](examples.md) has both implementations' messages side by
   side. So the FINCH evidence is one data pack, and making it two needs a pack that works.
 - **The comparison's floor.** The baseline writes six significant digits, so no comparison can be
   tighter than about 10⁻⁵ relative. Several of these models' aggregates are nearly deterministic,
