@@ -376,13 +376,20 @@ Runner::Outcome Runner::run(Engine &baseline, Engine &intervention, unsigned int
         const auto baseline_results = baseline.run(run, run_seed, journal_, hooks);
         notify_scenario_completed(hooks, baseline, run, scenario_start, baseline_results.size());
 
-        // The intervention replays the baseline's journal year by year, so it cannot outrun it: a
-        // cancellation that stopped the baseline short stops the intervention at the same year,
-        // and the pair stays comparable.
-        scenario_start = Clock::now();
-        const auto intervention_results = intervention.run(run, run_seed, journal_, hooks);
-        notify_scenario_completed(hooks, intervention, run, scenario_start,
-                                  intervention_results.size());
+        // The intervention replays the baseline's journal year by year, so it cannot outrun it.
+        // But it is only *started* when the run has not been cancelled, and that is load-bearing
+        // rather than an optimisation: a scenario's first simulated year happens before its year
+        // loop reaches a cancellation check, so starting the intervention after the baseline had
+        // stopped short produced a result file whose two futures covered different horizons — one
+        // stopping in the year the cancel arrived and the other in the run's first year. A pair
+        // that is not comparable is the one thing this pairing exists to prevent.
+        std::vector<ResultRow> intervention_results;
+        if (hooks == nullptr || !hooks->is_cancelled()) {
+            scenario_start = Clock::now();
+            intervention_results = intervention.run(run, run_seed, journal_, hooks);
+            notify_scenario_completed(hooks, intervention, run, scenario_start,
+                                      intervention_results.size());
+        }
 
         // Scenario order, then year order — the output's row order (ADR 0020).
         for (const auto &row : baseline_results) {
