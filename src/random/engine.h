@@ -23,13 +23,19 @@ class MtEngine final {
     explicit MtEngine(std::uint32_t seed) : engine_{seed} {}
 
     /// @brief The next raw 32-bit draw.
-    result_type next() { return engine_(); }
+    ///
+    /// std::mt19937::result_type is std::uint_fast32_t, which libc++ makes 32 bits wide and
+    /// libstdc++ on LP64 makes 64. The engine's word size w is 32 either way, so every value it
+    /// produces fits in std::uint32_t and the cast is value-preserving — the static_assert on
+    /// max() below is what says so. Without the cast the narrowing is implicit, which is an
+    /// error under -Wconversion on Linux and builds silently on macOS (docs/build-notes.md).
+    result_type next() { return static_cast<result_type>(engine_()); }
 
     /// @brief Advances the state without producing values.
     void discard(unsigned long long skip) { engine_.discard(skip); }
 
-    static constexpr result_type min() { return std::mt19937::min(); }
-    static constexpr result_type max() { return std::mt19937::max(); }
+    static constexpr result_type min() { return static_cast<result_type>(std::mt19937::min()); }
+    static constexpr result_type max() { return static_cast<result_type>(std::mt19937::max()); }
 
   private:
     std::mt19937 engine_;
@@ -38,5 +44,8 @@ class MtEngine final {
 static_assert(MtEngine::min() == 0);
 static_assert(MtEngine::max() == std::numeric_limits<std::uint32_t>::max(),
               "next_int's rejection sampling assumes the engine spans the whole 32-bit range.");
+static_assert(std::mt19937::max() == std::numeric_limits<std::uint32_t>::max(),
+              "next()'s narrowing cast is only value-preserving while the engine's range is "
+              "exactly the 32-bit one, whatever width its result_type happens to be.");
 
 } // namespace hgps::rng
