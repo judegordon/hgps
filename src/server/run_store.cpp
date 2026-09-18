@@ -270,6 +270,30 @@ void RunStore::finish(const std::string &id) {
     }
 }
 
+void RunStore::discard(const std::string &id) {
+    std::filesystem::path folder;
+    {
+        const std::lock_guard lock{mutex_};
+        if (active_ != nullptr && active_->id() == id) {
+            active_.reset();
+        }
+        for (auto it = records_.begin(); it != records_.end(); ++it) {
+            if ((*it)->id() == id) {
+                folder = (*it)->folder();
+                records_.erase(it);
+                break;
+            }
+        }
+    }
+    if (!folder.empty()) {
+        // Only if it is empty: a directory with anything in it is not this function's to remove.
+        std::error_code error;
+        if (std::filesystem::is_empty(folder, error) && !error) {
+            std::filesystem::remove(folder, error);
+        }
+    }
+}
+
 std::shared_ptr<RunRecord> RunStore::find(const std::string &id) const {
     const std::lock_guard lock{mutex_};
     for (const auto &record : records_) {

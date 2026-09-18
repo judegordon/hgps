@@ -8,6 +8,7 @@
 #include "hgps/engine.h"
 
 #include <algorithm>
+#include <fstream>
 #include <sstream>
 #include <string>
 
@@ -291,6 +292,48 @@ TEST(ServerApi, AnUnknownCompatibilityFlagIsRefusedBeforeAnythingRuns) {
     const auto next = client.Post("/api/runs", good.dump(), "application/json");
     ASSERT_TRUE(next);
     EXPECT_EQ(201, next->status) << next->body;
+    served.wait_for_run(json_body(next).at("id").get<std::string>());
+}
+
+TEST(ServerApi, ARunThatCannotBeBuiltIsNotARun) {
+    // Found by driving the page: a configuration that fails to build was accepted, registered, and
+    // then left in the list as `starting` for ever — and it held the one-run-at-a-time slot, so
+    // nothing else could start either. Nothing was simulated and nothing was written, so it is not
+    // a run and it is forgotten.
+    ServedFixture served{"api_run_unbuildable"};
+    auto client = served.client();
+
+    // A document that loads and cannot be built: the dataset names a file that is not a dataset.
+    auto document =
+        json_body(client.Get(std::string{"/api/examples/"} + ServedFixture::kExample))
+            .at("document");
+    document["running"]["diseases"] = nlohmann::json::array({"no_such_disease"});
+    const auto broken = served.configs() / "Broken";
+    std::filesystem::copy(served.configs() / ServedFixture::kExample, broken,
+                          std::filesystem::copy_options::recursive |
+                              std::filesystem::copy_options::overwrite_existing);
+    {
+        std::ofstream stream{broken / "config.json", std::ios::trunc};
+        stream << document.dump(2) << '\n';
+    }
+
+    const nlohmann::json body{{"example", "Broken"}};
+    const auto refused = client.Post("/api/runs", body.dump(), "application/json");
+    ASSERT_TRUE(refused);
+    EXPECT_EQ(422, refused->status) << refused->body;
+    EXPECT_FALSE(json_body(refused).at("error").at("diagnostics").empty())
+        << "a refusal should say why: " << refused->body;
+
+    const auto listed = json_body(client.Get("/api/runs"));
+    EXPECT_TRUE(listed.at("active").is_null()) << "the slot was not released: " << listed.dump(2);
+    EXPECT_TRUE(listed.at("runs").empty())
+        << "an attempt that never ran is in the history: " << listed.dump(2);
+
+    // And the next run is accepted, which is the part that actually bites.
+    const nlohmann::json good{{"example", ServedFixture::kExample}};
+    const auto next = client.Post("/api/runs", good.dump(), "application/json");
+    ASSERT_TRUE(next);
+    ASSERT_EQ(201, next->status) << next->body;
     served.wait_for_run(json_body(next).at("id").get<std::string>());
 }
 

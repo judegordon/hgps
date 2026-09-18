@@ -144,6 +144,15 @@ class RunStore {
     /// @brief Releases the active slot. The record stays reachable by id.
     void finish(const std::string &id);
 
+    /// @brief Releases the slot and forgets the run entirely, removing its empty directory.
+    ///
+    /// For a run that was accepted and then failed to *build* — a bad configuration, a data pack
+    /// that will not resolve. Nothing was simulated and nothing was written, so it is not a run:
+    /// leaving it in the list as "starting" for ever is what happened before this existed, and
+    /// recording it as a failed run would put a row in the history that vanishes on restart,
+    /// because the history is read from manifests and there is no manifest.
+    void discard(const std::string &id);
+
     std::shared_ptr<RunRecord> find(const std::string &id) const;
     std::shared_ptr<RunRecord> active() const;
 

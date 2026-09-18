@@ -17,9 +17,13 @@
 
 #include "hgps/engine.h"
 
+#include <atomic>
+#include <chrono>
+#include <csignal>
 #include <exception>
 #include <iostream>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -83,14 +87,21 @@ int serve(const std::vector<std::string> &arguments) {
     std::cout << "  runs:    " << options.runs_root.string() << "\n";
     std::cout << "Ctrl-C to stop.\n" << std::flush;
 
-    // Nothing to do but wait: the server has its own thread and the engine's runs have theirs.
-    std::string line;
-    while (std::cin.good() && !std::cin.eof()) {
-        std::getline(std::cin, line);
-        if (std::cin.eof()) {
-            break;
-        }
+    // Waits for a signal, not for stdin. Reading stdin was the first thing tried and it is wrong:
+    // a server started with `< /dev/null`, under nohup, or by anything that is not a terminal sees
+    // EOF at once and exits before it has served a request.
+    //
+    // The handler does nothing but set a flag, because almost nothing else is safe to do in one.
+    static std::atomic<bool> stopping{false};
+    const auto handler = [](int) { stopping.store(true, std::memory_order_relaxed); };
+    std::signal(SIGINT, handler);
+    std::signal(SIGTERM, handler);
+
+    while (!stopping.load(std::memory_order_relaxed)) {
+        std::this_thread::sleep_for(std::chrono::milliseconds{100});
     }
+
+    std::cout << "\nhgps serve: stopping\n" << std::flush;
     server.stop();
     return to_int(ExitCode::success);
 }

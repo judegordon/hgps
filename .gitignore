@@ -6,3 +6,9 @@ compile_commands.json
 tests/fixtures/pack/
 .DS_Store
 __pycache__/
+
+# The frontend's dependencies and build output. package.json and the lockfile are committed;
+# node_modules is not (docs/decisions/0043-a-plain-typescript-frontend.md).
+web/node_modules/
+web/dist/
+out/runs/

@@ -475,7 +475,7 @@ class Server::Impl {
         load_options.output_folder_override = record->folder().string();
         for (const auto &name : body.value("baseline_compat", std::vector<std::string>{})) {
             if (!api::BaselineCompat::apply_name(name, load_options.baseline_compat)) {
-                runs_.finish(id);
+                runs_.discard(id);
                 send_error(response, 400, "bad_request",
                            fmt::format("'{}' is not a baseline compatibility flag; the flags are {}",
                                        name, api::BaselineCompat::known_names_sentence()));
@@ -493,7 +493,7 @@ class Server::Impl {
         api::Report report;
         auto configuration = api::load_configuration(*config, load_options, report);
         if (!configuration.has_value()) {
-            runs_.finish(id);
+            runs_.discard(id);
             send_json(response,
                       error_document("config_invalid",
                                      fmt::format("{} has {} error(s)", example,
@@ -504,7 +504,7 @@ class Server::Impl {
         }
         auto data = api::resolve_data(*configuration, report);
         if (!data.has_value()) {
-            runs_.finish(id);
+            runs_.discard(id);
             send_json(response,
                       error_document("config_invalid",
                                      fmt::format("{}'s data could not be resolved", example),
@@ -514,7 +514,7 @@ class Server::Impl {
         }
         auto run = api::build_run(*configuration, *data, report);
         if (!run.has_value()) {
-            runs_.finish(id);
+            runs_.discard(id);
             send_json(response,
                       error_document("config_invalid",
                                      fmt::format("{} could not be built", example), &report),

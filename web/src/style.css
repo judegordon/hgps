@@ -1,0 +1,174 @@
+/* One stylesheet, the browser's own form controls, and a palette in custom properties.
+   A research tool that looks like a research tool is easier to trust than one that looks like a
+   product (docs/decisions/0043-a-plain-typescript-frontend.md). */
+
+:root {
+  --ink: #1a202c;
+  --ink-soft: #4a5568;
+  --ink-faint: #718096;
+  --paper: #ffffff;
+  --paper-soft: #f7fafc;
+  --rule: #e2e8f0;
+  --accent: #2b6cb0;
+  --error: #c53030;
+  --error-soft: #fff5f5;
+  --warning: #b7791f;
+  --warning-soft: #fffaf0;
+  --ok: #2f855a;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+}
+
+.masthead {
+  display: flex;
+  align-items: baseline;
+  gap: 1.5rem;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper-soft);
+}
+.masthead h1 { margin: 0; font-size: 1.05rem; font-weight: 650; letter-spacing: 0.01em; }
+.engine { margin-left: auto; font: 12px/1 var(--mono); color: var(--ink-faint); }
+
+.nav { display: flex; gap: 0.25rem; }
+.nav button {
+  border: 1px solid transparent;
+  background: none;
+  padding: 0.3rem 0.7rem;
+  border-radius: 4px;
+  font: inherit;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.nav button:hover { background: var(--rule); }
+.nav button[aria-current="page"] {
+  background: var(--paper);
+  border-color: var(--rule);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.screen { padding: 1.5rem; max-width: 72rem; }
+h2 { font-size: 1.15rem; margin: 0 0 0.25rem; }
+h3 { font-size: 0.95rem; margin: 1.5rem 0 0.5rem; color: var(--ink-soft); }
+.lede { margin: 0 0 1.25rem; color: var(--ink-soft); max-width: 46rem; }
+
+/* --- forms ------------------------------------------------------------------------------- */
+
+.group { border: 1px solid var(--rule); border-radius: 6px; margin-bottom: 1rem; }
+.group > summary {
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  background: var(--paper-soft);
+}
+.group > summary .count { font-weight: 400; color: var(--ink-faint); margin-left: 0.5rem; }
+.group[data-worst="error"] > summary { color: var(--error); }
+.group[data-worst="warning"] > summary { color: var(--warning); }
+.group-body { padding: 0.75rem; display: grid; gap: 0.85rem; }
+
+.field { display: grid; gap: 0.25rem; }
+.field > label { font-weight: 550; font-size: 0.87rem; }
+.field .required { color: var(--error); margin-left: 0.2rem; }
+.field .hint { font-size: 0.8rem; color: var(--ink-faint); margin: 0; }
+.field input, .field select, .field textarea {
+  font: inherit;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper);
+  color: inherit;
+  max-width: 34rem;
+}
+.field textarea { font-family: var(--mono); font-size: 0.82rem; min-height: 5rem; }
+.field input:focus, .field select:focus, .field textarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+.field[data-worst="error"] input,
+.field[data-worst="error"] textarea,
+.field[data-worst="error"] select { border-color: var(--error); }
+.field[data-worst="warning"] input,
+.field[data-worst="warning"] textarea,
+.field[data-worst="warning"] select { border-color: var(--warning); }
+
+/* --- diagnostics ------------------------------------------------------------------------- */
+
+.diagnostic {
+  font-size: 0.83rem;
+  padding: 0.3rem 0.55rem;
+  border-radius: 4px;
+  border-left: 3px solid;
+}
+.diagnostic.error { background: var(--error-soft); border-color: var(--error); color: #742a2a; }
+.diagnostic.warning { background: var(--warning-soft); border-color: var(--warning); color: #744210; }
+.diagnostic code { font-family: var(--mono); font-size: 0.92em; opacity: 0.8; }
+.diagnostics { display: grid; gap: 0.35rem; margin: 0.75rem 0; }
+
+/* --- controls ---------------------------------------------------------------------------- */
+
+button.action {
+  font: inherit;
+  font-weight: 550;
+  padding: 0.4rem 0.9rem;
+  border-radius: 5px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: white;
+  cursor: pointer;
+}
+button.action.quiet { background: var(--paper); color: var(--accent); }
+button.action:disabled { opacity: 0.45; cursor: default; }
+.row { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; margin: 0.9rem 0; }
+
+/* --- tables ------------------------------------------------------------------------------ */
+
+table { border-collapse: collapse; width: 100%; font-size: 0.86rem; }
+th, td { text-align: left; padding: 0.3rem 0.6rem; border-bottom: 1px solid var(--rule); }
+th { font-weight: 600; color: var(--ink-soft); white-space: nowrap; }
+td.number { text-align: right; font-family: var(--mono); font-size: 0.82rem; }
+tbody tr:hover { background: var(--paper-soft); }
+.scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 6px; }
+
+/* --- progress ---------------------------------------------------------------------------- */
+
+.bar { height: 6px; background: var(--rule); border-radius: 3px; overflow: hidden; max-width: 34rem; }
+.bar > div { height: 100%; background: var(--accent); transition: width 120ms linear; }
+.status { font-family: var(--mono); font-size: 0.83rem; color: var(--ink-soft); }
+.state { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 650; }
+.state.running { color: var(--accent); }
+.state.completed { color: var(--ok); }
+.state.cancelled, .state.failed { color: var(--error); }
+.state.starting { color: var(--ink-faint); }
+
+/* --- charts ------------------------------------------------------------------------------ */
+
+.chart { width: 100%; height: auto; display: block; }
+.chart-grid { stroke: var(--rule); stroke-width: 1; }
+.chart-axis { fill: var(--ink-faint); font-size: 11px; font-family: var(--mono); }
+.chart-card { border: 1px solid var(--rule); border-radius: 6px; padding: 0.75rem; margin-bottom: 1rem; }
+.chart-card h4 { margin: 0 0 0.35rem; font-size: 0.9rem; }
+.legend { display: flex; gap: 1rem; font-size: 0.8rem; color: var(--ink-soft); flex-wrap: wrap; }
+.legend span { display: inline-flex; align-items: center; gap: 0.3rem; }
+.swatch { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+
+.note { color: var(--ink-faint); font-size: 0.85rem; }
+.empty { color: var(--ink-faint); padding: 2rem 0; }
+pre.json {
+  background: var(--paper-soft);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 0.75rem;
+  overflow: auto;
+  font-size: 0.78rem;
+  max-height: 24rem;
+}
