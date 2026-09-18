@@ -129,6 +129,15 @@ class FactorValues {
     double &at_index(std::uint32_t index);
     double at_index(std::uint32_t index) const;
 
+    /// @brief The value for an index, inserting a zero if it is not there — `operator[]` without
+    ///        the name.
+    ///
+    /// The writing half of the hot-path pair. `operator[]` has to intern the name first, which is a
+    /// hash probe and an identifier comparison; a model that resolved its names when it was built
+    /// hands in the index instead. The index must have come from `factor_index()`, or iteration
+    /// would report a name that is not this value's.
+    double &at_index_or_insert(std::uint32_t index);
+
     /// @brief The value for an index, or null when this person has no value for it.
     ///
     /// The hot-path accessor: no name, no hash, no string. A model resolves its names to indices once

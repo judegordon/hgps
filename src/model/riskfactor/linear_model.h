@@ -7,9 +7,11 @@
 #include "core/types.h"
 #include "model/person.h"
 
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <optional>
+#include <vector>
 
 namespace hgps::model {
 
@@ -24,7 +26,30 @@ struct LinearModelParams {
     double intercept{};
     std::map<core::Identifier, double> coefficients;
     std::map<core::Identifier, double> log_coefficients;
+
+    /// @brief Each coefficient's name resolved to a risk-factor index, in the map's own order.
+    ///
+    /// Empty until `resolve_predictors` is called, and empty is a valid state: the evaluator falls
+    /// back to resolving each name as it goes, which is the same lookup one step later. That is why
+    /// a test can build one of these by hand and evaluate it without ceremony.
+    ///
+    /// Filled, it removes a hash probe and an identifier comparison per coefficient per person per
+    /// year — about a third of the `KevinHall_FINCH` profile
+    /// ([docs/performance.md](../../../docs/performance.md)).
+    std::vector<std::uint32_t> coefficient_indices;
+    std::vector<std::uint32_t> log_coefficient_indices;
 };
+
+/// @brief Resolves a model's coefficient names to risk-factor indices, once.
+///
+/// Idempotent, and safe to call again after the coefficients change. Call it when the model is
+/// built and never on a hot path: it is the hash probe, hoisted out of the per-person loop.
+///
+/// It is **not** an optimisation that can change an answer. The index it stores is exactly what
+/// `Person::try_risk_factor_value` would have looked up, so a resolved model and an unresolved one
+/// evaluate to the same bits; `LinearModelResolutionTest` asserts that over a model with one of
+/// every kind of predictor in it.
+void resolve_predictors(LinearModelParams &model);
 
 /// @brief Choices the caller makes about how predictors resolve.
 struct LinearModelEvalOptions {

@@ -49,6 +49,19 @@ double factor_of(const Person &person, const core::Identifier &key, std::string_
     return found->second;
 }
 
+/// The same, by index. The name is only needed for the message, so it is fetched from the index
+/// table on the failing path rather than carried through the hot one.
+double factor_at(const Person &person, std::uint32_t index, std::string_view where) {
+    const auto *found = person.risk_factors.find_index(index);
+    if (found == nullptr) {
+        throw diag::InternalError(
+            fmt::format("person {} has no '{}' in {}; the Kevin Hall model needs the static "
+                        "model to have generated it first",
+                        person.id(), factor_index().name_of(index).to_string(), where));
+    }
+    return *found;
+}
+
 } // namespace
 
 double KevinHallModel::compute_glycogen(double carbohydrate, double carbohydrate_0,
@@ -96,14 +109,16 @@ double KevinHallModel::compute_expenditure(double weight, double fat, double lea
 }
 
 void KevinHallModel::compute_nutrient_intakes(Person &person) const {
-    for (const auto &[nutrient, unused] : parameters_->energy_equation) {
-        person.risk_factors[nutrient] = 0.0;
+    // Index-keyed throughout: the names were resolved when the model was built, and the order is
+    // the maps' own order, so the accumulation is the same sum in the same sequence it always was.
+    for (const auto &[nutrient, unused] : resolved_energy_) {
+        person.risk_factors.at_index_or_insert(nutrient) = 0.0;
     }
 
-    for (const auto &[food, nutrients] : parameters_->nutrient_equations) {
-        const double intake = factor_of(person, food, "the food-to-nutrient step");
-        for (const auto &[nutrient, coefficient] : nutrients) {
-            person.risk_factors.at(nutrient) += intake * coefficient;
+    for (const auto &food : resolved_foods_) {
+        const double intake = factor_at(person, food.food, "the food-to-nutrient step");
+        for (const auto &[nutrient, coefficient] : food.nutrients) {
+            person.risk_factors.at_index(nutrient) += intake * coefficient;
         }
     }
 }
@@ -127,8 +142,8 @@ void KevinHallModel::update_nutrient_intakes(Person &person) const {
 
 void KevinHallModel::compute_energy_intake(Person &person) const {
     double energy = 0.0;
-    for (const auto &[nutrient, coefficient] : parameters_->energy_equation) {
-        energy += factor_of(person, nutrient, "the nutrient-to-energy step") * coefficient;
+    for (const auto &[nutrient, coefficient] : resolved_energy_) {
+        energy += factor_at(person, nutrient, "the nutrient-to-energy step") * coefficient;
     }
     person.risk_factors[kEnergyIntake] = energy;
 }

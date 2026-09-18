@@ -94,6 +94,8 @@ indexed_dispatcher() {
     return table;
 }
 
+void intern_derived_predictors() { indexed_dispatcher(); }
+
 std::optional<double> Person::try_risk_factor_value(const core::Identifier &key) const {
     // Asked for first, and the order is load-bearing: building it interns the nineteen predictor
     // names, and the index lookup below treats a name it has never seen as resolvable only by the
@@ -102,13 +104,23 @@ std::optional<double> Person::try_risk_factor_value(const core::Identifier &key)
     // the dispatcher. `HLM_France` changed by a last bit and `KevinHall_FINCH` did not, because the
     // window depends on which name a run happens to resolve first. The byte-for-byte comparison in
     // docs/performance.md is what found it.
+    indexed_dispatcher();
+
+    // The name is resolved to an index and everything below compares integers.
+    return try_risk_factor_value(factor_index().find(key), key);
+}
+
+std::optional<double> Person::try_risk_factor_value(std::uint32_t index,
+                                                    const core::Identifier &key) const {
+    // The hot form: the index is the caller's, resolved once when its model was built, so this
+    // whole function is integer comparisons until the fallback. The name-taking overload above is
+    // this function with the one hash probe in front of it, which is the entire difference between
+    // them — there is no second implementation to keep in step.
     const auto &table = indexed_dispatcher();
 
-    // The name is resolved to an index once, and everything below compares integers. A name this
-    // process has never interned cannot be a stored factor and cannot be one of the nineteen derived
-    // predictors, so it goes straight to the resolver — which is also the fast answer for the
-    // `log_<name>` shapes, whose names are never interned at all.
-    const auto index = factor_index().find(key);
+    // A name this process has never interned cannot be a stored factor and cannot be one of the
+    // nineteen derived predictors, so it goes straight to the resolver — which is also the fast
+    // answer for the `log_<name>` shapes, whose names are never interned at all.
     if (index == FactorIndex::unknown) {
         return resolve_derived_predictor(*this, key.to_string());
     }

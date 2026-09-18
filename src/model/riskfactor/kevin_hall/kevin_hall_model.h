@@ -5,10 +5,12 @@
 #include "model/containers.h"
 #include "model/riskfactor/risk_factor_model.h"
 
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace hgps::model {
@@ -130,6 +132,25 @@ class KevinHallModel final : public AdjustableRiskFactorModel {
 
   private:
     std::shared_ptr<const KevinHallParameters> parameters_;
+
+    /// @brief The food-to-nutrient step with every name already resolved to a risk-factor index.
+    ///
+    /// `compute_nutrient_intakes` runs once per person per year and walks
+    /// `parameters_->nutrient_equations` — twenty-one food groups on the FINCH pack, each with its
+    /// nutrients — doing a `FactorValues` lookup by *name* for every one. Each of those is a hash
+    /// probe and an identifier comparison. The names are fixed when the model is built, so they are
+    /// resolved here and the loop below compares integers.
+    ///
+    /// The structure mirrors the map it is built from, in the map's own order, because the order of
+    /// the accumulation decides the last bits of a nutrient intake.
+    struct ResolvedFood {
+        std::uint32_t food{};
+        std::vector<std::pair<std::uint32_t, double>> nutrients;
+    };
+    std::vector<ResolvedFood> resolved_foods_;
+
+    /// @brief The nutrient-to-energy step, likewise: (nutrient index, kJ per unit), in map order.
+    std::vector<std::pair<std::uint32_t, double>> resolved_energy_;
 
     void initialise_nutrient_intakes(Person &person) const;
     void update_nutrient_intakes(Person &person) const;

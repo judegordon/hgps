@@ -115,6 +115,20 @@ class Person {
     /// `log_<name>` predictor need "is this resolvable?" rather than "give me it or fail".
     std::optional<double> try_risk_factor_value(const core::Identifier &key) const;
 
+    /// @brief The same lookup with the name already resolved to an index.
+    ///
+    /// The overload above begins by asking `factor_index()` for `key`'s index, which is a hash
+    /// probe and a string comparison, once per coefficient per person per year. A caller that
+    /// knows the index — a linear model that resolved its coefficient names when it was built —
+    /// hands it in instead. `key` is still needed, because a name the index table has never seen
+    /// can only be answered by the derived-predictor resolver, which works from the string.
+    ///
+    /// **`index` must be `factor_index().find(key)`**, taken after `indexed_dispatcher()` has been
+    /// built. Anything else makes this a different function from the one above; see
+    /// `model::resolve_predictors`, which is the only thing that should be producing one.
+    std::optional<double> try_risk_factor_value(std::uint32_t index,
+                                                const core::Identifier &key) const;
+
     /// @brief 1 for male, 0 for female.
     /// @throws diag::InternalError if the gender is unknown.
     float gender_to_value() const;
@@ -152,5 +166,16 @@ class Person {
     unsigned int time_of_death_{};
     unsigned int time_of_migration_{};
 };
+
+/// @brief Interns the nineteen derived-predictor names, so that anything resolving a name to a
+///        risk-factor index afterwards finds them.
+///
+/// It happens on the first `try_risk_factor_value` of a run anyway. It is callable on its own
+/// because the *order* matters: a name this table has not yet interned looks unknown, and an
+/// unknown name is answered only by the string-based resolver. `Person::try_risk_factor_value`
+/// once asked for an index before building the table and sent `age` past the dispatcher on the
+/// first call of a run; `model::resolve_predictors` would do the same thing permanently, for the
+/// life of the model, if it resolved first.
+void intern_derived_predictors();
 
 } // namespace hgps::model

@@ -3,6 +3,7 @@
 // their values. Two adaptations: HgpsException and std::out_of_range become diag::InternalError,
 // and the linear model's coefficients are an ordered map so that the sum has a stated order.
 #include "model/predictor_resolver.h"
+#include "model/factor_values.h"
 #include "model/riskfactor/linear_model.h"
 
 #include "diagnostics/internal_error.h"
@@ -320,4 +321,122 @@ TEST(TestHealthGPS_LinearModelEvaluator, TheSumOrderIsTheCoefficientNameOrder) {
 
     EXPECT_EQ(hgps::model::evaluate_linear_model(person, forward),
               hgps::model::evaluate_linear_model(person, reverse));
+}
+
+// --- resolving the coefficient names once ---------------------------------------------------
+
+namespace {
+
+/// A model with one of every kind of predictor in it: a stored factor, a derived one the named
+/// table answers, a derived one only the string resolver answers, a metadata row, an age term and
+/// the gender2 dummy.
+LinearModelParams every_kind_of_predictor() {
+    LinearModelParams model;
+    model.intercept = 1.5;
+    model.coefficients[Identifier{"bmi"}] = 2.0;       // stored on the person
+    model.coefficients[Identifier{"age2"}] = 1e-3;     // the indexed dispatcher
+    model.coefficients[Identifier{"ses"}] = 0.5;       // the indexed dispatcher
+    model.coefficients[Identifier{"income2"}] = 0.25;  // only the string resolver
+    model.coefficients[Identifier{"gender2"}] = 3.0;   // the evaluator itself
+    model.coefficients[Identifier{"stddev"}] = 99.0;   // metadata, skipped
+    model.log_coefficients[Identifier{"bmi"}] = 0.75;
+    return model;
+}
+
+Person a_person() {
+    Person person;
+    person.age = 41;
+    person.gender = Gender::female;
+    person.ses = 0.125;
+    person.income = hgps::core::Income::middle;
+    person.risk_factors[Identifier{"bmi"}] = 26.25;
+    return person;
+}
+
+} // namespace
+
+TEST(LinearModelResolution, AResolvedModelEvaluatesToTheSameBitsAsAnUnresolvedOne) {
+    // The whole safety argument for `resolve_predictors` in one assertion: the index it stores is
+    // exactly what the evaluator would have looked up, so hoisting the lookup out of the per-person
+    // loop cannot change an answer. Not `EXPECT_NEAR` — the same bits.
+    const auto person = a_person();
+    LinearModelEvalOptions options;
+    options.gender2_indicator = Gender::female;
+
+    const auto unresolved = every_kind_of_predictor();
+    auto resolved = every_kind_of_predictor();
+    hgps::model::resolve_predictors(resolved);
+
+    EXPECT_EQ(hgps::model::evaluate_linear_model(person, unresolved, options),
+              hgps::model::evaluate_linear_model(person, resolved, options));
+}
+
+TEST(LinearModelResolution, ItResolvesOneIndexPerCoefficientInTheMapsOwnOrder) {
+    auto model = every_kind_of_predictor();
+    hgps::model::resolve_predictors(model);
+
+    ASSERT_EQ(model.coefficients.size(), model.coefficient_indices.size());
+    ASSERT_EQ(model.log_coefficients.size(), model.log_coefficient_indices.size());
+
+    // Positional, because the map's order is the summation order and a second map keyed by name
+    // would put back the lookup this removes.
+    std::size_t position = 0;
+    for (const auto &[name, coefficient] : model.coefficients) {
+        EXPECT_EQ(hgps::model::factor_index().find(name), model.coefficient_indices[position])
+            << name.to_string();
+        ++position;
+    }
+}
+
+TEST(LinearModelResolution, ItIsIdempotentAndSurvivesTheCoefficientsChanging) {
+    auto model = every_kind_of_predictor();
+    hgps::model::resolve_predictors(model);
+    const auto first = model.coefficient_indices;
+    hgps::model::resolve_predictors(model);
+    EXPECT_EQ(first, model.coefficient_indices);
+
+    // A coefficient added afterwards leaves the vector the wrong length, and the evaluator falls
+    // back to resolving names rather than trusting indices that are not this model's. Adding one
+    // and evaluating must still be right.
+    const auto person = a_person();
+    const auto before = hgps::model::evaluate_linear_model(person, model);
+    model.coefficients[Identifier{"age"}] = 1.0;
+    EXPECT_NE(model.coefficients.size(), model.coefficient_indices.size());
+    EXPECT_DOUBLE_EQ(before + 41.0, hgps::model::evaluate_linear_model(person, model));
+}
+
+TEST(LinearModelResolution, AModelResolvedBeforeAnyPersonExistsStillFindsTheirFactors) {
+    // The order a model is loaded in: resolve first, meet the people afterwards. A risk-factor name
+    // is often interned by nothing at all when its model is built, and a name the index table has
+    // not seen can only be answered by the string resolver — so resolving with `find` would freeze
+    // the model into that path and the value would come from the fallback, or from nowhere.
+    //
+    // The name here is one nothing else in this binary uses, so the ordering is the test rather
+    // than an accident of which test ran first. A whole `KevinHall_FINCH` run was byte-identical
+    // with the defect present, because something else had interned every name it happened to use.
+    const Identifier factor{"a_factor_no_other_test_names"};
+
+    LinearModelParams model;
+    model.coefficients[factor] = 2.0;
+    hgps::model::resolve_predictors(model);
+
+    Person person;
+    person.age = 30;
+    person.risk_factors[factor] = 11.0;
+
+    EXPECT_DOUBLE_EQ(22.0, hgps::model::evaluate_linear_model(person, model));
+}
+
+TEST(LinearModelResolution, ResolvingBeforeTheDerivedNamesExistWouldBeTheOldDefect) {
+    // `age` is one of the nineteen derived-predictor names, and a name the index table has never
+    // interned can only be answered by the string resolver. `resolve_predictors` interns them
+    // first, so `age` gets a real index rather than `unknown` — which is what stops the resolution
+    // freezing a predictor into the slow branch for the life of the model.
+    LinearModelParams model;
+    model.coefficients[Identifier{"age"}] = 1.0;
+    hgps::model::resolve_predictors(model);
+
+    ASSERT_EQ(1U, model.coefficient_indices.size());
+    EXPECT_EQ(hgps::model::factor_index().find(Identifier{"age"}), model.coefficient_indices[0]);
+    EXPECT_NE(hgps::model::FactorIndex::unknown, model.coefficient_indices[0]);
 }

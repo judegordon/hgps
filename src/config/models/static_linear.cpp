@@ -1152,6 +1152,12 @@ std::unique_ptr<model::RiskFactorModel> load_static_linear(const nlohmann::json 
     }
     }
 
+    // Every coefficient name resolved to a risk-factor index, once, here — the last point at which
+    // the parameters are still mutable. The evaluator then does no name lookup per person per year,
+    // which is about a third of the `KevinHall_FINCH` profile (docs/performance.md). It cannot
+    // change an answer: the index is exactly what the evaluator would have looked up.
+    resolve_static_linear_predictors(*parameters);
+
     return std::make_unique<model::StaticLinearModel>(context.expected, calibration_trend,
                                                       expected_trend_steps,
                                                       std::move(parameters), calibration_decay);

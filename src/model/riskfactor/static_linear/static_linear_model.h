@@ -137,6 +137,15 @@ struct StaticLinearParameters {
     bool trend_enabled{false};
 };
 
+/// @brief Resolves every coefficient name in every model these parameters hold to a risk-factor
+///        index, once.
+///
+/// Called by the loader at the last point the parameters are mutable, because `StaticLinearModel`
+/// holds them by `shared_ptr<const>`. `model::resolve_predictors` says why it cannot change an
+/// answer; this is that function applied to each of the eight places a `LinearModelParams` lives in
+/// here, so that adding a ninth is a compile error rather than a silent slow path.
+void resolve_static_linear_predictors(StaticLinearParameters &parameters);
+
 /// @brief The `StaticLinear` model: the FINCH and India static risk-factor family.
 ///
 /// Generates a person's factors from a per-factor linear model plus a correlated residual, put
@@ -204,6 +213,23 @@ class StaticLinearModel final : public AdjustableRiskFactorModel {
 
   private:
     std::shared_ptr<const StaticLinearParameters> parameters_;
+
+    /// @brief The `<factor>_residual`, `<factor>_policy`, `<factor>_trend` … names, built once.
+    ///
+    /// Each is a vector parallel to `parameters_->names`. They used to be built by string
+    /// concatenation inside the per-person loops — `factor.to_string() + "_residual"`, then an
+    /// `Identifier` constructed from it, which validates every character. On `KevinHall_FINCH`
+    /// that is thirty-four factors for every person in every year of both scenarios, and
+    /// `Identifier::validate_identifier` and `chars::is_alnum` were 8.3% of the profile
+    /// ([docs/performance.md](../../../../docs/performance.md)).
+    struct DerivedKeys {
+        std::vector<core::Identifier> residual;
+        std::vector<core::Identifier> policy_residual;
+        std::vector<core::Identifier> policy;
+        std::vector<core::Identifier> trend;
+        std::vector<core::Identifier> income_trend;
+    };
+    DerivedKeys derived_keys_;
 
     // --- factors.cpp
     /// @brief The evaluation options for the income, physical-activity and logistic regressions:

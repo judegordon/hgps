@@ -39,6 +39,24 @@ KevinHallModel::KevinHallModel(std::shared_ptr<const SexAgeFactorTable> expected
     if (parameters_->energy_equation.empty()) {
         throw diag::InternalError("the Kevin Hall model has no nutrients");
     }
+
+    // Every name in the two hot loops resolved to an index, once. `intern` rather than `find`,
+    // because a nutrient or a food group may not have been seen yet at this point — it is a name
+    // this model is about to start writing, and interning it here is what makes the index exist.
+    // The derived-predictor names are interned first for the reason `resolve_predictors` gives.
+    intern_derived_predictors();
+    for (const auto &[food, nutrients] : parameters_->nutrient_equations) {
+        ResolvedFood resolved{.food = factor_index().intern(food), .nutrients = {}};
+        resolved.nutrients.reserve(nutrients.size());
+        for (const auto &[nutrient, coefficient] : nutrients) {
+            resolved.nutrients.emplace_back(factor_index().intern(nutrient), coefficient);
+        }
+        resolved_foods_.push_back(std::move(resolved));
+    }
+    resolved_energy_.reserve(parameters_->energy_equation.size());
+    for (const auto &[nutrient, coefficient] : parameters_->energy_equation) {
+        resolved_energy_.emplace_back(factor_index().intern(nutrient), coefficient);
+    }
     if (parameters_->nutrient_equations.empty()) {
         throw diag::InternalError("the Kevin Hall model has no food groups");
     }

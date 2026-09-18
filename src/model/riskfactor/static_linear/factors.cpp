@@ -22,12 +22,6 @@ namespace {
 
 const core::Identifier kEnergyIntake{"energyintake"};
 
-/// A residual is stored under the factor's name with this suffix, so that next year's blend can
-/// find it. Same spelling as the baseline, because these keys reach the output.
-core::Identifier residual_key(const core::Identifier &factor) {
-    return core::Identifier{factor.to_string() + "_residual"};
-}
-
 } // namespace
 
 double StaticLinearModel::inverse_box_cox(double factor, double lambda) {
@@ -165,7 +159,7 @@ void StaticLinearModel::initialise_factors(RuntimeContext &context, Person &pers
 
     for (std::size_t i = 0; i < parameters_->names.size(); ++i) {
         const auto &factor = parameters_->names[i];
-        person.risk_factors[residual_key(factor)] = residuals[i];
+        person.risk_factors[derived_keys_.residual[i]] = residuals[i];
 
         const double expected_value = get_expected(context, person.gender,
                                                     static_cast<int>(person.age), factor,
@@ -206,7 +200,7 @@ void StaticLinearModel::update_factors(RuntimeContext &context, Person &person,
         // The residual is an AR(1): `info_speed` of it is redrawn and the rest carried over, with
         // the coefficient chosen so the variance is preserved. That is what makes a person's
         // factors correlated with their own past rather than resampled every year.
-        const auto key = residual_key(factor);
+        const auto &key = derived_keys_.residual[i];
         const auto previous = person.risk_factors.find(key);
         if (previous == person.risk_factors.end()) {
             throw diag::InternalError(

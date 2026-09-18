@@ -10,6 +10,7 @@
 #include "sim/scenario.h"
 
 #include <algorithm>
+#include <string>
 #include <utility>
 
 #include <fmt/format.h>
@@ -27,6 +28,25 @@ const core::Identifier kPhysicalActivity{"physicalactivity"};
 const core::DoubleInterval kIncomeAdjustmentRange{0.0, 1e9};
 
 } // namespace
+
+void resolve_static_linear_predictors(StaticLinearParameters &parameters) {
+    const auto resolve_each = [](std::vector<LinearModelParams> &models) {
+        for (auto &model : models) {
+            resolve_predictors(model);
+        }
+    };
+
+    resolve_each(parameters.models);
+    resolve_each(parameters.policy_models);
+    resolve_each(parameters.logistic_models);
+    resolve_each(parameters.trend_models);
+    resolve_each(parameters.income_trend_models);
+    resolve_predictors(parameters.continuous_income_model);
+    resolve_predictors(parameters.physical_activity.linear);
+    for (auto &[income, model] : parameters.income_models) {
+        resolve_predictors(model);
+    }
+}
 
 StaticLinearModel::StaticLinearModel(
     std::shared_ptr<const SexAgeFactorTable> expected,
@@ -46,6 +66,21 @@ StaticLinearModel::StaticLinearModel(
     if (factors == 0) {
         throw diag::InternalError("the static linear model has no risk factors");
     }
+
+    // The derived names, once per model rather than once per factor per person per year.
+    const auto suffixed = [this](std::string_view suffix) {
+        std::vector<core::Identifier> keys;
+        keys.reserve(parameters_->names.size());
+        for (const auto &factor : parameters_->names) {
+            keys.emplace_back(factor.to_string() + std::string{suffix});
+        }
+        return keys;
+    };
+    derived_keys_.residual = suffixed("_residual");
+    derived_keys_.policy_residual = suffixed("_policy_residual");
+    derived_keys_.policy = suffixed("_policy");
+    derived_keys_.trend = suffixed("_trend");
+    derived_keys_.income_trend = suffixed("_income_trend");
 
     // Every per-factor vector is indexed by the same position, so a length mismatch is a silent
     // misalignment of coefficients to factors rather than an out-of-range access.

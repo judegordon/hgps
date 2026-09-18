@@ -18,14 +18,6 @@
 namespace hgps::model {
 namespace {
 
-core::Identifier trend_key(const core::Identifier &factor) {
-    return core::Identifier{factor.to_string() + "_trend"};
-}
-
-core::Identifier income_trend_key(const core::Identifier &factor) {
-    return core::Identifier{factor.to_string() + "_income_trend"};
-}
-
 double lookup(const std::map<core::Identifier, double> &table, const core::Identifier &key,
               std::string_view what) {
     const auto found = table.find(key);
@@ -81,7 +73,7 @@ void StaticLinearModel::initialise_upf_trends(RuntimeContext &context, Person &p
         const double expected =
             lookup(parameters_->expected_trend_boxcox, factor, "expected trend Box-Cox value");
         const double trend = expected * inverse_box_cox(linear[i], parameters_->trend_lambda[i]);
-        person.risk_factors[trend_key(factor)] = parameters_->trend_ranges[i].clamp(trend);
+        person.risk_factors[derived_keys_.trend[i]] = parameters_->trend_ranges[i].clamp(trend);
     }
 
     update_upf_trends(context, person);
@@ -93,7 +85,7 @@ void StaticLinearModel::update_upf_trends(RuntimeContext &context, Person &perso
     for (std::size_t i = 0; i < parameters_->names.size(); ++i) {
         const auto &factor = parameters_->names[i];
 
-        const auto trend = person.risk_factors.find(trend_key(factor));
+        const auto trend = person.risk_factors.find(derived_keys_.trend[i]);
         const auto value = person.risk_factors.find(factor);
         if (trend == person.risk_factors.end() || value == person.risk_factors.end()) {
             throw diag::InternalError(
@@ -123,7 +115,7 @@ void StaticLinearModel::initialise_income_trends(RuntimeContext &context, Person
                                         "expected income trend Box-Cox value");
         const double trend =
             expected * inverse_box_cox(linear[i], parameters_->income_trend_lambda[i]);
-        person.risk_factors[income_trend_key(factor)] =
+        person.risk_factors[derived_keys_.income_trend[i]] =
             parameters_->income_trend_ranges[i].clamp(trend);
     }
 
@@ -145,7 +137,7 @@ void StaticLinearModel::update_income_trends(RuntimeContext &context, Person &pe
     for (std::size_t i = 0; i < parameters_->names.size(); ++i) {
         const auto &factor = parameters_->names[i];
 
-        const auto trend = person.risk_factors.find(income_trend_key(factor));
+        const auto trend = person.risk_factors.find(derived_keys_.income_trend[i]);
         const auto value = person.risk_factors.find(factor);
         if (trend == person.risk_factors.end() || value == person.risk_factors.end()) {
             throw diag::InternalError(

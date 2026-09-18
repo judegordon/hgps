@@ -88,7 +88,11 @@ TEST_P(ServerStress, ManyClientsValidateWhileRunsStartAndStopInARandomisedOrder)
     // the contention lasts as long as the thing it is contending with. The cap is there only so a
     // lifecycle that somehow never finishes does not spin for ever.
     constexpr int kValidationCap = 500;
-    constexpr int kSequences = 6;
+    // Three permutations per pack, six across the two. Sized by the clock rather than by taste:
+    // each sequence can run a whole simulation, which under ThreadSanitizer is seconds rather than
+    // a fifth of one, and this file has to stay well inside the two minutes the macOS TSan job can
+    // afford. Six sequences measured 78 seconds there; three measure about half of that.
+    constexpr int kSequences = 3;
 
     std::atomic<bool> lifecycle_done{false};
     std::atomic<int> validated{0};

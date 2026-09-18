@@ -82,7 +82,10 @@ std::size_t FactorValues::position_of(std::uint32_t index) const noexcept {
 }
 
 double &FactorValues::operator[](const core::Identifier &name) {
-    const auto index = factor_index().intern(name);
+    return at_index_or_insert(factor_index().intern(name));
+}
+
+double &FactorValues::at_index_or_insert(std::uint32_t index) {
     const auto position = position_of(index);
     if (position != entries_.size()) {
         return entries_[position].value;

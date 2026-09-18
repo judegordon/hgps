@@ -16,17 +16,6 @@
 #include <fmt/format.h>
 
 namespace hgps::model {
-namespace {
-
-core::Identifier policy_residual_key(const core::Identifier &factor) {
-    return core::Identifier{factor.to_string() + "_policy_residual"};
-}
-
-core::Identifier policy_key(const core::Identifier &factor) {
-    return core::Identifier{factor.to_string() + "_policy"};
-}
-
-} // namespace
 
 void StaticLinearModel::initialise_policies(RuntimeContext &context, Person &person,
                                              rng::RandomSource &random, bool intervene) const {
@@ -39,7 +28,7 @@ void StaticLinearModel::initialise_policies(RuntimeContext &context, Person &per
     // the difference between them attributable to the policy rather than to sampling noise.
     const auto residuals = compute_residuals(random, parameters_->policy_cholesky);
     for (std::size_t i = 0; i < parameters_->names.size(); ++i) {
-        person.risk_factors[policy_residual_key(parameters_->names[i])] = residuals[i];
+        person.risk_factors[derived_keys_.policy_residual[i]] = residuals[i];
     }
 
     update_policies(context, person, intervene);
@@ -52,8 +41,8 @@ void StaticLinearModel::update_policies(RuntimeContext &context, Person &person,
     }
 
     if (!intervene) {
-        for (const auto &factor : parameters_->names) {
-            person.risk_factors[policy_key(factor)] = 0.0;
+        for (const auto &key : derived_keys_.policy) {
+            person.risk_factors[key] = 0.0;
         }
         return;
     }
@@ -63,7 +52,7 @@ void StaticLinearModel::update_policies(RuntimeContext &context, Person &person,
     for (std::size_t i = 0; i < parameters_->names.size(); ++i) {
         const auto &factor = parameters_->names[i];
 
-        const auto residual = person.risk_factors.find(policy_residual_key(factor));
+        const auto residual = person.risk_factors.find(derived_keys_.policy_residual[i]);
         if (residual == person.risk_factors.end()) {
             throw diag::InternalError(
                 fmt::format("person {} has no policy residual for '{}'; policies must be "
@@ -74,7 +63,8 @@ void StaticLinearModel::update_policies(RuntimeContext &context, Person &person,
         // The residual is lifelong: it is drawn once and never redrawn, so a person's response to
         // the policy is a fixed characteristic of them rather than a fresh draw each year.
         const double policy = linear[i] + residual->second;
-        person.risk_factors[policy_key(factor)] = parameters_->policy_ranges[i].clamp(policy);
+        person.risk_factors[derived_keys_.policy[i]] =
+            parameters_->policy_ranges[i].clamp(policy);
     }
 }
 
@@ -86,7 +76,7 @@ void StaticLinearModel::apply_policies(Person &person, bool intervene) const {
     for (std::size_t i = 0; i < parameters_->names.size(); ++i) {
         const auto &factor = parameters_->names[i];
 
-        const auto policy = person.risk_factors.find(policy_key(factor));
+        const auto policy = person.risk_factors.find(derived_keys_.policy[i]);
         const auto value = person.risk_factors.find(factor);
         if (policy == person.risk_factors.end() || value == person.risk_factors.end()) {
             throw diag::InternalError(
