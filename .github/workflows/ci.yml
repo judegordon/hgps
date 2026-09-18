@@ -15,7 +15,15 @@
 #   * **`HLM_India` is not compared here.** Its comparison is at a reduced `size_fraction` and its
 #     reference is not checked in (docs/equivalence.md); running it would be forty minutes a job.
 #
-# GCC is required, and was not until this run. The two GCC entries carried `experimental: true` —
+# **The two TSan entries run 761 tests where the others run 853**, and that is deliberate rather than
+# a gap: under ThreadSanitizer the parameterised suite runs against the first fixture pack only and
+# the harness's self-checks at six seeds, because a race is a property of the code and not of the
+# configuration that reaches it, and running the same races twice had made the macOS TSan job 88
+# minutes — the workflow's long pole by a wide margin
+# (docs/decisions/0046-what-runs-under-which-sanitizer.md). The decision is taken in the test code,
+# not here, so a local `ctest --preset tsan` and this job agree about what they run.
+#
+# GCC is required, and was not until the sixth run. The two GCC entries carried `experimental: true` —
 # `continue-on-error` — because nothing knew what a second compiler family would say about a warning
 # set (-Werror with -Wconversion, -Wsign-conversion, -Wold-style-cast and -Wdouble-promotion) that
 # only clang had ever seen, and a red tick in a commit that cannot act on it is a red tick nobody
