@@ -55,6 +55,29 @@ for both sexes, at every seed.
 If a run finds an empty band outside the recorded set, the stored reduction is no longer the right
 one and the harness says so and fails, rather than quietly widening the exclusion.
 
+Compatibility flags, and the deviation-impact section
+-----------------------------------------------------
+
+This build fixes defects in the baseline, and 22 of those fixes change the numbers
+(docs/deviations.md). Each one that does is switchable: `--baseline-compat NAME` makes the engine
+reproduce the baseline's behaviour exactly, bug and all (ADR 0041).
+
+**Every comparison here runs this build with `--baseline-compat all`.** So the comparison tests
+everything *except* the deliberate deviations, and an out-of-tolerance cell means something is
+wrong rather than something is different on purpose. Before this, a known deviation and an unknown
+defect looked identical in the output and were told apart by a person reading the numbers — which
+worked once, for one deviation, and does not survive a second.
+
+The harness then runs this build **once more with the flags off** and reports the difference
+between the two as a separate **deviation impact** section: per variable, per year, per scenario,
+the size and the direction of what the fixes are worth. That section is *reported, not graded*. A
+deviation has no right size, so a pass/fail threshold on it would be a number nobody could justify.
+
+The extra pass is skipped when it would measure nothing. `--deviation-impact auto`, the default,
+runs the first seed both ways and stops if the two results are byte-identical — which is the answer
+for every example whose active intervention no recorded deviation touches, and is itself worth
+printing. `always` and `never` override the probe.
+
 Comparing one intervention at a time
 ------------------------------------
 
@@ -160,6 +183,17 @@ DISTRIBUTION_TEST_ALPHA = 0.05 / 5000
 # while the premise holds, so the harness *checks* the premise — the baseline's series must be
 # identically zero — and compares the variable normally if it is not. A baseline that starts
 # filling the column therefore stops being excluded, and says so.
+# Variables the baseline emits as a column and never fills. They are excluded from the comparison
+# only while the baseline's series is identically zero, so the rule disarms itself if upstream ever
+# starts computing one — and only while *this* build's series is not, because two identically zero
+# series mean the deviation is not being applied here either, which is a regression the rule would
+# otherwise hide behind its own message. See `compare`.
+#
+# These stay exclusions rather than becoming compatibility flags (ADR 0041). The distinction is
+# whether both sides have a number that means something: B-24 is two implementations computing a
+# real value and disagreeing on purpose, which is worth measuring; this is one implementation
+# emitting a placeholder, and "compare zero against zero" is not a stronger test than not
+# comparing. docs/equivalence-method.md records the review.
 BASELINE_DOES_NOT_COMPUTE = {
     "std_income": ("B-22", "the baseline skips 'income' in the loop that accumulates squared "
                            "deviations, on the ground that the mapping loop handles it, and the "
@@ -291,7 +325,8 @@ def derive_config(source: Path, seed: int, output_folder: Path, intervention: st
     # files it names — but those paths contain the checkout's location, and a reference keyed by
     # them can only ever be found on the machine that wrote it. The first CI run to reach this step
     # said so: it recomputed a different hash, found no reference, and went looking for a baseline
-    # binary that CI deliberately does not build.
+    # binary that CI deliberately does not build. Hashing the document before this step keys a
+    # reference by the scenario, which is what it was always meant to identify.
     if absolute:
         absolutise(document, source.parent)
     return document
@@ -619,6 +654,13 @@ class Outcome:
     # Baseline runs that exited on a signal and were retried.
     retries: list[str] = field(default_factory=list)
 
+    # The compatibility flags this build ran the comparison with, as passed on its command line.
+    compat_flags: str = ""
+
+    # The deviation-impact pass: what the flags are worth, reported rather than graded.
+    # None when the pass did not run; see DeviationImpact.
+    impact: "DeviationImpact | None" = None
+
 
 def lattice_keys(values: list[float], scale: float) -> list[int]:
     """The values bucketed at the baseline's printed precision.
@@ -734,6 +776,18 @@ def compare(baseline: dict[int, dict], new: dict[int, dict], seeds: list[int],
 
         if variable in BASELINE_DOES_NOT_COMPUTE and all(v == 0.0 for v in base_values):
             identifier, reason = BASELINE_DOES_NOT_COMPUTE[variable]
+            if all(v == 0.0 for v in new_values):
+                # The exclusion says "the baseline emits this column and never fills it, and we
+                # do". If *this* build's series is identically zero too, that second half is no
+                # longer true, and the rule as written would hide the regression completely: it
+                # would print "the baseline does not compute it" and skip, which is exactly what
+                # it prints when everything is fine. Found by reviewing the exclusions against
+                # ADR 0041, not by it failing.
+                outcome.missing.append(
+                    f"{key}: excluded as {identifier} because the baseline never fills it — but "
+                    f"this build's series is identically zero as well, which is the deviation "
+                    f"not holding rather than the deviation being applied")
+                continue
             outcome.uncomputed.setdefault(variable, (identifier, reason))
             outcome.skipped.append(f"{key}: the baseline does not compute it ({identifier})")
             continue
@@ -834,6 +888,111 @@ def examples() -> dict[str, Example]:
     }
 
 
+# --- the deviation-impact measurement -----------------------------------------------------------
+
+
+@dataclass
+class ImpactSeries:
+    """What one deviation set is worth for one (scenario, sex, variable), year by year."""
+
+    scenario: str
+    sex: str
+    variable: str
+
+    # year -> mean over seeds of (fixed - baseline-compatible). Positive means the fix raises the
+    # value; the sign is part of the finding, so it is never taken away.
+    by_year: dict[int, float] = field(default_factory=dict)
+
+    # The same, relative to the baseline-compatible value, for a reader who wants a percentage.
+    relative_by_year: dict[int, float] = field(default_factory=dict)
+
+    @property
+    def largest(self) -> float:
+        """The year whose difference is largest in magnitude, signed."""
+        if not self.by_year:
+            return 0.0
+        return max(self.by_year.values(), key=abs)
+
+    @property
+    def largest_year(self) -> int | None:
+        if not self.by_year:
+            return None
+        return max(self.by_year, key=lambda year: abs(self.by_year[year]))
+
+
+@dataclass
+class DeviationImpact:
+    """The difference the compatibility flags make, measured rather than argued.
+
+    This is not a pass/fail result and nothing here can fail a run. It exists because a deviation
+    that is only ever described in prose gets quoted for three runs after it stopped being true,
+    and because "these two disagree" and "these two disagree by exactly what this fix is worth" are
+    different statements (ADR 0041).
+    """
+
+    flags: str
+    seeds: list[int]
+    # Every series, including the ones that are identically zero; the report filters.
+    series: list[ImpactSeries] = field(default_factory=list)
+    # Series where the two runs agree to the last printed digit everywhere.
+    unchanged: int = 0
+    # Bands the flags-off run empties that the comparison's exclusion does not cover. Reported,
+    # because it would make a difference figure for that band mean something slightly different.
+    extra_empty_bands: int = 0
+    timing_seconds: float = 0.0
+    note: str = ""
+
+
+def measure_impact(fixed: dict[int, dict], compatible: dict[int, dict], seeds: list[int],
+                   flags: str) -> DeviationImpact:
+    """`fixed` minus `compatible`, averaged over seeds, per (scenario, sex, variable, year).
+
+    Both dictionaries are reductions of this build's own output on the same seeds and the same
+    excluded bands, differing only in whether the compatibility flags were on. So the difference is
+    the deviations and nothing else — no Monte Carlo noise, because the seeds are the same and the
+    number of random draws per person per year is unchanged by a flag.
+    """
+    impact = DeviationImpact(flags=flags, seeds=list(seeds))
+
+    keys = set()
+    for seed in seeds:
+        keys |= set(fixed.get(seed, {})) & set(compatible.get(seed, {}))
+
+    grouped: dict[tuple[str, str, str], ImpactSeries] = {}
+    for scenario, year, sex, variable in sorted(keys):
+        differences = []
+        compatible_values = []
+        for seed in seeds:
+            left = fixed.get(seed, {}).get((scenario, year, sex, variable))
+            right = compatible.get(seed, {}).get((scenario, year, sex, variable))
+            if left is None or right is None:
+                continue
+            differences.append(left - right)
+            compatible_values.append(right)
+        if not differences:
+            continue
+
+        mean_difference = statistics.fmean(differences)
+        mean_compatible = statistics.fmean(compatible_values)
+
+        # The baseline prints six significant digits, so a difference below that floor is not a
+        # difference either implementation could report. Counting it as one would fill the section
+        # with noise from the last bits of a double.
+        scale = max(abs(mean_compatible), PRINTED_PRECISION_FLOOR)
+        if abs(mean_difference) <= scale * PRINTED_PRECISION_FLOOR:
+            impact.unchanged += 1
+            continue
+
+        series = grouped.setdefault((scenario, sex, variable),
+                                    ImpactSeries(scenario=scenario, sex=sex, variable=variable))
+        series.by_year[year] = mean_difference
+        series.relative_by_year[year] = (mean_difference / mean_compatible
+                                          if mean_compatible else math.inf)
+
+    impact.series = sorted(grouped.values(), key=lambda s: -abs(s.largest))
+    return impact
+
+
 # --- the report ---------------------------------------------------------------------------------
 
 
@@ -853,6 +1012,10 @@ def report(outcome: Outcome, verbose: bool, max_failures: int) -> bool:
         print(f"    {label} config sha256: {digest}")
     print(f"    {outcome.excluded_bands} age band(s) excluded on both sides: the bands either "
           f"implementation empties, which immigration cannot refill (docs/equivalence.md)")
+    if outcome.compat_flags:
+        print(f"    compared with --baseline-compat {outcome.compat_flags}: this build reproduces "
+              f"the baseline's deliberate deviations, so the comparison tests everything but them "
+              f"(ADR 0041)")
     if outcome.retries:
         print(f"    {len(outcome.retries)} baseline run(s) exited on a signal and were retried "
               f"(audit B-01/B-02; docs/equivalence.md):")
@@ -905,6 +1068,8 @@ def report(outcome: Outcome, verbose: bool, max_failures: int) -> bool:
             print(f"      {comparison.key} {comparison.statistic}: "
                   f"{comparison.ratio_of_allowed:.2f}x the allowance")
 
+    report_impact(outcome, verbose)
+
     if outcome.missing:
         return False
 
@@ -915,6 +1080,78 @@ def report(outcome: Outcome, verbose: bool, max_failures: int) -> bool:
         return True
 
     return False
+
+
+def impact_as_json(impact: "DeviationImpact | None") -> dict | None:
+    if impact is None:
+        return None
+    return {
+        "flags": impact.flags,
+        "seeds": impact.seeds,
+        "note": impact.note,
+        "elapsed_seconds": impact.timing_seconds,
+        "series_unchanged_to_printed_precision": impact.unchanged,
+        "extra_empty_bands": impact.extra_empty_bands,
+        "series": [
+            {
+                "scenario": series.scenario,
+                "sex": series.sex,
+                "variable": series.variable,
+                "largest_difference": series.largest,
+                "largest_difference_year": series.largest_year,
+                "largest_relative": series.relative_by_year.get(series.largest_year),
+                "by_year": {str(year): value for year, value in sorted(series.by_year.items())},
+                "relative_by_year": {str(year): value
+                                     for year, value in sorted(series.relative_by_year.items())},
+            }
+            for series in impact.series
+        ],
+    }
+
+
+def report_impact(outcome: Outcome, verbose: bool) -> None:
+    """The deviation-impact section. Nothing here can fail a run (ADR 0041)."""
+    impact = outcome.impact
+    if impact is None:
+        return
+
+    print()
+    print(f"--- deviation impact: what --baseline-compat {impact.flags} is worth on "
+          f"{outcome.example}")
+    print(f"    this build's own output with the flags off, minus the same with them on, "
+          f"averaged over {len(impact.seeds)} seeds. Reported, not graded.")
+    if impact.timing_seconds:
+        print(f"    the extra pass took {impact.timing_seconds:.1f}s")
+    if impact.note:
+        print(f"    {impact.note}")
+    if impact.extra_empty_bands:
+        print(f"    {impact.extra_empty_bands} age band(s) the flags-off run empties and the "
+              f"comparison's exclusion does not cover; their cells are reduced with the "
+              f"comparison's exclusion all the same, so the two sides stay comparable")
+
+    if not impact.series:
+        print(f"    no difference anywhere: all {impact.unchanged} series agree to the "
+              f"baseline's printed precision. No recorded deviation reaches this run.")
+        return
+
+    print(f"    {len(impact.series)} series differ; {impact.unchanged} agree to the printed "
+          f"precision")
+    shown = impact.series if verbose else impact.series[:12]
+    for series in shown:
+        years = sorted(series.by_year)
+        largest_year = series.largest_year
+        relative = series.relative_by_year.get(largest_year, 0.0)
+        print(f"      {series.scenario}/{series.sex}/{series.variable}: "
+              f"largest {series.largest:+.6g} ({relative:+.3%}) in {largest_year}, "
+              f"over {years[0]}-{years[-1]}")
+        # The year-by-year curve is the evidence: a deviation with a shape nobody expected is
+        # worth more than its worst year.
+        if verbose:
+            trace = ", ".join(f"{year}:{series.by_year[year]:+.4g}" for year in years)
+            print(f"        {trace}")
+    if len(impact.series) > len(shown):
+        print(f"      … and {len(impact.series) - len(shown)} more; --verbose for all of them, "
+              f"or read the JSON")
 
 
 def as_json(outcome: Outcome) -> dict:
@@ -952,9 +1189,73 @@ def as_json(outcome: Outcome) -> dict:
         "series_reported_by_one_side_only": outcome.missing,
         "sigma_limit": SIGMA_LIMIT,
         "printed_precision_floor": PRINTED_PRECISION_FLOOR,
+        "baseline_compat_flags": outcome.compat_flags,
+        "deviation_impact": impact_as_json(outcome.impact),
         "groups": sorted(by_group.values(),
                          key=lambda g: (-g["failed"], -g["worst"]["ratio"])),
     }
+
+
+def run_impact_pass(*, example: Example, seeds: list[int], workdir: Path, name: str,
+                    binary: Path, overlay: dict, excluded: set[Band], compat_flags: str,
+                    compat_arguments: list[str], fixed_reference: dict[int, dict],
+                    result_files: dict[tuple[str, int], Path], stop_time: int | None,
+                    size_fraction: float | None, mode: str) -> DeviationImpact | None:
+    """Runs this build again with the compatibility flags off, and measures the difference.
+
+    `fixed_reference` is the reduction of the comparison's runs — the ones *with* the flags on. The
+    naming is deliberately the other way round from what it looks like: with the flags on this
+    build reproduces the baseline, so the comparison's runs are the *compatible* ones and this pass
+    produces the *fixed* ones. See ADR 0041.
+    """
+    started = time.monotonic()
+    impact_reduced: dict[int, dict] = {}
+    extra_empty: set[Band] = set()
+    note = ""
+
+    order = list(seeds)
+    for position, seed in enumerate(order):
+        folder = workdir / name / "no-compat" / f"seed-{seed}"
+        if folder.exists():
+            shutil.rmtree(folder)
+        folder.mkdir(parents=True)
+
+        document = derive_config(example.new_config, seed, folder, example.intervention,
+                                 stop_time, False, overlay, size_fraction)
+        config_path = folder.parent / f"config-seed-{seed}.json"
+        stage_example_files(example.new_config, config_path.parent)
+        write_derived_config(config_path, document)
+
+        run(binary, config_path, ["--threads", "1"],
+            folder.parent / f"log-seed-{seed}.txt", output_folder=folder)
+
+        result = find_result_csv(folder)
+        extra_empty |= empty_bands(result) - excluded
+        impact_reduced[seed] = reduce_result(result, excluded)
+
+        # The probe: if the first seed's two result files are byte-identical, no recorded
+        # deviation reaches this run and the remaining seeds would measure nothing. Comparing the
+        # files rather than the reductions makes that a stronger statement — the reduction could
+        # hide a difference the exclusion removed.
+        if mode == "auto" and position == 0:
+            comparison_result = result_files.get(("new", seed))
+            if (comparison_result is not None
+                    and comparison_result.read_bytes() == result.read_bytes()):
+                impact = DeviationImpact(flags=compat_flags, seeds=[seed])
+                impact.note = (f"stopped after seed {seed}: this build's output is byte-identical "
+                               f"with the flags on and off, so no recorded deviation reaches this "
+                               f"example with '{example.intervention}' active. "
+                               f"--deviation-impact always runs the rest anyway.")
+                impact.timing_seconds = time.monotonic() - started
+                impact.unchanged = len(fixed_reference.get(seed, {}))
+                return impact
+        print(f"    {name} seed {seed}: deviation-impact pass done", flush=True)
+
+    impact = measure_impact(impact_reduced, fixed_reference, seeds, compat_flags)
+    impact.extra_empty_bands = len(extra_empty)
+    impact.timing_seconds = time.monotonic() - started
+    impact.note = note
+    return impact
 
 
 def main() -> int:
@@ -1013,8 +1314,29 @@ def main() -> int:
     parser.add_argument("--json", type=Path, default=None,
                         help="also write the full outcome as JSON, so docs/equivalence.md can "
                              "quote exact numbers rather than round ones")
+    parser.add_argument("--baseline-compat", default="all",
+                        help="the compatibility flags this build runs the comparison with "
+                             "(default: all). With them on it reproduces the baseline's "
+                             "deliberate deviations, so the comparison tests everything except "
+                             "them and an out-of-tolerance cell means something is wrong. "
+                             "`--baseline-compat none` compares the fixed behaviour instead, "
+                             "which is what every run before ADR 0041 did.")
+    parser.add_argument("--deviation-impact", choices=("auto", "always", "never"), default="auto",
+                        help="whether to run this build a second time with the compatibility "
+                             "flags off and report what they are worth, per variable per year. "
+                             "`auto` (the default) probes the first seed and stops if the two "
+                             "runs agree byte for byte, which is the answer whenever no recorded "
+                             "deviation reaches the example's active intervention. The section is "
+                             "reported and never graded (ADR 0041).")
     parser.add_argument("--verbose", action="store_true")
     arguments = parser.parse_args()
+
+    compat_flags = "" if arguments.baseline_compat.lower() in ("", "none") \
+        else arguments.baseline_compat
+    compat_arguments = ["--baseline-compat", compat_flags] if compat_flags else []
+    if arguments.deviation_impact != "never" and not compat_flags:
+        parser.error("--deviation-impact needs compatibility flags to measure; it is the "
+                     "difference between a run with them and a run without")
 
     available = examples()
     names = arguments.example or list(available)
@@ -1037,7 +1359,7 @@ def main() -> int:
 
     for name in names:
         example = available[name]
-        outcome = Outcome(example=name, seeds=seeds)
+        outcome = Outcome(example=name, seeds=seeds, compat_flags=compat_flags)
 
         if not example.new_config.is_file():
             print(f"=== {name}: SKIPPED, {example.new_config} does not exist")
@@ -1111,7 +1433,8 @@ def main() -> int:
                 stage_example_files(source, config_path.parent)
                 write_derived_config(config_path, document)
 
-                extra = ["-T", "1"] if label == "baseline" else ["--threads", "1"]
+                extra = (["-T", "1"] if label == "baseline"
+                         else ["--threads", "1", *compat_arguments])
                 elapsed = run(binary, config_path, extra,
                               folder.parent / f"log-seed-{seed}.txt",
                               attempts=3 if is_baseline else 1,
@@ -1177,6 +1500,19 @@ def main() -> int:
             print(f"    wrote reference {shown}")
 
         compare(baseline_reduced, new_reduced, seeds, outcome)
+
+        # The deviation-impact pass. This build again, same seeds, same excluded bands, with the
+        # compatibility flags off — so the difference is the deviations and nothing else. It can
+        # fail nothing; it is a measurement (ADR 0041).
+        if arguments.deviation_impact != "never":
+            outcome.impact = run_impact_pass(
+                example=example, seeds=seeds, workdir=workdir, name=name,
+                binary=arguments.new, overlay=overlay, excluded=excluded,
+                compat_flags=compat_flags, compat_arguments=compat_arguments,
+                fixed_reference=new_reduced, result_files=result_files,
+                stop_time=arguments.stop_time, size_fraction=arguments.size_fraction,
+                mode=arguments.deviation_impact)
+
         all_passed &= report(outcome, arguments.verbose, arguments.max_failures)
         collected.append(outcome)
 

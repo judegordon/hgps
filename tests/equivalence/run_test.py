@@ -312,3 +312,113 @@ class StagingAnExampleTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _named_series(variable, values_by_seed, year=2020):
+    key = ("baseline", year, "male", variable)
+    return {seed: {key: value} for seed, value in values_by_seed.items()}
+
+
+class BaselineDoesNotComputeTest(unittest.TestCase):
+    """The exclusion for a column the baseline emits and never fills (B-22).
+
+    The rule has two halves — "the baseline never fills it" and "we do" — and until this run it
+    only checked the first. Found by reviewing the exclusions against ADR 0041.
+    """
+
+    def _run(self, base_values, new_values):
+        seeds = list(range(1, len(base_values) + 1))
+        outcome = eqrun.Outcome(example="test", seeds=seeds)
+        eqrun.compare(_named_series("std_income", dict(zip(seeds, base_values))),
+                      _named_series("std_income", dict(zip(seeds, new_values))), seeds, outcome)
+        return outcome
+
+    def test_a_column_the_baseline_never_fills_is_excluded_and_named(self):
+        outcome = self._run([0.0] * 20, [12.5 + 0.1 * i for i in range(20)])
+        self.assertEqual([], outcome.comparisons)
+        self.assertIn("std_income", outcome.uncomputed)
+        self.assertEqual("B-22", outcome.uncomputed["std_income"][0])
+        self.assertEqual([], outcome.missing)
+
+    def test_both_sides_identically_zero_is_reported_rather_than_excluded(self):
+        # The regression the old rule would have hidden behind its own message: this build has
+        # stopped computing the column too, and "the baseline does not compute it" is what the
+        # harness printed either way.
+        outcome = self._run([0.0] * 20, [0.0] * 20)
+        self.assertEqual([], outcome.comparisons)
+        self.assertEqual(1, len(outcome.missing))
+        self.assertIn("identically zero as well", outcome.missing[0])
+        self.assertNotIn("std_income", outcome.uncomputed)
+
+    def test_the_rule_disarms_itself_if_the_baseline_starts_computing_it(self):
+        outcome = self._run([12.4 + 0.1 * i for i in range(20)],
+                            [12.5 + 0.1 * i for i in range(20)])
+        self.assertNotEqual([], outcome.comparisons)
+        self.assertEqual({}, outcome.uncomputed)
+
+
+class DeviationImpactTest(unittest.TestCase):
+    """The deviation-impact measurement: fixed minus baseline-compatible, per series (ADR 0041)."""
+
+    @staticmethod
+    def _reductions(fixed_by_year, compatible_by_year, seeds=(1, 2, 3)):
+        fixed = {seed: {("intervention", year, "male", "mean_bmi"): value
+                        for year, value in fixed_by_year.items()} for seed in seeds}
+        compatible = {seed: {("intervention", year, "male", "mean_bmi"): value
+                             for year, value in compatible_by_year.items()} for seed in seeds}
+        return fixed, compatible, list(seeds)
+
+    def test_two_identical_runs_report_no_difference(self):
+        fixed, compatible, seeds = self._reductions({2020: 25.0, 2021: 25.5},
+                                                    {2020: 25.0, 2021: 25.5})
+        impact = eqrun.measure_impact(fixed, compatible, seeds, "all")
+        self.assertEqual([], impact.series)
+        self.assertEqual(2, impact.unchanged)
+
+    def test_the_difference_keeps_its_sign_and_finds_its_largest_year(self):
+        # B-24's shape: nothing in the policy's first year, then a difference that grows while the
+        # coverage window is open. The sign says which way the fix moves the number.
+        fixed, compatible, seeds = self._reductions(
+            {2022: 25.0, 2023: 25.0007, 2024: 25.0045, 2025: 25.0124},
+            {2022: 25.0, 2023: 25.0, 2024: 25.0, 2025: 25.0})
+        impact = eqrun.measure_impact(fixed, compatible, seeds, "B-24")
+
+        self.assertEqual(1, len(impact.series))
+        series = impact.series[0]
+        self.assertEqual("mean_bmi", series.variable)
+        self.assertEqual(2025, series.largest_year)
+        self.assertAlmostEqual(0.0124, series.largest, places=9)
+        self.assertGreater(series.largest, 0.0)
+        # The first year is below the printed-precision floor, so it is not counted as a
+        # difference — which is the right answer: the defect needs a previous failed draw.
+        self.assertNotIn(2022, series.by_year)
+
+    def test_a_difference_below_the_printed_precision_is_not_a_difference(self):
+        # The baseline writes six significant digits, so a difference in the last bits of a double
+        # is not something either implementation could report.
+        fixed, compatible, seeds = self._reductions({2020: 25.000000001}, {2020: 25.0})
+        impact = eqrun.measure_impact(fixed, compatible, seeds, "all")
+        self.assertEqual([], impact.series)
+        self.assertEqual(1, impact.unchanged)
+
+    def test_the_relative_figure_is_against_the_baseline_compatible_value(self):
+        fixed, compatible, seeds = self._reductions({2020: 22.0}, {2020: 20.0})
+        impact = eqrun.measure_impact(fixed, compatible, seeds, "all")
+        series = impact.series[0]
+        self.assertAlmostEqual(2.0, series.largest, places=9)
+        self.assertAlmostEqual(0.1, series.relative_by_year[2020], places=9)
+
+    def test_a_series_only_one_side_has_is_left_out_rather_than_guessed(self):
+        fixed = {1: {("intervention", 2020, "male", "mean_bmi"): 25.0,
+                     ("intervention", 2020, "male", "mean_new_thing"): 1.0}}
+        compatible = {1: {("intervention", 2020, "male", "mean_bmi"): 24.0}}
+        impact = eqrun.measure_impact(fixed, compatible, [1], "all")
+        self.assertEqual(["mean_bmi"], [s.variable for s in impact.series])
+
+    def test_nothing_in_the_impact_can_fail_a_run(self):
+        # It is a measurement, not a gate (ADR 0041). `report_impact` returns nothing and
+        # `report`'s verdict is computed before it is called.
+        outcome = eqrun.Outcome(example="test", seeds=[1, 2, 3])
+        fixed, compatible, seeds = self._reductions({2020: 99.0}, {2020: 1.0})
+        outcome.impact = eqrun.measure_impact(fixed, compatible, seeds, "all")
+        self.assertTrue(eqrun.report(outcome, verbose=False, max_failures=0))

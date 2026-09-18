@@ -86,6 +86,64 @@ The exclusion is conditional, which is the part that matters: the harness drops 
 while the baseline's series is identically zero**, and compares it normally the moment that stops
 being true. The exclusion cannot outlive the defect.
 
+**And only while this build's series is not.** That half was missing until the review in §3.4, and
+its absence was a hole of exactly the kind this document keeps finding: the rule's justification has
+two halves — "the baseline never fills it" and "we do" — and it checked only the first. If this
+build ever stopped computing `std_income`, the two series would be identically zero, the rule would
+fire, and the harness would print *the baseline does not compute it* and skip — which is word for
+word what it prints when everything is fine. A regression in the one variable the rule covers was
+invisible, in the rule written to cover it. Both series identically zero is now **reported**, not
+skipped, and `BaselineDoesNotComputeTest` pins all three cases.
+
+### 3.4 Should any of these be a compatibility flag instead?
+
+[ADR 0041](decisions/0041-deliberate-deviations-are-switchable.md) makes every deliberate deviation
+that changes outputs switchable, so its effect can be measured rather than argued. That raises the
+question for the exclusions above, each of which is also a place where a known difference is kept
+out of the comparison. All three were reviewed against it. **None is converted**, and the reason is
+the same one in each case, stated once here:
+
+> A compatibility flag is right when **both** implementations compute a meaningful number and they
+> differ on purpose. Then the difference is the finding, and excluding it throws away the
+> measurement. An exclusion is right when **one side has nothing to compare** — then there is no
+> difference to measure, only an absence, and a flag would have nothing to toggle.
+
+- **§3.1, the emptying bands.** Not a deviation at all in the sense that matters: B-21's rule is
+  *kept*, so both implementations do the same thing, and what differs is which bands happen to empty
+  under different random streams. There is no behaviour to switch. An empty band has no
+  count-weighted mean, so there is nothing on either side. **Keep.**
+- **§3.2, `std_income`.** The closest call, and the one worth arguing. It *is* a fixed defect that
+  changes an output column's values, which is the ADR's criterion read literally. But the baseline's
+  column is a placeholder, not a number: turning a flag on would make this build emit zero, the
+  comparison would then be zero against zero, and that is not a stronger test than not comparing.
+  The deviation-impact section would report this build's `std_income` series, which anyone can
+  already read straight out of a result file. The flag would cost a branch inside the analysis
+  module's hot loop to buy a number that is not hidden. **Keep** — and the review found the missing
+  half of the rule instead, which was worth more than the conversion would have been.
+- **§3.3, the first simulated year.** Not a deviation: both implementations agree that a flow
+  variable has no value before anything has flowed. **Keep.**
+
+The distinction is not a formality. **B-24** — the deviation that prompted ADR 0041 — was on the
+other side of it: two implementations computing a real mean BMI and disagreeing on purpose, with
+nothing excluded, which is why it showed up as 28 out-of-tolerance comparisons that a person had to
+attribute by hand. That is the case a flag is for.
+
+### 3.5 What the comparison runs with
+
+Since ADR 0041, every comparison runs this build with **`--baseline-compat all`**, so it reproduces
+the baseline's deliberate deviations and the comparison tests everything except them. The harness
+then runs this build once more with the flags **off** and reports the difference as the **deviation
+impact** section — per variable, per year, per scenario, signed. Nothing in that section can fail a
+run.
+
+One consequence is worth stating because it bit on the first attempt: **the excluded-band set in
+§3.1 depends on the compatibility flags**, because it is partly derived from this build's own runs
+and a flag changes which bands empty. So a stored reference is tied to the flag setting it was
+written with, and the check in §3.1 catches the mismatch and refuses rather than comparing against
+the wrong reduction — which is what it did, on `HLM_India` with `food_labelling` active, the one
+example where B-24 reaches the numbers. The reference was refreshed. On the examples where no
+deviation reaches the run, the set is identical and the existing references were untouched.
+
 ### 3.3 The first simulated year, for quantities not defined in it
 
 A death, emigration, incidence or burden variable has no value in the first year — nothing has
