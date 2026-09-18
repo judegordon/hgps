@@ -114,10 +114,10 @@ Validation has two layers ([ADR 0006](docs/decisions/0006-validation-strategy.md
   is out of scope, and 34 do not because the thing they test does not exist here by design — the
   event bus, the sync channel, the lazy repository, the printed summary boxes.
   [docs/test-port-map.md](docs/test-port-map.md) says which, suite by suite. **The 35 tests the
-  baseline skips run here**, and finding out whether they pass is how four defects were found. 220
-  tests are new, including byte-for-byte reproducibility at one thread and at N for every
-  intervention, a modulo-bias regression test, ordered-sampling tests, and a test that an unseeded
-  config is rejected. 548 in total.
+  baseline skips run here**, and finding out whether they pass is how four defects were found. Of
+  the 554 tests here, 229 are in files the baseline has no counterpart for — byte-for-byte
+  reproducibility at one thread and at N for every intervention, a modulo-bias regression test,
+  ordered-sampling tests, and a test that an unseeded config is rejected, among others.
 - **Statistical equivalence against the baseline** on both reference examples — `HLM_France` for
   the HLM surface and `KevinHall_FINCH` for the FINCH one — over at least 20 seeds, comparing
   means, standard deviations and percentiles per output variable per year per scenario per sex,

@@ -123,6 +123,38 @@ TEST(ConvertConfig, CompletesAProjectRequirementsBlockTheInputAlreadyHas) {
     EXPECT_TRUE(requirements.contains("two_stage"));
 }
 
+TEST(ConvertConfig, SaysSoWhenADeprecatedRootFieldContradictsTheModernBlock) {
+    // The upstream KevinHall_India/new_config.json carries both: `trend_type: "UPFTrend"` at the
+    // root and `project_requirements.trend.type: "income_trend"` in the block. The baseline
+    // refuses such a file outright — "Deprecated root-level trend_type and/or income_categories
+    // are not allowed when project_requirements is present" — so converting it without comment
+    // would turn a refusal into a silent guess.
+    auto given = upstream_v1();
+    given["trend_type"] = "UPFTrend";
+    given["income_categories"] = "5";
+    given["project_requirements"] = nlohmann::json{
+        {"trend", {{"enabled", true}, {"type", "income_trend"}}},
+        {"income", {{"categories", "5"}}}};
+
+    const auto result = convert_config(given, "config.json");
+    ASSERT_TRUE(result.succeeded());
+
+    // The block wins, because it is what the loader reads.
+    EXPECT_EQ("income_trend", (*result.document)["project_requirements"]["trend"]["type"]);
+    EXPECT_FALSE(result.document->contains("trend_type"));
+
+    // And the disagreement is a warning naming both values, not a note.
+    EXPECT_TRUE(has_note_containing(result.notes, ConversionNote::Level::warning, "UPFTrend"));
+    EXPECT_TRUE(
+        has_note_containing(result.notes, ConversionNote::Level::warning, "disagrees with itself"));
+
+    // income_categories agrees with the block here, so it stays an ordinary note.
+    EXPECT_FALSE(
+        has_note_containing(result.notes, ConversionNote::Level::warning, "income_categories"));
+    EXPECT_TRUE(
+        has_note_containing(result.notes, ConversionNote::Level::info, "income_categories"));
+}
+
 TEST(ConvertConfig, TakesProjectRequirementsFromASiblingNewConfig) {
     const auto directory = hgps::test::scratch_dir("convert_sibling");
 

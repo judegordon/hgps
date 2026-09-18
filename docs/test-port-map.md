@@ -1,6 +1,6 @@
 # Test port map
 
-How the baseline's 471 tests map onto this implementation's 548, suite by suite. It exists so that
+How the baseline's 471 tests map onto this implementation's 554, suite by suite. It exists so that
 "the tests were ported" is a checkable claim rather than an assertion, and so that a reader can
 find the descendant of any baseline test — or read, in one line, why there isn't one.
 
@@ -37,7 +37,7 @@ Totals are at the bottom. Verified against `hgps_tests --gtest_list_tests` and t
 | `ConfigParsing` (10) + `ConfigParsingFixture` (22) + `ConfigSchemaExpanded` (47) + `ConfigLegacyFields` (3) | 82 | `tests/config/config_loader_test.cpp` (26), `tests/io/json_test.cpp` (10), `tests/config/schema_agreement_test.cpp` (5) | intent. The baseline's `get`/`get_to`/`rebase_valid_path_to` helper tests become `io::JsonCursor` tests, because accumulated diagnostics replace throw-per-problem; its section loaders (`load_input_info`, `load_modelling_info`, `load_running_info`, `load_output_info`, `load_interventions`, `check_version`) each have a counterpart. One loader test carries many baseline cases, which is why 82 maps onto 41. **fixed**: `seed` is required and scalar (B-06); `output.file_name` is used exactly as configured (B-08); an undefined `${VAR}` is an error (N-17); `project_requirements` is required (D-03); `sync_timeout_ms` is rejected (ADR 0009). |
 | `ConfigurationPIF` | 2 | `tests/config/config_loader_test.cpp` | intent — PIF config is reserved and rejected at load in this build (ADR 0021), so the two struct tests become one reservation test. |
 | `JsonParser` | 29 | `tests/config/config_loader_test.cpp`, `tests/config/model_loader_test.cpp` (13), `tests/core/interval_test.cpp` | intent. Twenty-six of the baseline's 29 are `to_json`/`from_json` round-trips of its poco structs; nothing here writes a config, so a round-trip has no counterpart and the *reading* half is what was ported. `CoefficientInfo`, `LinearModelInfo`, `VariableInfo`, `FactorDynamicEquationInfo` and `Array2Info` become the model-loader tests; `Interval` and `DoubleInterval` the interval tests; `SettingsInfo`, `SESInfo`, `PolicyPeriodInfo`, `PolicyImpactInfo`, `PolicyAdjustmentInfo`, `PolicyScenarioInfo`, `OutputInfo` and `IndividualIdTrackingConfig` the config-loader tests. `FileInfoToJson` has no counterpart: nothing writes that structure. |
-| — | — | `tests/config/convert_config_test.cpp` (11), `ConvertedExamples` (3) | Added: the v1→v2 converter and the six converted examples as acceptance tests (ADR 0010). |
+| — | — | `tests/config/convert_config_test.cpp` (15, counted in *Added here* below) | Added: the v1→v2 converter, the six converted examples as acceptance tests (ADR 0010), and the contradictions the upstream packs carry. |
 | `ModelParserFinch` | 3 | `tests/config/static_linear_loader_test.cpp` (`StaticLinearLoader` 11) | intent, and **all three of these skip upstream** (B-11). `LoadsStaticLinearDefinitionFromFinchData` becomes `TheUpstreamFinchStaticModelLoads`, which also checks the factor order is the correlation matrix's; `PolicyEnergyIntakeRowNormalizedToLogEnergyIntake` becomes `ThePolicyEnergyIntakeRowIsCanonicalisedToADerivedPredictorName`; `RegisterModelsPrintsStaticLinearSummaryBox` is **not ported** — this build prints no summary box — and its subject, the region and ethnicity prevalence the registration step loads, is tested directly instead. Plus eight added, each a defect this loader had: the misspelled coefficient name, the headerless regression files, the stratum without a column for every factor, a trend with no equations. |
 | `LoadNutrientTable` | 2 | `tests/config/kevin_hall_loader_test.cpp` | intent — the nutrient and food tables are loaded and validated against the FactorsMean columns (`AMissingFoodColumnInTheFactorsMeanTablesIsALoadTimeError`, `ANutrientNoFoodDeclaresIsALoadTimeError`). |
 
@@ -85,6 +85,7 @@ Totals are at the bottom. Verified against `hgps_tests --gtest_list_tests` and t
 
 | Here | Tests | Why |
 |---|---:|---|
+| `tests/config/convert_config_test.cpp` | 15 | The v1→v2 converter and the six converted examples. Includes the two upstream contradictions it has to resolve out loud: FINCH's missing policy files (D-02) and KevinHall_India's `trend_type` disagreeing with its own `project_requirements`. |
 | `tests/core/chars_test.cpp` | 4 | B-03: eleven `<cctype>` calls on a signed `char`. Exercises the whole byte range. |
 | `tests/core/matrix_test.cpp` | 6 | The Cholesky decomposition and matrix-vector product are ours rather than Eigen's (ADR 0023). |
 | `tests/core/parallel_test.cpp` | 6 | D5: a fixed-order reduction, bit-identical at any thread count (N-7). |
@@ -98,7 +99,7 @@ Totals are at the bottom. Verified against `hgps_tests --gtest_list_tests` and t
 | `tests/io/paths_test.cpp` | 6 | `${VAR}` expansion reporting, the cache directory, the one `__APPLE__` branch. |
 | `tests/config/schema_agreement_test.cpp` | 5 | Keeps `schemas/v2/` and the loader from drifting apart (ADR 0022). It has already earned its place: it caught the loader skipping `interventions.types` validation for a baseline-only config. |
 | `tests/config/model_loader_test.cpp` | 13 | The model loaders had no test, so they read the internal member names instead of the ones the fitted files use. One of these asserts the internal names are *rejected*. |
-| `tests/sim/reproducibility_test.cpp` | 6 | The determinism contract end to end: byte-identical twice, byte-identical at 1 and N threads, and — added this run — all six interventions run four times each, twice at one thread and twice at four. |
+| `tests/sim/reproducibility_test.cpp` | 11 | The determinism contract end to end: byte-identical twice, byte-identical at 1 and N threads, and — added this run — all six interventions run four times each, twice at one thread and twice at four. |
 | `tests/model/static_linear_test.cpp` | 22 | The inverse Box-Cox outside its domain, the max-subtracted softmax over logits that overflow a double, and the rank split that keeps the top income bucket from emptying. The baseline overflows on the first two and has no test of any of them. |
 | `tests/sim/interventions_test.cpp` | 32 | The five banded policies, their parameter validation, and the one-draw-per-person-per-year property that keeps the two scenarios in step on a shared seed. |
 | `tests/config/kevin_hall_loader_test.cpp` | 27 | The Kevin Hall loader against the real FINCH pack, including the row-index column of the quantile CSVs and the three shapes of height file. |
@@ -107,18 +108,29 @@ Totals are at the bottom. Verified against `hgps_tests --gtest_list_tests` and t
 
 ## Totals
 
+Counted two ways, because the two questions are different ones.
+
+**Of the baseline's 471, where did each go?**
+
 | | Tests |
 |---|---:|
-| Baseline | 471 |
 | Ported, or with a counterpart here | 408 |
-| **not ported** — out of scope for this run (PIF 18, nutrient-table round-trips 0) | 18 |
+| **not ported** — out of scope (population impact fraction) | 18 |
 | **not ported by design** — the thing tested does not exist here (`SyncChannel` 9, event bus 15, `CachedRepository` 3, printed summary boxes 7) | 34 |
-| Added here | 220 |
-| **This implementation** | **548** |
+| the `to_json` half of a `to_json`/`from_json` pair, where nothing here writes that structure | 11 |
+| **Baseline** | **471** |
 
-408 + 18 + 34 = 460, not 471: the difference is the 11 baseline tests that are the `to_json` half
-of a `to_json`/`from_json` pair where nothing here writes that structure, counted in `JsonParser`
-above.
+**Of this implementation's 554, where did each come from?**
+
+| | Tests |
+|---|---:|
+| in a test file with no baseline counterpart at all — the *Added here* table above, summed | 229 |
+| in a file that descends from a baseline suite | 325 |
+| **This implementation** | **554** |
+
+The second row is not all ported: several of those suites carry added cases, each noted in the
+section tables above as "plus N added" with what it checks. What the row does say is that no test
+here was written without knowing whether the baseline had one.
 
 **The 35 tests the baseline skips are now 30 tests that run and pass**, and the five that are not
 ported assert the contents of console tables this build does not print. That is the headline of

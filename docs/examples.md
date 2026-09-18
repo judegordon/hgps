@@ -62,18 +62,22 @@ Measured, not predicted: each row is the result of `healthgps --config examples/
 | **HLM_France** | `config.json` | yes | yes | **yes** | — |
 | **HLM_India** | `config.json` | yes | yes | **yes** | — |
 | **KevinHall_FINCH** | `new_config.json` | yes | yes | **yes** | — |
-| **KevinHall_India** | `new_config.json` | yes | yes | **yes** | — |
+| KevinHall_India | `new_config.json` | yes | yes | no | a newborn's weight from the quantile curve falls below the configured minimum — **and the baseline fails on it in the same place**, see below |
 | Dummy_disease_test | `config.json` | yes | no | no | model family `dummy`, which is a test double rather than a model |
 | KevinHall_PIF | `new_config.json` | no | no | no | `population_impact_fraction.enabled` is true |
 
-**Four of the six run end to end**, against two at the end of the previous run:
+**Three of the six run end to end**, against one at the end of the previous run:
 
 ```
 HLM_France       6 diseases, 11 risk factors, cohort of     6,244, 2010–2050
 HLM_India       35 diseases, 11 risk factors, cohort of 1,240,613, 2010–2050
 KevinHall_FINCH 15 diseases, 34 risk factors, cohort of     6,817, 2022–2032
-KevinHall_India  7 diseases, 17 risk factors, cohort of    14,171, 2022–2026
 ```
+
+`KevinHall_India` gets further than any of the three that stop — its config, its model files, its
+data and both scenarios' modules all load, and it reports `7 diseases, 17 risk factors, cohort of
+14,171 people, 2022–2026` under `--dry-run`. It stops in the first simulated year, and the reason
+is the pack's, not this build's.
 
 Two of them are compared against the baseline over many seeds — `HLM_France` and
 `KevinHall_FINCH`, at 20 seeds with `simple` active, again at 60, and once more for each of the
@@ -148,9 +152,59 @@ which is the whole point of validating the registry against the tree at load tim
 ([ADR 0012](decisions/0012-disease-naming-pulmonary.md), deviation D-01). The baseline finds out
 part-way through configuration, with `Disease code: 'pulmonar' not found.`
 
-### KevinHall_India and the income trend
+### KevinHall_India, which neither implementation can run
 
-`KevinHall_India` is the only example that uses an income trend — `trend.type: income_trend`, with
+Two separate problems, both in the pack.
+
+**Its `new_config.json` contradicts itself, and its own baseline refuses it.** The root says
+`"trend_type": "UPFTrend"` while `project_requirements.trend.type` says `"income_trend"`. Running
+the baseline on that file gives, before anything loads:
+
+```
+Invalid configuration - Deprecated root-level trend_type and/or income_categories are not allowed
+when project_requirements is present. Use project_requirements.trend and
+project_requirements.income.categories instead.
+```
+
+The converter resolves it — the block wins, because it is what the loader reads — but it now says
+so at `warning` level, naming both values and which one was used, rather than dropping the root
+field with a bland note. `ConvertConfig.SaysSoWhenADeprecatedRootFieldContradictsTheModernBlock`
+pins that. Turning a refusal into a silent guess is the thing to avoid here.
+
+**And then it stops in the first simulated year.** With the config loadable, both implementations
+run into the same wall:
+
+```
+this build:   healthgps: internal error: person 1 (male, age 0) weighs 3.159 kg after the weight
+              quantile curve, below the configured minimum of 3.319 kg for 'Weight'. The energy
+              balance has produced a body the rest of the model cannot describe; check the model's
+              nutrient and energy coefficients
+              [kevin_hall/weight_height.cpp:119 …validate_weight…]
+
+the baseline: libc++abi: terminating due to uncaught exception of type hgps::core::HgpsException:
+              kevin_hall_model.cpp:1196: Weight (3.108400 kg) is below minimum configured range
+              [3.319358, 92.563910] kg during phase 'initialise_weight'.
+```
+
+Same place, same cause, weights differing only by the two implementations' random streams. The
+pack's `modelling.risk_factors` puts `Weight`'s lower bound at **3.319358 kg**, and its own weight
+quantile curve produces newborns lighter than that. The bound and the curve disagree, and no code
+change here can reconcile them: raising the curve or lowering the bound would both be inventing a
+number for somebody else's model.
+
+Worth noting what each implementation does with it. The baseline throws from inside the dynamic
+model, the exception escapes the worker thread, and the process is killed by `std::terminate` —
+there is a `ERROR: Exception in dynamic model:` line, and then the run dies. This build reports it
+as a diagnosed internal error naming the person, the weight, the bound and the source location,
+writes its metadata file, and exits cleanly with a failure code
+([ADR 0007](decisions/0007-two-tier-diagnostics.md)).
+
+`KevinHall_India` therefore stays out of the equivalence comparison for a better reason than scope:
+there is nothing to compare.
+
+### What KevinHall_India does exercise
+
+It is the only example that uses an income trend — `trend.type: income_trend`, with
 `IncomeTrend` equations, an `ExpectedIncomeTrend`, an `IncomeTrendSteps` and an `IncomeDecayFactor`
 per risk factor. It is also the only one whose static model is in the *JSON* shape rather than the
 CSV-matrix one, so between them the two India examples and FINCH exercise both shapes of
@@ -158,7 +212,8 @@ CSV-matrix one, so between them the two India examples and FINCH exercise both s
 
 Two things it surfaced, both now handled: its top-level `PhysicalActivityStdDev` is `null` with the
 real value in the model block below it, and its `RiskFactorModels` entries carry five income-trend
-members the schema had no place for.
+members the schema had no place for. Both of those are load-time work that runs to completion, and
+they are the reason this example is worth converting even though it cannot be run.
 
 ## Two things a reader should know before trusting a converted config
 

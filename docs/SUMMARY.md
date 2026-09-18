@@ -8,10 +8,11 @@ what it left open was the FINCH one.
 
 A working, deterministic C++20 reimplementation of the Health-GPS microsimulation covering **both
 in-scope model surfaces end to end**. `HLM_France` and `KevinHall_FINCH` both run all their
-scenarios against the baseline and produce results that agree with it, and four of the six upstream
-examples now run.
+scenarios against the baseline and produce results that agree with it. Three of the six upstream
+examples now run end to end, and a fourth loads completely and then stops on a contradiction in its
+own data pack — which the baseline also stops on, in the same place.
 
-- **548 tests**, all passing under every preset — release, debug, **AddressSanitizer +
+- **554 tests**, all passing under every preset — release, debug, **AddressSanitizer +
   UndefinedBehaviorSanitizer** and **ThreadSanitizer**. The baseline's 471 were gone through one by
   one, and **the 35 the baseline skips now run**: [docs/test-port-map.md](test-port-map.md) says
   where each went.
@@ -31,7 +32,7 @@ examples now run.
 | | |
 |---|---|
 | `src/` | 128 files, 22,600 lines — core, diagnostics, RNG, I/O, config, data, model, sim, output, app |
-| `tests/` | 47 files, 11,500 lines — 548 tests in 63 suites |
+| `tests/` | 47 files, 11,700 lines — 554 tests in 63 suites |
 | `tools/` | `convert-config` (v1→v2, with `--policy-scenario`) and `gen-fixtures` (the synthetic data pack) |
 | `schemas/v2/` | the published config contract, kept in step with the loader by a test |
 | `docs/` | 9 documents and 31 ADRs |
@@ -53,12 +54,12 @@ For comparison, the baseline is 41,400 lines of C++ for the whole model surface.
 | 7 | The other five interventions, and determinism for each | **Done.** One `BandedInterventionScenario` and one virtual function per policy; 32 tests; every intervention byte-identical at one thread and at four, twice each. |
 | 8 | Converter policy-scenario option, and every example converted and loaded | **Done.** `--policy-scenario S1..S7` resolves audit D-02 without editing the upstream example. Four of six examples run; the two that do not stop at a named missing feature. |
 | 9 | Equivalence and performance for FINCH | **Done.** See below. |
-| 10 | Test port completion and every preset | **Done.** 548 tests, four presets. |
+| 10 | Test port completion and every preset | **Done.** 554 tests, four presets. |
 | 11 | Docs, ADRs, README, backlog, this file | **Done.** |
 
 ## What the validation actually shows
 
-**Component level.** 548 tests, of which 220 are new. The strongest are the ones that carry the
+**Component level.** 554 tests, of which 229 are in files the baseline has no counterpart for. The strongest are the ones that carry the
 baseline's expected numbers over unchanged and still pass: the univariate-summary moment
 recurrence, the SHA-256 digests, the weight-model LMS classification, and
 `TestRelativeRiskLookup.ReferenceDataLookup`, 44 expected relative risks interpolated from a real
@@ -140,9 +141,12 @@ the whole FINCH surface cost an example that uses none of it nothing measurable.
 ## What a reader should still be sceptical about
 
 - **Two examples, two countries, and one of them twice.** The evidence is `HLM_France` and
-  `KevinHall_FINCH`. `HLM_India` and `KevinHall_India` load and run in both implementations but are
-  not compared, which was this run's scope ruling. Comparing `KevinHall_India` is the cheapest way
-  to make the FINCH evidence not one data pack, and it is ranked in [docs/backlog.md](backlog.md).
+  `KevinHall_FINCH`. `HLM_India` loads and runs in both implementations but is not compared, which
+  was this run's scope ruling. `KevinHall_India` — the obvious second FINCH-surface country —
+  **cannot be compared at all**: both implementations stop in its first simulated year, because its
+  configured lower bound on `Weight` is above what its own weight quantile curve produces for the
+  lightest newborns. [docs/examples.md](examples.md) has both implementations' messages side by
+  side. So the FINCH evidence is one data pack, and making it two needs a pack that works.
 - **The comparison's floor.** The baseline writes six significant digits, so no comparison can be
   tighter than about 10⁻⁵ relative. Several of these models' aggregates are nearly deterministic,
   so for those the test *is* that floor.

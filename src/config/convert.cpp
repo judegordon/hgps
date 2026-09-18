@@ -158,7 +158,11 @@ ConversionResult convert_config(const json &document,
     output["version"] = 2;
 
     // 1. project_requirements: from the input, from a sibling new_config.json, or derived.
+    //    Which of the three it was decides whether a deprecated root field that disagrees with the
+    //    block is a contradiction (step 4) or simply where the block came from.
+    bool had_requirements = false;
     if (document.contains("project_requirements")) {
+        had_requirements = true;
         output["project_requirements"] =
             complete_project_requirements(document["project_requirements"], result);
         note(result, ConversionNote::Level::info,
@@ -181,6 +185,7 @@ ConversionResult convert_config(const json &document,
                                      "upstream keeps it",
                                      sibling.filename().string()));
                     taken_from_sibling = true;
+                    had_requirements = true;
                 }
             } catch (const json::parse_error &error) {
                 note(result, ConversionNote::Level::warning,
@@ -269,14 +274,46 @@ ConversionResult convert_config(const json &document,
 
     output["running"] = running;
 
-    // 4. The deprecated root fields are dropped, having already been read.
+    // 4. The deprecated root fields are dropped, having already been read. When the config also
+    //    carries a project_requirements block, the two can disagree — and the upstream
+    //    KevinHall_India example does: its root says `trend_type: "UPFTrend"` while its block says
+    //    `trend.type: "income_trend"`. The baseline refuses such a file outright ("Deprecated
+    //    root-level trend_type and/or income_categories are not allowed when project_requirements
+    //    is present"), so converting it silently would turn a refusal into a guess. The block
+    //    wins, because it is the modern spelling and the one the loader reads — but a
+    //    disagreement is a warning naming both values, not a note.
     for (const auto *field : {"trend_type", "income_categories"}) {
-        if (document.contains(field)) {
+        if (!document.contains(field)) {
+            continue;
+        }
+        const auto root_value = document[field].is_string()
+                                    ? document[field].get<std::string>()
+                                    : document[field].dump();
+        const auto *block = field == std::string_view{"trend_type"} ? "trend.type"
+                                                                    : "income.categories";
+        std::string block_value;
+        if (field == std::string_view{"trend_type"}) {
+            block_value = output["project_requirements"]["trend"].value("type", std::string{});
+        } else {
+            block_value =
+                output["project_requirements"]["income"].value("categories", std::string{});
+        }
+
+        if (!had_requirements || block_value == root_value) {
             note(result, ConversionNote::Level::info,
                  fmt::format("the deprecated root '{}' was dropped; project_requirements carries "
                              "it now",
                              field));
+            continue;
         }
+
+        note(result, ConversionNote::Level::warning,
+             fmt::format("the deprecated root '{}' says \"{}\" while project_requirements.{} "
+                         "says \"{}\". The config disagrees with itself, and the baseline "
+                         "refuses a config that carries both. \"{}\" is what this conversion "
+                         "uses, because project_requirements is the block the loader reads — "
+                         "check it against what the study meant.",
+                         field, root_value, block, block_value, block_value));
     }
 
     // 5. PIF passes through, with a warning if it is switched on: this build rejects it at load.

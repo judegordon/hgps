@@ -123,13 +123,48 @@ TEST(Reproducibility, WithAnInterventionActiveTheOutputIsStillByteIdentical) {
     EXPECT_EQ(left, right) << "the two runs differ at " << first_difference(left, right);
 }
 
-TEST(Reproducibility, EveryInterventionIsByteIdenticalAtOneThreadAndAtManyThreadsTwice) {
-    // The determinism contract, for each of the six interventions rather than only for `simple`.
-    // Three of them draw random numbers of their own — `dynamic_marketing`, `physical_activity`
-    // and `food_labelling` — so each is a place the contract could be broken independently.
-    //
-    // Four runs each: twice at one thread, to catch a run that depends on anything but the seed,
-    // and twice at four, to catch one that depends on the thread count.
+// The determinism contract, for each of the six interventions rather than only for `simple`.
+// Three of them draw random numbers of their own — `dynamic_marketing`, `physical_activity` and
+// `food_labelling` — so each is a place the contract could be broken independently, and each gets
+// its own test so that a failure names the policy and so that no single test runs twenty-four
+// simulations. That last part is not tidiness: twenty-four of them in one test took longer than
+// CTest's timeout under ThreadSanitizer, which is the preset that most needs to run them.
+//
+// Four runs each: twice at one thread, to catch a run that depends on anything but the seed, and
+// twice at four, to catch one that depends on the thread count.
+namespace {
+
+void expect_intervention_is_reproducible(const std::string &identifier,
+                                         const nlohmann::json &extra) {
+    auto document = hgps::test::synthetic_config_document();
+    auto definition = document["running"]["interventions"]["types"]["simple"];
+    for (const auto &member : extra.items()) {
+        definition[member.key()] = member.value();
+    }
+    document["running"]["interventions"]["types"][identifier] = definition;
+    document["running"]["interventions"]["active_type_id"] = identifier;
+
+    const auto config = hgps::test::write_config_variant("repro_" + identifier + "_config",
+                                                         document);
+
+    std::vector<std::string> outputs;
+    for (const auto &[label, threads] : std::vector<std::pair<std::string, std::size_t>>{
+             {"one_a", 1}, {"one_b", 1}, {"many_a", 4}, {"many_b", 4}}) {
+        const auto outcome = hgps::test::run_simulation(
+            config, hgps::test::scratch_dir("repro_" + identifier + "_" + label), threads);
+        ASSERT_TRUE(outcome.succeeded) << identifier << ": " << outcome.report.to_string();
+        outputs.push_back(read_file(outcome.csv_path));
+        ASSERT_FALSE(outputs.back().empty()) << identifier;
+    }
+
+    for (std::size_t i = 1; i < outputs.size(); ++i) {
+        EXPECT_EQ(outputs[0], outputs[i])
+            << identifier << ", run " << i << " differs at "
+            << first_difference(outputs[0], outputs[i]);
+    }
+}
+
+nlohmann::json intervention_definition(const std::string &identifier) {
     const std::vector<std::pair<std::string, nlohmann::json>> interventions{
         {"simple", nlohmann::json::object()},
         {"marketing",
@@ -171,34 +206,42 @@ TEST(Reproducibility, EveryInterventionIsByteIdenticalAtOneThreadAndAtManyThread
                         {"to_age", nullptr}}}}}},
     };
 
-    for (const auto &[identifier, extra] : interventions) {
-        auto document = hgps::test::synthetic_config_document();
-        auto definition = document["running"]["interventions"]["types"]["simple"];
-        for (const auto &member : extra.items()) {
-            definition[member.key()] = member.value();
-        }
-        document["running"]["interventions"]["types"][identifier] = definition;
-        document["running"]["interventions"]["active_type_id"] = identifier;
-
-        const auto config =
-            hgps::test::write_config_variant("repro_" + identifier + "_config", document);
-
-        std::vector<std::string> outputs;
-        for (const auto &[label, threads] : std::vector<std::pair<std::string, std::size_t>>{
-                 {"one_a", 1}, {"one_b", 1}, {"many_a", 4}, {"many_b", 4}}) {
-            const auto outcome = hgps::test::run_simulation(
-                config, hgps::test::scratch_dir("repro_" + identifier + "_" + label), threads);
-            ASSERT_TRUE(outcome.succeeded) << identifier << ": " << outcome.report.to_string();
-            outputs.push_back(read_file(outcome.csv_path));
-            ASSERT_FALSE(outputs.back().empty()) << identifier;
-        }
-
-        for (std::size_t i = 1; i < outputs.size(); ++i) {
-            EXPECT_EQ(outputs[0], outputs[i])
-                << identifier << ", run " << i << " differs at "
-                << first_difference(outputs[0], outputs[i]);
+    for (const auto &[name, extra] : interventions) {
+        if (name == identifier) {
+            return extra;
         }
     }
+    ADD_FAILURE() << "no definition for intervention '" << identifier << "'";
+    return nlohmann::json::object();
+}
+
+} // namespace
+
+TEST(Reproducibility, SimpleIsByteIdenticalAtOneThreadAndAtManyThreadsTwice) {
+    expect_intervention_is_reproducible("simple", intervention_definition("simple"));
+}
+
+TEST(Reproducibility, MarketingIsByteIdenticalAtOneThreadAndAtManyThreadsTwice) {
+    expect_intervention_is_reproducible("marketing", intervention_definition("marketing"));
+}
+
+TEST(Reproducibility, DynamicMarketingIsByteIdenticalAtOneThreadAndAtManyThreadsTwice) {
+    expect_intervention_is_reproducible("dynamic_marketing",
+                                        intervention_definition("dynamic_marketing"));
+}
+
+TEST(Reproducibility, FiscalIsByteIdenticalAtOneThreadAndAtManyThreadsTwice) {
+    expect_intervention_is_reproducible("fiscal", intervention_definition("fiscal"));
+}
+
+TEST(Reproducibility, PhysicalActivityIsByteIdenticalAtOneThreadAndAtManyThreadsTwice) {
+    expect_intervention_is_reproducible("physical_activity",
+                                        intervention_definition("physical_activity"));
+}
+
+TEST(Reproducibility, FoodLabellingIsByteIdenticalAtOneThreadAndAtManyThreadsTwice) {
+    expect_intervention_is_reproducible("food_labelling",
+                                        intervention_definition("food_labelling"));
 }
 
 TEST(Reproducibility, ADifferentSeedGivesDifferentOutput) {

@@ -66,8 +66,7 @@ counter rather than the earlier rewrite's slot reuse
 
 ### 5. Equivalence for the two India examples — `validation`
 
-**Value: medium. Effort: low-medium.** `HLM_India` and `KevinHall_India` load and run in both
-implementations; this run's ruling was to put them through the loader so that data
+**Value: medium. Effort: low-medium.** `HLM_India` loads and runs in both implementations; this run's ruling was to put them through the loader so that data
 inconsistencies surface as located input issues, and not to compare them. The harness needs only a
 new entry in its example table.
 
@@ -76,12 +75,21 @@ France's 6,244, so twenty seeds of both implementations is hours rather than min
 stored reference would be large. A sampled cohort would make it cheap and would no longer be the
 example anyone ships.
 
-### 6. A second country for the FINCH surface — `validation`
+### 6. A second country for the FINCH surface — `validation`, and it needs upstream
 
-**Value: medium. Effort: low.** The FINCH equivalence evidence is one pack, one country. The same
-static-linear and Kevin Hall code paths run `KevinHall_India` with a different factor set,
-different food groups and a different cohort. Item 5 covers the mechanics; this is the reason to
-prioritise `KevinHall_India` over `HLM_India` within it.
+**Value: high. Effort: unknown, and not all of it is here.** The FINCH equivalence evidence is one
+pack, one country. The obvious second is `KevinHall_India`, which uses the same `StaticLinear` and
+`KevinHall` code with a different factor set, different food groups, the JSON shape of the static
+model and the income trend — the parts of the surface FINCH does not reach.
+
+It cannot be run. Both implementations stop in its first simulated year because the pack's
+configured lower bound on `Weight`, 3.319358 kg, is above what its own weight quantile curve
+produces for the lightest newborns; the baseline dies on an uncaught exception and this build
+reports it as a located internal error. [docs/examples.md](examples.md) has both messages.
+
+Nothing here can fix that: raising the curve or lowering the bound would be inventing a number for
+somebody else's fitted model. What this item needs is upstream to say which of the two is wrong.
+Until then the FINCH surface has one country, and that is the largest single gap in the validation.
 
 ### 7. A fallback donor for immigration into an empty band — `correctness`
 
@@ -139,14 +147,26 @@ death rate runs above what its mortality table implies. Recorded in the pack's o
 Extending the pack's age range by a few years above the configured one would remove the artefact;
 nothing depends on it, because no test reads the pack's death rates as a check on anything.
 
-### 13. Report the baseline's FINCH crash upstream — `docs`
+### 13. Report three things upstream — `docs`
 
-**Value: low here, high upstream. Effort: low.** Running the baseline twenty times on
-`KevinHall_FINCH` — same binary, same config, same seed — produced two runs that exited on a
-signal, once `SIGTRAP` and once `SIGSEGV`, both of which succeeded when re-run unchanged. That is
-audit findings B-01 and B-02 (concurrent scenarios, lazily-populated repository) showing up as a
-crash rather than as a reordering. The equivalence harness retries up to three times and prints
-every retry, so it is visible rather than smoothed away; what is not done is telling upstream.
+**Value: low here, high upstream. Effort: low.** Three findings belong to the people who own the
+data and the baseline, and telling them is not done:
+
+1. **`KevinHall_India` cannot be run by its own baseline** — its `Weight` lower bound is above what
+   its weight quantile curve produces (item 6), and its `new_config.json` contradicts itself
+   between the deprecated root `trend_type` and `project_requirements.trend.type`, which the
+   baseline's own validator refuses.
+2. **`KevinHall_FINCH`'s legacy `static_model.json` names two files the pack does not contain**
+   (audit D-02, [ADR 0030](decisions/0030-policy-scenario-selection-for-the-broken-finch-example.md)).
+3. **The baseline crashes on `KevinHall_FINCH` about one run in twenty** — same binary, same
+   config, same seed, and it succeeds on the retry. Three signals have been seen: `SIGSEGV`,
+   `SIGTRAP` and `SIGABRT`. That is audit findings B-01 and B-02 (concurrent scenarios, a
+   lazily-populated repository) showing up as a crash rather than as a reordering. The equivalence
+   harness retries up to three times and prints every retry, so it is visible here rather than
+   smoothed away.
+
+Each is reproducible from this repository with one command, which is most of the work of a good
+bug report.
 
 ## Explicitly not planned
 

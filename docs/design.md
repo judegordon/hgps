@@ -108,7 +108,7 @@ factors exist, and load-time validation checks that they do
 |---|---|---|---|
 | `HLM` | static | A fitted regression per factor per hierarchy level, with correlated residuals sampled from an empirical distribution. | HLM_France, HLM_India |
 | `EBHLM` | dynamic | A per-age-band, per-sex regression on last year's values, with a bounded normal residual. | HLM_France, HLM_India |
-| `StaticLinear` | static | A per-factor linear model plus a correlated residual, through an inverse Box-Cox transform, scaled by the expected value. On top: a two-stage logistic first step, income (categorical or continuous), physical activity, sector, and two kinds of time trend. | KevinHall_FINCH, KevinHall_India |
+| `StaticLinear` | static | A per-factor linear model plus a correlated residual, through an inverse Box-Cox transform, scaled by the expected value. On top: a two-stage logistic first step, income (categorical or continuous), physical activity, sector, and two kinds of time trend. | KevinHall_FINCH, KevinHall_India (which loads but cannot run — [docs/examples.md](examples.md)) |
 | `KevinHall` | dynamic | The energy balance: foods to nutrients to energy intake, and the change in intake moves fat, lean tissue, glycogen and fluid to a new steady state, from which weight and BMI follow. | KevinHall_FINCH, KevinHall_India |
 
 `StaticLinear` reads its per-factor parameters in either of two shapes, because both are in use
