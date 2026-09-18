@@ -324,11 +324,11 @@ shift has no coverage book and no memory of who it has affected.
 | `food_labelling` (the example's own) | 20 | 68,083 | 3 | 1,657 |
 | `food_labelling` | 60 | 68,833 | 34 | 1,791 |
 
-**Every `mean_bmi` failure is in a `food_labelling` run and there are none in a `simple` run, at
-either seed count.** That is the whole attribution, and the rest of this section is the evidence
-behind it.
+**All 31 `mean_bmi` failures are in a `food_labelling` run and there are none in a `simple` run, at
+either seed count** — 3 at 20 seeds and 28 at 60. That is the whole attribution, and the rest of this
+section is the evidence behind it.
 
-### The 28 `mean_bmi` comparisons are deviation B-24, measured
+### The 31 `mean_bmi` comparisons are deviation B-24, measured
 
 B-24 was found by reading the baseline's code two runs ago and has never been visible in a
 comparison until now. It is visible now, and the shape is unmistakable. Mean BMI of males, this
@@ -629,7 +629,7 @@ again over 60, every scenario and both sexes:
 - the residual failures that survived that were, twice, defects in the **test** rather than in
   either implementation — a normal-theory allowance applied first to a point mass and then to a
   quantile of a lattice — and both are now compared by an exact test of the counts, with the
-  harness's own 26 tests pinning the rules.
+  harness's own 30 tests pinning the rules.
 
 That is equivalence in the sense [ADR 0006](decisions/0006-validation-strategy.md) asked for. It is
 not, and was never going to be, bit-exactness: [docs/deviations.md](deviations.md) lists the places

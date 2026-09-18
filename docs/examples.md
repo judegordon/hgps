@@ -81,23 +81,36 @@ KevinHall_FINCH 15 diseases, 34 risk factors, cohort of     6,817, 2022–2032
 "Runs" means both scenarios, start to finish, with a result file at the end — checked by running
 them, not by `--dry-run`. `HLM_India` is the one to be ready for: its cohort is 199 times
 `HLM_France`'s, and on the machine [docs/performance.md](performance.md) describes it takes
-**42 minutes and 2.4 GiB**, against France's 2.8 seconds and 57 MiB. It produces the same 16,565
-rows, because the output is per (year, sex, age band) and not per person.
+**34.5 minutes and 1.8 GiB**, against France's 2.4 seconds and 52 MiB. It produces the same **16,564
+data rows** as every other cohort size, because the output is per (year, sex, age band) and not per
+person — worth knowing before sizing a disk for a sweep.
+
+The baseline was run on it too, for the first time in this project: **34.7 minutes and 2.9 GiB**, and
+the same 16,564 rows. The wall times match; the CPU times do not — 4,154 s against 2,038 s, because
+the baseline runs its two scenarios on two threads and this one runs them in sequence on one
+([docs/performance.md](performance.md)).
+
+It is compared against the baseline at **one hundredth of that cohort**
+([docs/equivalence.md](equivalence.md)), and the comparison finds one thing: deviation **B-24**, the
+baseline's double-applied food-labelling impact, which this example is the only one to expose because
+it is the only one shipping an active intervention.
 
 `KevinHall_India` gets further than any of the three that stop — its config, its model files, its
 data and both scenarios' modules all load, and it reports `7 diseases, 17 risk factors, cohort of
 14,171 people, 2022–2026` under `--dry-run`. It stops in the first simulated year, and the reason
 is the pack's, not this build's.
 
-Two of them are compared against the baseline over many seeds — `HLM_France` and
-`KevinHall_FINCH`, at 20 seeds with `simple` active, again at 60, and once more for each of the
-other five interventions ([docs/equivalence.md](equivalence.md)). The two India examples are run
-through the loader and the engine but not compared, which is this run's scope ruling: what they are for here is to make any
-missing disease directory or data inconsistency surface as a located input issue rather than as a
-mid-run failure, and they do.
+All three are compared against the baseline over many seeds — `HLM_France` and `KevinHall_FINCH` at
+20 seeds with `simple` active, again at 60, and once more for each of the other five interventions;
+`HLM_India` at 20 and 60 seeds on both `simple` and its own `food_labelling`, at a reduced cohort
+([docs/equivalence.md](equivalence.md)). `KevinHall_India` and `KevinHall_PIF` are put through the
+loader and the engine but cannot be compared, because neither implementation can run them: what they
+are for here is to make the data's contradiction surface as a located input issue rather than as a
+mid-run crash, and it does.
 
-The two that stop, stop at a named missing feature with a pointer to
-[docs/backlog.md](backlog.md), never at a crash or a plausible-looking wrong number.
+Neither of the two that stop stops at a missing feature — **nothing upstream implements is refused
+here any more** — and neither stops at a crash or at a plausible-looking wrong number. Both stop at a
+located error naming the person, the weight and the bound, which is the section below.
 
 ### KevinHall_FINCH's policy is not in its `interventions` block
 

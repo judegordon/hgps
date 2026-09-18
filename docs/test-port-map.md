@@ -1,6 +1,6 @@
 # Test port map
 
-How the baseline's 471 tests map onto this implementation's 554, suite by suite. It exists so that
+How the baseline's 471 tests map onto this implementation's 665, suite by suite. It exists so that
 "the tests were ported" is a checkable claim rather than an assertion, and so that a reader can
 find the descendant of any baseline test — or read, in one line, why there isn't one.
 

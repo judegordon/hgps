@@ -156,13 +156,46 @@ is 18.8 MB against FINCH's 12 KB, because the FINCH model keeps its tables in CS
 
 That is 199 times `HLM_France`'s cohort for 900 times its wall time, so it is not linear — the
 disease module's per-person, per-disease work grows with the cohort while the 35-disease relative
-risk tables make each person's share of it six times France's. It is not compared against the
-baseline ([docs/equivalence.md](equivalence.md)), and one run of it at twenty seeds in each
-implementation would be about a day, which is the real reason it is not.
+risk tables make each person's share of it six times France's.
 
-Recorded because "it runs" is worth qualifying: this is the example the index-keyed store was worth
-doing for, and the figures here are from before it. `HLM_India` after the change is under
-*HLM_India, end to end* below.
+**Re-measured after the index-keyed store and the bounded lookup**, and this time with the baseline
+run on it as well — which had never been done, on any machine, before this run:
+
+| | Wall | CPU | Peak memory | Rows per CSV |
+|---|---:|---:|---:|---:|
+| This build, before ADR 0037 | 2,535 s (42.3 min) | 2,496 s | 2,555 MiB | 16,564 |
+| **This build** | **2,068 s (34.5 min)** | **2,038 s** | **1,872 MiB** | 16,564 |
+| **Baseline** | 2,079 s (34.7 min) | 4,154 s | 3,011 MiB | 16,564 |
+
+So ADR 0037 and ADR 0040 together are worth **1.23× and 27% of the memory** on the largest example —
+which matters because France gained 1.14× from the first and nothing from the second, and FINCH
+gained 1.54× and then 1.44×. India has France's factor count and FINCH's cohort problem, and it is
+the example where the constant factors are paid 1.24 million times a year.
+
+**Against the baseline, India is the one example where the wall times are the same**, and the reason
+is worth stating because it is the clearest illustration of what the CPU column is for. On
+`HLM_France` and `KevinHall_FINCH` this build is about 2× faster in wall time *and* 3× cheaper in CPU.
+On `HLM_India` it is **2.04× cheaper in CPU and 1.61× smaller in memory, at the same wall time** —
+because the baseline runs its two scenarios on two threads and this build runs them one after the
+other on one ([ADR 0009](decisions/0009-sequential-scenarios-and-the-migration-journal.md)). The
+baseline spends two cores to finish when this build finishes on one.
+
+That is the trade being made, seen at the size where it is visible: sequential scenarios cost nothing
+on the small examples because the work itself is smaller, and on the large one they cost exactly the
+parallelism — no more. A host that wants India's wall time halved can run the two scenarios as two
+processes and get byte-identical output, which is not something the baseline's shared, lazily
+populated repository allows (audit B-01, B-02).
+
+**This is the first time the baseline has been run on `HLM_India` at all**, on any machine, in any
+run of this project. It exits 0 and writes the same 16,564 rows to each of the same four files.
+
+The row count is the same 16,564 at every cohort size, because the output is per (year, sex, age
+band) and not per person. That is worth knowing before sizing a disk for a full-scale sweep: the
+result files do not grow with the cohort.
+
+`HLM_India` is compared against the baseline at **one hundredth of this cohort**
+([docs/equivalence.md](equivalence.md)); at full scale twenty seeds of both implementations would be
+about a day, which is why.
 
 ### Where FINCH's 195 MiB is
 

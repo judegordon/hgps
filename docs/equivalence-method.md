@@ -11,7 +11,7 @@ Everything here is enforced in one script and tested by two others:
 | | |
 |---|---|
 | `tests/equivalence/run.py` | the comparison. Runs both implementations, reduces, compares, reports. |
-| `tests/equivalence/run_test.py` | 26 tests of the rules below, in milliseconds. Run by CTest. |
+| `tests/equivalence/run_test.py` | 30 tests of the rules below, and of the staging rule in ADR 0039, in milliseconds. Run by CTest. |
 | `tests/equivalence/self_check.py` | the comparison pointed at itself: does it pass when it should, and fail when it should. Run by CTest. |
 
 ---
