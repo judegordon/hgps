@@ -25,7 +25,7 @@ own data pack — which the baseline also stops on, in the same place.
   corrected away. There is **no failure budget**: `scripts/check.sh` fails on any out-of-tolerance
   comparison, and the harness now has 26 tests of its own, because a mistake in it says PASS.
 - **31 ADRs**, one per design decision, each with the alternatives rejected.
-- **37 recorded deviations** from the baseline — 19 fixed defects that change the numbers, 10
+- **38 recorded deviations** from the baseline — 19 fixed defects that change the numbers, 11
   design differences that change results or output, 8 internal ones that change nothing — each with
   its audit finding ID and its evidence: [docs/deviations.md](deviations.md).
 - **Four new baseline defects found**, B-21 to B-24, all of them by running code the baseline's own
