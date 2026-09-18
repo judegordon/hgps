@@ -165,11 +165,23 @@ the cost of not being able to change the reduction without a re-run.
 
 ### 9. Windows — `platform`
 
-**Value: unknown. Effort: medium.** Not targeted
+**Value: unknown. Effort: medium, and better understood than it was.** Not targeted
 ([ADR 0013](decisions/0013-platforms-linux-and-macos.md)). The code avoids PSTL and
 `<syncstream>` and has one `__APPLE__` branch, so the likely work is the executable-path lookup,
-`posix_spawn` (used for `curl` and `unzip`), and the file-system assumptions in the cache. Only
-worth doing if someone needs it.
+`posix_spawn` (used for `curl` and `unzip`), `gmtime_r`, and the file-system assumptions in the
+cache. `CMakeLists.txt` refuses a Windows build outright, so the first step is deciding to stop
+refusing.
+
+**CI changed the estimate, in both directions.** The tree now builds and passes on Linux with two
+compiler families as well as on macOS, which removes the "it has only ever been one toolchain"
+uncertainty that made this unquotable. But the five defects CI found are exactly what a *third*
+platform would find more of, and three of them were invisible to the development compiler: a type
+whose width differs, a warning one compiler has and another does not, and headers one standard
+library supplies transitively. MSVC is a third standard library and a fourth warning set, and the
+honest expectation is a comparable list. [docs/build-notes.md](build-notes.md) has what the second
+platform cost, which is the only evidence available for what a third would.
+
+Still only worth doing if someone needs it.
 
 ## Smaller things
 
