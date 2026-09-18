@@ -21,7 +21,7 @@ local test time was:
 | the harness's two self-checks | 2 | 501 s | 20% |
 | everything else | 662 | 51 s | 2% |
 
-In CI, `macos · appleclang · tsan` went from **48m08s to 88m08s** and became the workflow's long
+In CI, `macos · appleclang · tsan` went from **48m28s to 88m08s** and became the workflow's long
 pole by a wide margin: the next longest entry was 43m13s and the median was under six minutes. Every
 push waits for it, and a check that takes an hour and a half is a check people learn to push past.
 
@@ -64,10 +64,11 @@ looking at before dropping anything. Their cost is 40 simulations each; six seed
 
 **A race reachable only through the second pack's configuration and not the first's would not be
 found by TSan.** That is the whole of the risk and it is worth stating plainly rather than
-explaining away. Two things bound it: nothing found in six runs has been of that shape — the races
-this project has had were in the server's lifetime, the analysis module's shared table and the
-baseline's own scenario threading, none of them configuration-dependent — and both packs still run
-under AddressSanitizer, which catches a different class of the same mistakes.
+explaining away. Two things bound it: no defect this project has recorded has been of that shape —
+the threading faults it has had were in the server's lifetime, in a process-wide table a model
+wrote to, and in the baseline's own scenario threading, none of them reachable only through one
+configuration — and both packs still run under AddressSanitizer, which catches a different class of
+the same mistakes.
 
 **And the risk is asymmetric in the useful direction**: the coverage that was dropped is a duplicate
 of coverage that still runs, while what is bought is a check the whole team will actually wait for.
@@ -82,8 +83,8 @@ than assumed, and under a sanitizer the memory cost multiplies too. It is also o
 later multiplies whatever this leaves.
 
 **Drop the TSan job to a nightly or a weekly.** It would cut the push-to-answer time to nothing and
-it would also mean a race lands on `main` and sits there. The four defects TSan has caught in this
-project were all caught on the push that introduced them.
+it would also mean a race lands on `main` and sits there. The previous run's server hang was caught
+by a TSan run on the push that introduced it, which is the argument for keeping it on every push.
 
 **Run the second pack under TSan but with a shorter horizon.** A configuration with a different
 horizon is a third configuration, and the packs' own rule is that a test asks the loaded

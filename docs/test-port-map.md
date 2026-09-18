@@ -137,8 +137,10 @@ the CLI's argument parser, the index-keyed factor store and the two branches of 
 the perturbation knob and the population impact fraction tables. None of those has a baseline
 counterpart, because none of those things exists there.
 
-Outside both tables, and outside the C++ suite: `tests/equivalence/run_test.py` holds **39 tests
-for the equivalence harness itself**, which CTest runs as the single entry `EquivalenceHarness.Rules`;
+Outside both tables, and outside the C++ suite: `tests/equivalence/run_test.py` holds **50 tests
+for the equivalence harness itself** — 39 when the paragraph below was written, 48 after the
+previous run and 50 after this one's two, which pin that the four weight categories are summed
+rather than count-weighted and that a summed variable is its own numerator for the lattice rule — which CTest runs as the single entry `EquivalenceHarness.Rules`;
 `self_check.py` is two more CTest entries that run the harness against this build twice over. The
 baseline has no counterpart because it has no harness. Nine of the 39 are new this run: six pin the
 deviation-impact measurement ([ADR 0041](decisions/0041-deliberate-deviations-are-switchable.md))
@@ -191,7 +193,13 @@ Eight of those 92 are new this run, and so are seven tests that are not paramete
 which is parameterised, and they do not run a configuration.
 
 The arithmetic: 738 + **84** (existing tests that now run twice) + **16** (eight new parameterised
-tests, twice each) + **7** (the unparameterised new ones) = **845**.
+tests, twice each) + **7** (the unparameterised new ones) = **845**. This run adds **5** more — three
+in `AnalysisIncomeSeries`, the first tests of the income-stratified series, and two in
+`SummaryReduction` — for **850**.
+
+**Under ThreadSanitizer the count is 761, and that is deliberate.** The `Packs/` suites run against
+the first pack only there, which is 92 tests rather than 184; every other preset runs both
+([ADR 0046](decisions/0046-what-runs-under-which-sanitizer.md)).
 
 The frontend's **48** unit tests are counted by `vitest`, and its **19** end-to-end tests by
 `playwright test --list` ([ADR 0045](decisions/0045-end-to-end-tests-in-a-real-browser.md)). Neither

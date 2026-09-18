@@ -52,7 +52,7 @@ This document has been quoting "about +0.2% of mean BMI" for B-24, inferred from
 out-of-tolerance cells looked like it. **The direct measurement agrees.** That is the good case,
 and the reason to build the mechanism is the case where it would not have.
 
-**It reaches further than mean BMI.** On `HLM_India`, **194 series differ** and 12,532 agree to the
+**It reaches further than mean BMI.** On `HLM_India`, **194 series differ** and 12,533 agree to the
 printed precision — years of life lost, disability-adjusted life years, head counts, and the
 prevalence and incidence of eleven diseases. A BMI that is wrong changes incidence, which changes
 mortality, which changes the cohort. Nothing here said that before, because nothing could measure
@@ -424,6 +424,11 @@ shift has no coverage book and no memory of who it has affected.
 | `simple` | 60 | 68,740 | 3 | 1,771 |
 | `food_labelling` (the example's own) | 20 | 68,083 | 3 | 1,657 |
 | `food_labelling` | 60 | 68,833 | 34 | 1,791 |
+
+**These four runs were made with the compatibility flags off**, which is what this section is about:
+they are the measurement that attributed the `food_labelling` failures to B-24 before a flag existed
+to prove it. The stored references are now the other thing — flags on, twenty seeds, **0 of 66,787**
+and **0 of 66,805** — and `tests/equivalence/reference/HLM_India/README.md` records them.
 
 **All 31 `mean_bmi` failures are in a `food_labelling` run and there are none in a `simple` run, at
 either seed count** — 3 at 20 seeds and 28 at 60. That is the whole attribution, and the rest of this

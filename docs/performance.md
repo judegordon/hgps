@@ -211,6 +211,76 @@ every name that run uses before the models were built. What found it was a unit 
 model before building the person it is evaluated against: it failed in release and passed in debug,
 because a different test had interned the name first.
 
+### The analysis module's channels, resolved once a year
+
+[docs/backlog.md](backlog.md) item 9 as it was, and the thing the previous run's profile pointed at:
+the linear models stopped comparing strings and `_platform_memcmp` did not move, because what was
+doing it had moved one layer up.
+
+Both of the analysis module's passes over the population, and the income-stratified one, built
+`"mean_" + key` per factor **per person per year**, lower-cased it, probed a `std::set<std::string>`
+to ask whether that channel exists, and then looked the channel up *again* by name in a
+`std::map<std::string, std::vector<double>>` — for the income series, in a map of maps of maps. The
+disease loops did the same with `"prevalence_" + code`. On `KevinHall_FINCH` that is 34 factors over
+6,817 people over 11 years over two scenarios, three times over.
+
+A channel is now resolved **once a year** to the two vectors it writes, and the mapping's factors
+once a year to `(index, channel)`, so the person loop reads `find_index` — no name, no hash probe —
+and adds through a pointer. The index comes from `find` rather than `intern`, and is taken per year
+rather than once per run, which is what keeps the previous run's defect 7 from coming back: a name
+interned later is picked up by the next year's resolution instead of being frozen out for the life
+of the run.
+
+Five runs of each binary, **alternating run by run** on an idle machine, on the shipped configs:
+
+| | Wall, best of 5 | Median of 5 | CPU, best of 5 | Peak memory |
+|---|---|---|---|---|
+| `HLM_France` | 1.26 → **1.03 s, 1.22×** | 1.26 → 1.03 s | 1.25 → **1.02 s, 1.23×** | 42.8 → 42.9 MiB |
+| `KevinHall_FINCH` | 4.60 → **3.47 s, 1.33×** | 4.62 → 3.49 s | 4.56 → **3.46 s, 1.32×** | 79.0 → 79.0 MiB |
+
+**France moves this time, and it had to.** The previous change was three places on the FINCH surface
+and France was unchanged by it; this one is in the analysis module, which every example runs. A
+change here that had left France alone would have been a change doing something other than what it
+says.
+
+**The first version of it cost France 5.4 MiB of peak memory**, and that is worth recording because
+nothing but the measurement would have caught it. Resolving the income strata eagerly, for every
+category the layout declares, creates a channel vector per age for strata nobody is in — once per
+year, 41 times over — and France went from 42.8 to 48.2 MiB while getting faster. Resolving on first
+sighting instead makes the set of vectors that exist the set that existed before, and the table
+above is the version with that fix. The check that found it was the peak-memory column of this same
+A/B, which is in it precisely because a performance change that quietly trades memory for time
+should have to say so.
+
+**A whole-run profile**, `sample` at 1 ms over the whole of `KevinHall_FINCH` for each binary:
+
+| | Before | After |
+|---|---:|---:|
+| Thread samples, ≈ ms of run | 3,652 | **2,828** |
+| of those, name handling at top of stack | 1,550 | **928** |
+
+**824 samples went and 622 of them — 75% — are name handling.** The symbols say where:
+
+| Symbol, at top of stack | Before | After |
+|---|---:|---:|
+| `DataSeries::at(Gender, Income, std::string)` | 76 | **below the floor** |
+| `DataSeries::at(Gender, std::string)` | 35 | **below the floor** |
+| `_platform_memcmp` and its stub | 751 | **501** |
+| `__tolower`, `chars::to_lower`, `core::to_lower` and their stubs | 391 | **165** |
+| the name→index hash probe | 101 | 72 |
+| `FactorValues::find(Identifier)` | 72 | 53 |
+| `FactorValues::find_index(index)` | 146 | 156 |
+| the four analysis functions, self | 128 | **14** |
+
+The profiler reports a symbol only at five samples or more, so "below the floor" means the two
+by-name lookups are somewhere under 0.2% of the run each, from 3.0% between them. `find_index` rises
+because the work moved onto it, which is the index path doing its job.
+
+**`memcmp` is still the largest single symbol in the program**, at 385 samples plus 116 in its stub.
+What is left of it is not in this file: the largest named callers now are the derived predictors —
+an `Identifier` built from a concatenation — and the Kevin Hall model's expected values, which is
+where the next reading of this profile would start.
+
 ### Linux, for the first time
 
 Every other number in this document is macOS and Apple clang, on one laptop, and that has been under
@@ -496,8 +566,8 @@ it:
 The linear models were **1,398** in that table before this change and are 298 now, which is the same
 1,100 samples from the other direction. The analysis module is untouched by this change and is now
 the largest named consumer: `DataSeries::at(Gender, Income, std::string)` is a string lookup per
-series per person per year, the same shape of problem one layer up. It is
-[docs/backlog.md](backlog.md) item 9, and it now has a number on it rather than a suspicion.
+series per person per year, the same shape of problem one layer up. It was backlog item 9 when this
+was written, and it is closed by *The analysis module's channels, resolved once a year* above.
 
 Two cautions on that last table. The 888 unattributed samples are a fifth of the run, so treat the
 split as indicative; and its counts are inclusive call-graph counts, which are not additive with the

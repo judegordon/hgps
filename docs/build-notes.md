@@ -44,7 +44,7 @@ Reproduced by `/tmp/hgps-build/configure-baseline.sh`:
 
 ```bash
 SHIM=/tmp/hgps-build/shim
-cmake -S /Users/jude/work/hpgs/hgps_main -B /tmp/hgps-build/baseline-release -G Ninja \
+cmake -S /Users/jude/work/hgps/hgps_main -B /tmp/hgps-build/baseline-release -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_TOOLCHAIN_FILE=/tmp/hgps-build/vcpkg/scripts/buildsystems/vcpkg.cmake \
   -DVCPKG_OVERLAY_TRIPLETS=/tmp/hgps-build/triplets \

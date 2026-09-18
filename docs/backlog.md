@@ -56,35 +56,44 @@ work. Until it is answered, four of the six upstream examples can only be run wi
 
 See [docs/deviations.md](deviations.md) B-25 and `tests/config/intervention_reach_test.cpp`.
 
-### 2. The weight-category columns are counts and both reductions treat them as means — `correctness`
+### 2. The income-stratified files leave 45 columns empty that the baseline fills — `correctness`
 
-**Value: medium-high. Effort: low for the code, a reference regeneration for the consequences.**
-Found this run while reading the reduction for the lattice detector (closed below).
+**Value: medium-high. Effort: medium, and most of it is deciding what to check it against.** Found
+this run, while fixing the weight-category defect the previous run recorded as this item — which is
+closed below.
 
-`normal_weight`, `over_weight`, `obese_weight` and `above_weight` are **head counts** in the result
-CSV — the analysis module increments one per person per band, and
-`tests/sim/simulation_test.cpp` pins `normal + over + obese == count` for every row. Both reductions
-that exist treat them as per-band means:
+A `KevinHall_FINCH` run of each implementation, same example, same data, columns compared column by
+column: **49 columns are identically zero in every row of every stratum file here and non-zero in
+the baseline's.** Four of them were the weight categories and are fixed
+([docs/SUMMARY.md](SUMMARY.md)). The other 45 are:
 
-- the equivalence harness sums `count`, `deaths` and `emigrations` and takes the count-weighted mean
-  of everything else, on the stated premise that "everything else is a mean or a proportion within a
-  band" — which is false for these four;
-- `GET /api/runs/{id}/summary` applies the same rule, and it is what the results screen charts.
+- `deaths` and `emigrations`;
+- the burden channels — `mean_yll`, `mean_yld`, `mean_daly`;
+- the demographic means — `mean_age`, `mean_age2`, `mean_age3`, `mean_gender`, `mean_region`,
+  `mean_ethnicity`, `mean_income_category`;
+- **33 `std_` columns** — every one the baseline fills — because `calculate_income_based_series`
+  has no standard-deviation pass at all while the baseline has
+  `calculate_income_based_standard_deviation`.
 
-So the reduced figure for `normal_weight` on `HLM_France` at (baseline, 2030, male) is **15.3** where
-the population figure is about 1,550: the count-weighted average of a per-band count, which is a
-number with no meaning. The *shape* of the series still follows the underlying quantity, which is why
-nothing looked obviously wrong.
+Twelve of the 45 are the first three bullets and 33 are the last.
 
-**It does not make any comparison wrong.** Both implementations are reduced identically, so the
-equivalence result stands; what is wrong is the label on the number and the chart the server draws.
+`calculate_income_based_series` accumulates `count`, the factor means, `mean_income`,
+`mean_physical_activity` and the diseases' prevalence and incidence, and nothing else. The columns
+are in the file because the stratum files carry the same header as the whole-population one, and the
+result writer writes a zero for a channel with no stratified counterpart — which is right for a
+channel that has none and wrong for one that should.
 
-The fix is four names in two places. What makes it more than that is the consequence: the stored
-equivalence references hold *reduced* values, so changing the reduction invalidates all four of them
-and they have to be regenerated against the baseline binary — about an hour and a half of machine
-time for `HLM_France`, `KevinHall_FINCH` and `HLM_India`'s two. Fixing only the server would make
-the two reductions disagree, which is the one thing [docs/server-api.md](server-api.md) says the
-shared rule exists to prevent, so the two halves go together.
+**Why nothing caught it.** The equivalence harness reduces the whole-population CSV and has never
+looked at a stratified one; `find_result_csv` exists precisely to *exclude* them. So the only
+comparison this project has against the baseline does not cover these files at all, and no test ran
+the income series either until this run's `tests/model/analysis_income_test.cpp` — because neither
+fixture pack assigns an income category, both being HLM, and only the StaticLinear family assigns
+one.
+
+So the work is in two halves, and the second is the one that matters: fill the columns, and give the
+stratified files a comparison. The obvious shape for the second is to reduce and compare every CSV a
+run writes rather than the one, which would also cover the individual-tracking file if item 4 ever
+writes one. Until that exists, filling the columns is writing code against a baseline read by eye.
 
 ### 3. A runnable Kevin Hall example, which needs upstream — `needs-ruling`
 
@@ -169,29 +178,7 @@ store the reduction rather than the raw results — the harness reduces to (scen
 variable) before it compares anything, and the reduction is two orders of magnitude smaller — at
 the cost of not being able to change the reduction without a re-run.
 
-### 9. `DataSeries` is still keyed by channel name — `performance`
-
-**Value: medium-high, and measured. Effort: low-medium.** The other half of the old item 2, and the
-half that item called smaller — wrongly, as it turns out. A whole-run `KevinHall_FINCH` profile
-taken after this run's change still has `_platform_memcmp` as its largest single entry, at **832 of
-4,238 thread samples**, and this run's change did not move it at all (it was 795 before).
-Attributing that profile's name handling to its caller puts **868 samples — a fifth of the run — in
-the analysis module**, which is the largest named consumer left
-([docs/performance.md](performance.md), *After the call-site change*).
-
-It is the same defect this run just fixed one layer up, in a different file.
-`AnalysisModule::calculate_income_based_series` builds `"mean_" + key` **per factor per person per
-year**, lowercases the result, probes a `std::set<std::string>`, and then looks the channel up again
-by name in `DataSeries::at(Gender, Income, const std::string &)`. The previous version of this item
-said the remaining `memcmp` was "rather than anything per person per year"; the call graph says
-otherwise, and the correction is why the item moved up the list.
-
-The same treatment applies: resolve the channel name to a column index when the series is built, and
-build the derived channel names once instead of per person per year. The check is the one this run
-used — byte identity on all three runnable examples, with the A/B alternation
-[docs/performance.md](performance.md) describes.
-
-### 10. Windows — `platform`
+### 9. Windows — `platform`
 
 **Value: unknown. Effort: medium, and better understood than it was.** Not targeted
 ([ADR 0013](decisions/0013-platforms-linux-and-macos.md)). The code avoids PSTL and
@@ -213,23 +200,23 @@ Still only worth doing if someone needs it.
 
 ## Smaller things
 
-### 11. Run the sanitizer presets' tests in parallel — `platform`
+### 10. Run the sanitizer presets' tests in parallel — `platform`
 
-**Value: medium. Effort: low, and the risk is what makes it an item rather than a one-liner.** The
-second fixture pack doubled every test that runs a configuration, and the cost lands almost entirely
-on ThreadSanitizer: of 2,272 seconds of local TSan test time, 2,219 are the 184 `Packs/` tests, and
-the `macos · appleclang · tsan` CI job went from **48m28s to about seventy minutes**. That job is the
-workflow's long pole, it is the one every push supersedes, and it is now most of the reason a full CI
-run takes over an hour.
+**Value: low-medium, and lower than it was. Effort: low, and the risk is what makes it an item
+rather than a one-liner.** This run took the other half of the problem instead: TSan runs one
+fixture pack and six self-check seeds, which cut the job roughly in half without touching how the
+tests are run ([ADR 0046](decisions/0046-what-runs-under-which-sanitizer.md)). What is left is the
+92 `Packs/` tests that still run under TSan, at about 1,200 seconds of the preset's 1,458.
 
-`ctest -j` is the obvious answer: these tests are almost all single-threaded and run serially today,
-on runners with several cores. What makes it an item rather than a one-liner is that some of them are
-*about* threads — the byte-identity-at-N-threads tests spawn workers, the server tests bind sockets,
-and the stress test runs several clients — so the right degree of parallelism has to be found rather
-than assumed, and under a sanitizer the memory cost multiplies too. Doing it at the end of a run
-leaves no time to find out what it breaks.
+`ctest -j` is the obvious next answer: these tests are almost all single-threaded and run serially
+today, on runners with several cores. What makes it an item rather than a one-liner is that some of
+them are *about* threads — the byte-identity-at-N-threads tests spawn workers, the server tests bind
+sockets, and the stress test runs several clients — so the right degree of parallelism has to be
+found rather than assumed, and under a sanitizer the memory cost multiplies too. It is also the
+change most likely to make a flaky test look like a real one, which is the thing a test suite can
+least afford.
 
-### 12. A schema for the model definition files — `docs`
+### 11. A schema for the model definition files — `docs`
 
 **Value: medium. Effort: low.** `schemas/v2/` covers the config. The static and dynamic model
 files have no published schema, which is why their member names were wrong for a week in the
@@ -238,14 +225,14 @@ and its R row-index columns. The shapes are documented only in `src/config/model
 the three loader test files. Write them, and extend `schema_agreement_test.cpp` to cover them the
 way it covers the config.
 
-### 13. Sector, and `demographic_models` — `scope`
+### 12. Sector, and `demographic_models` — `scope`
 
 **Value: low. Effort: low.** `person.sector` (urban/rural) is assigned nowhere; the channel
 appears if the mapping declares the factor. `modelling.demographic_models` is carried through as
 opaque JSON, deliberately — its shape belongs to the model family that reads it — and no model
 family reads it yet.
 
-### 14. The fixture pack's top-age artefact — `validation`
+### 13. The fixture pack's top-age artefact — `validation`
 
 **Value: low. Effort: low.** The synthetic pack's population table stops at the same age as the
 config's `age_range`, so anyone reaching the top age leaves the cohort and the pack's simulated
@@ -253,7 +240,7 @@ death rate runs above what its mortality table implies. Recorded in the pack's o
 Extending the pack's age range by a few years above the configured one would remove the artefact;
 nothing depends on it, because no test reads the pack's death rates as a check on anything.
 
-### 15. Report four things upstream — `docs`
+### 14. Report four things upstream — `docs`
 
 **Value: low here, high upstream. Effort: low.** Four findings belong to the people who own the
 data and the baseline, and telling them is not done:
@@ -284,9 +271,8 @@ them by number.
 
 | Was | | |
 |---|---|---|
-| **2** | Resolve names to indices at the call site | done; [docs/performance.md](performance.md) has the A/B, byte-identical on all three runnable examples. What is left of it is item 9 above |
-| **10** | Make the GCC entries required | done; `experimental: true` is gone from both entries |
-| **11** | The lattice detector should classify on the numerator | done, with no threshold moved; all four stored references re-scored and within tolerance ([docs/equivalence.md](equivalence.md)) |
+| **2** | The weight-category columns are counts and both reductions treat them as means | done, and it was **not** a deviation from the baseline: the baseline emits head counts and so does this build, so the defect was in this project's own two reductions and in the income series that never filled the four columns at all. No compatibility flag — ADR 0041's flag is for a deliberate difference from the baseline, and there was none here. All four stored references regenerated against the baseline binary ([docs/equivalence.md](equivalence.md)) |
+| **9** | `DataSeries` keyed by channel name | done; the analysis module resolves its channels once a year instead of per person per year, byte-identical on all three runnable examples ([docs/performance.md](performance.md)) |
 
 ## Explicitly not planned
 

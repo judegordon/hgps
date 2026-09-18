@@ -31,7 +31,7 @@ about 100 MB; later runs do not.
 ## How they were produced
 
 ```bash
-cd /Users/jude/work/hpgs/hgps_new_rewrite
+cd /Users/jude/work/hgps/hgps_new_rewrite
 for e in Dummy_disease_test HLM_France HLM_India KevinHall_FINCH KevinHall_India KevinHall_PIF; do
   src=../hgps_main_examples/$e/new_config.json
   [ -f "$src" ] || src=../hgps_main_examples/$e/config.json

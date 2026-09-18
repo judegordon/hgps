@@ -43,7 +43,7 @@ versions, declared dependency baselines, and file modification times.
 
 | Field | Value |
 |---|---|
-| Path | `/Users/jude/work/hpgs/hgps_main` |
+| Path | `/Users/jude/work/hgps/hgps_main` |
 | Role | Upstream Health-GPS C++ microsimulation. The reference for this audit. |
 | Remote URL | Not recoverable from the folder (no git). Declared homepage: `https://github.com/imperialCHEPI/healthgps` (`CMakeLists.txt:27`) |
 | Commit hash / date | **Unavailable** (not a git repo) |
@@ -80,7 +80,7 @@ personal name) containing ad-hoc analysis scripts. See `04-baseline-issues.md` (
 
 | Field | Value |
 |---|---|
-| Path | `/Users/jude/work/hpgs/hgps_main_data` |
+| Path | `/Users/jude/work/hgps/hgps_main_data` |
 | Remote URL | Not recoverable. Referenced upstream as `imperialCHEPI/healthgps-data` |
 | Commit hash / date | **Unavailable** |
 | Size on disk | 60 MB, 1,908 files |
@@ -97,7 +97,7 @@ Detailed content breakdown is in `02-data-and-examples.md`.
 
 | Field | Value |
 |---|---|
-| Path | `/Users/jude/work/hpgs/hgps_main_examples` |
+| Path | `/Users/jude/work/hgps/hgps_main_examples` |
 | Remote URL | Not recoverable. Referenced upstream as `imperialCHEPI/healthgps-examples` |
 | Commit hash / date | **Unavailable** |
 | Size on disk | 286 MB, 245 files |
@@ -113,7 +113,7 @@ Detailed content breakdown is in `02-data-and-examples.md`.
 
 | Field | Value |
 |---|---|
-| Path | `/Users/jude/work/hpgs/hpgs_og_rewrite` |
+| Path | `/Users/jude/work/hgps/hpgs_og_rewrite` |
 | Remote URL | None. Not a git repo; no remote recorded anywhere in the tree. |
 | Commit hash / date | **Unavailable** |
 | Declared version | `1.0.0` (CMake `project(HealthGPS VERSION 1.0.0)`) and `vcpkg.json` `"version": "1.0.0"` (self-consistent) |

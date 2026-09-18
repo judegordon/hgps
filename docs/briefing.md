@@ -22,7 +22,10 @@ rules, and the harness is tested both ways.
 **Not proved.** `HLM_India` is compared at a hundredth of the cohort it ships — 12,406 people
 against 1,240,613 — because a full-scale sweep is days of machine time. The FINCH surface is one
 country and one pack. Population impact fraction has never met the baseline, because the only
-example using it cannot run. The floor is your CSV's six significant digits.
+example using it cannot run. **And the comparison reads one file per run**: the income-stratified
+CSVs have never been compared against yours, which is how 49 columns came to be zero here and
+non-zero in your output on the same example ([docs/backlog.md](backlog.md) item 2 — four of them are
+fixed). The floor is your CSV's six significant digits.
 
 ## Findings in the baseline that change results
 
@@ -53,7 +56,7 @@ over twenty seeds ([docs/equivalence.md](equivalence.md)):
 
 Zero in the policy's first year — the defect needs a *previous* failed draw — growing while the
 coverage window is open, flat afterwards. **It reaches further than mean BMI**: on `HLM_India`, 194
-series differ and 12,532 agree to the printed precision — years of life lost, DALYs, head counts,
+series differ and 12,533 agree to the printed precision — years of life lost, DALYs, head counts,
 and the prevalence and incidence of eleven diseases.
 
 ## Two packs neither implementation can run

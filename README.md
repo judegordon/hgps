@@ -200,13 +200,15 @@ Validation has two layers ([ADR 0006](docs/decisions/0006-validation-strategy.md
   does not exist here by design — the event bus, the sync channel, the lazy repository, the printed
   summary boxes. [docs/test-port-map.md](docs/test-port-map.md) says which, suite by suite. **The 35
   tests the baseline skips run here**, and finding out whether they pass is how four defects were
-  found. Of the **845** tests here, most are in files the baseline has no counterpart for —
+  found. Of the **850** tests here, most are in files the baseline has no counterpart for —
   byte-for-byte reproducibility at one thread and at N for every intervention, a modulo-bias
   regression test, ordered-sampling tests, and a test that an unseeded config is rejected, among
-  others. A further **48** test the equivalence harness's own statistics, because a mistake there
+  others. A further **50** test the equivalence harness's own statistics, because a mistake there
   says PASS rather than producing a wrong number. Every test that runs a configuration runs against
   **two** synthetic packs, which differ in every way a program might have assumed they did not
-  ([ADR 0044](docs/decisions/0044-two-fixture-packs-and-a-parameterised-suite.md)).
+  ([ADR 0044](docs/decisions/0044-two-fixture-packs-and-a-parameterised-suite.md)) — one of them
+  under ThreadSanitizer, where running the same races twice was the largest single cost in CI
+  ([ADR 0046](docs/decisions/0046-what-runs-under-which-sanitizer.md)).
 - **Statistical equivalence against the baseline** on three examples — `HLM_France` for the HLM
   surface, `KevinHall_FINCH` for the FINCH one, and `HLM_India` for the `EBHLM` dynamic model at a
   reduced cohort — over at least 20 seeds and again at 60, comparing means, standard deviations and
