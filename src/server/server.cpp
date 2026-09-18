@@ -161,6 +161,16 @@ class Server::Impl {
 
     bool serve() { return server_.listen_after_bind(); }
 
+    /// @brief Blocks until the serving thread is actually accepting, or has given up.
+    ///
+    /// Needed because cpp-httplib's `stop()` does nothing at all unless the server is already
+    /// running: it tests `is_running_`, which `listen_after_bind` sets from the serving thread. So
+    /// a server started and then stopped — or dropped — before that thread got there kept its
+    /// socket open, and the join in `Server::stop` blocked for ever. It is a race, so it happened
+    /// only when the stop won, which is why `AStartedServerCanSimplyBeDropped` never saw it: that
+    /// test makes a request first, and a request that gets an answer proves the loop is running.
+    void wait_until_ready() { server_.wait_until_ready(); }
+
     void stop() {
         server_.stop();
 
@@ -770,6 +780,11 @@ std::uint16_t Server::start() {
         return 0;
     }
     thread_ = std::thread([this] { impl_->serve(); });
+
+    // Not just "the socket is bound": the port comes back from `bind`, and returning it the moment
+    // the thread is spawned made `start()` mean "it will be serving shortly". A caller that then
+    // stopped it straight away lost the stop and hung. `start()` now means what it says.
+    impl_->wait_until_ready();
     return impl_->port();
 }
 
