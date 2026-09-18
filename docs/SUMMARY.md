@@ -172,9 +172,11 @@ the whole FINCH surface cost an example that uses none of it nothing measurable.
 
 ## What a reader should still be sceptical about
 
-- **Two examples, two countries, and one of them twice.** The evidence is `HLM_France` and
-  `KevinHall_FINCH`. `HLM_India` loads and runs in both implementations but is not compared, which
-  was this run's scope ruling. `KevinHall_India` — the obvious second FINCH-surface country —
+- **One country per model family.** The evidence is `HLM_France` for the HLM surface and
+  `KevinHall_FINCH` for the FINCH one. `HLM_India` runs here — 42 minutes for its 1.2 million
+  people — but is not compared against the baseline, which was this run's scope ruling, and the
+  baseline has not been run on it at all. `KevinHall_India` — the obvious second FINCH-surface
+  country —
   **cannot be compared at all**: both implementations stop in its first simulated year, because its
   configured lower bound on `Weight` is above what its own weight quantile curve produces for the
   lightest newborns. [docs/examples.md](examples.md) has both implementations' messages side by

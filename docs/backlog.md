@@ -64,16 +64,19 @@ counter rather than the earlier rewrite's slot reuse
 
 ## Worth doing soon
 
-### 5. Equivalence for the two India examples — `validation`
+### 5. Equivalence for `HLM_India` — `validation`
 
-**Value: medium. Effort: low-medium.** `HLM_India` loads and runs in both implementations; this run's ruling was to put them through the loader so that data
-inconsistencies surface as located input issues, and not to compare them. The harness needs only a
-new entry in its example table.
+**Value: medium. Effort: medium, and most of it is machine time.** `HLM_India` loads and runs here
+in 42 minutes; the baseline has not been run on it at all. This run's ruling was to put it through
+the loader so that data inconsistencies surface as located input issues, and not to compare it. The
+harness needs only a new entry in its example table.
 
-The cost is not the harness, it is the runs: `HLM_India`'s cohort is 1,240,613 people against
-France's 6,244, so twenty seeds of both implementations is hours rather than minutes, and its
-stored reference would be large. A sampled cohort would make it cheap and would no longer be the
-example anyone ships.
+The cost is the runs, not the harness: 1,240,613 people against France's 6,244, so twenty seeds of
+both implementations is about a day, and the stored reference would be large. A sampled cohort
+would make it cheap and would no longer be the example anyone ships.
+
+(`KevinHall_India` was the other half of this item and is now item 6, because it cannot be run at
+all.)
 
 ### 6. A second country for the FINCH surface — `validation`, and it needs upstream
 
