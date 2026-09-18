@@ -75,6 +75,7 @@ configuration names files to read and a folder to write
 | [docs/backlog.md](docs/backlog.md) | what is left, ranked |
 | [docs/SUMMARY.md](docs/SUMMARY.md) | what was built, what passes, what is still open |
 | [docs/briefing.md](docs/briefing.md) | the short form for the upstream authors: what this proves, what it found in the baseline, and what only they can decide |
+| [docs/upstream-reports.md](docs/upstream-reports.md) | four findings written up as bug reports against the baseline, each with the command that reproduces it there |
 
 ## Building
 

@@ -242,8 +242,10 @@ nothing depends on it, because no test reads the pack's death rates as a check o
 
 ### 14. Report four things upstream — `docs`
 
-**Value: low here, high upstream. Effort: low.** Four findings belong to the people who own the
-data and the baseline, and telling them is not done:
+**Value: low here, high upstream. Effort: what is left of it is not ours.** The four reports are
+written: [docs/upstream-reports.md](upstream-reports.md) has each one with the command that
+reproduces it against the baseline's own binary and data. What is not done is **sending them**,
+which is a thing a person does with an account on somebody else's tracker. The four:
 
 1. **`KevinHall_India` cannot be run by its own baseline** — its `Weight` lower bound is above what
    its weight quantile curve produces (item 3), and its `new_config.json` contradicts itself
@@ -261,8 +263,8 @@ data and the baseline, and telling them is not done:
    harness retries up to three times and prints every retry, so it is visible here rather than
    smoothed away.
 
-Each is reproducible from this repository with one command, which is most of the work of a good
-bug report.
+Each is reproducible from this repository with one command, which is most of the work of a good bug
+report and is why writing them up was worth doing before anybody had agreed to file them.
 
 ## Closed this run
 
