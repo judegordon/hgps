@@ -51,7 +51,7 @@ Three things did most of the finding.
 | 4 | A server stress test under TSan | **Done.** `tests/server/stress_test.cpp`, **one defect** — a hang — on its first run. 78 seconds under TSan at six shuffles, trimmed to three. |
 | 5 | GCC required | **Done.** One line, and the reason for it had expired. |
 | 6 | The lattice detector, and the India re-score | **Done**, with no threshold moved. All four stored references re-scored; **one defect in the first version of the change**, found by that re-score. |
-| 7 | Names to indices at the call site | **Done**, byte-identical on all three runnable examples. `KevinHall_FINCH` is faster; `HLM_France` is unchanged and had to be. **Two defects**, one of them a hazard rather than a fault. |
+| 7 | Names to indices at the call site | **Done**, byte-identical on all three runnable examples. `KevinHall_FINCH` is **1.36×** faster; `HLM_France` is unchanged and had to be. **Two defects**, one of them a hazard rather than a fault. |
 | 8 | A Linux timing job | **Done.** `scripts/measure.sh`, run by CI and by a person, uploading its JSON. Indicative only, and it cannot fail the build. |
 | 9 | The briefing for Imperial | **Done.** [docs/briefing.md](briefing.md). |
 | 10 | Docs, ADRs, backlog, this file | **Done.** |
@@ -185,7 +185,8 @@ counts, and the prevalence and incidence of eleven diseases.
 
 ## Performance: names resolved at the call site
 
-Backlog item 2, the half [ADR 0037](decisions/0037-index-keyed-risk-factor-store.md) left behind.
+The previous run's backlog item 2, and the half
+[ADR 0037](decisions/0037-index-keyed-risk-factor-store.md) left behind.
 The store stopped comparing strings; its callers went on handing it a `core::Identifier`, and some of
 them *constructed* one per factor per person per year from a string concatenation. Three places, all
 of them "do it once when the model is built": the linear model's coefficient list holds each name's
@@ -193,7 +194,39 @@ index **and** the three name-shaped questions the evaluator used to ask of the s
 linear model builds its `<factor>_residual`, `_policy`, `_trend` and `_income_trend` names once; the
 Kevin Hall model's food-to-nutrient and nutrient-to-energy equations are index-keyed.
 
-<!--PERF-->
+Five runs of each binary on an idle machine, alternating them run by run so drift falls on both
+equally ([docs/performance.md](performance.md)):
+
+| macOS, Apple M5 | Wall, best of 5 | CPU, best of 5 | Peak memory |
+|---|---|---|---|
+| `KevinHall_FINCH` | 6.14 → **4.53 s, 1.36×** | 6.12 → **4.51 s, 1.36×** | 78.2 → 78.2 MiB |
+| `HLM_France` | 2.44 → 2.44 s, **1.00×** | 2.43 → 2.43 s | 52.7 → 52.6 MiB |
+
+**France had to be unchanged**: it is the HLM family, and none of the three places above is on its
+path. A change that moved it would have been doing something other than what it says.
+
+Against the baseline the build now stands at **3.5× faster and 5.5× less CPU on FINCH**, 2.0× and
+3.2× on France, running its two scenarios sequentially against a baseline that runs them
+concurrently.
+
+**A whole-run profile says where the time went**, and it is the part worth keeping: the run lost
+1,169 of its 5,407 thread samples and **1,063 of them — 91% — are name handling**. It did not move
+elsewhere in the program. `case_insensitive::equals` went 203 → 24 samples, `validate_identifier`
+141 → 26, `is_metadata_predictor` 112 → 15, the name→index hash probe 303 → 129.
+
+**And `_platform_memcmp` did not move at all** — 795 samples before, 832 after, still the largest
+single entry. The linear models stopped comparing strings, so what is left is elsewhere: 868
+samples, a fifth of the run, in the analysis module building `"mean_" + key` per factor per person
+per year and looking the channel up by that string. That is the same defect one layer up, it is now
+measured rather than suspected, and it moved [docs/backlog.md](backlog.md) item 9 out of *Smaller
+things*.
+
+**Linux, for the first time**, as an indicative figure rather than a claim: a CI job runs
+`scripts/measure.sh` on `ubuntu-latest` and uploads its JSON — `HLM_France` 3.03 s and
+`KevinHall_FINCH` 12.44 s, best of three, with peak memory 29% and 17% *lower* than macOS on the
+same inputs. A GitHub runner is a shared virtual machine, so nothing compares it against a stored
+number or can fail the build. What survives the noise is the ratio between the two examples: 4.11×
+on the runner against 3.52× on the laptop.
 
 **The check that matters is byte identity**, not a statistical comparison over twenty seeds, which
 would call a last-bit difference agreement. It is also the check that did not find defect 7 above.
@@ -217,12 +250,12 @@ counts and both reductions treat them as means. It is four names in two places a
 every stored reference, and until it is done the server draws a chart whose level means nothing. It
 is the only correctness item this run found and did not fix.
 
-Two smaller things would each remove a hedge from this document. **`HLM_India` at the cohort it
-ships** (item 5) is machine time rather than work, and it is the largest single gap in the
-validation. And **`DataSeries` keyed by channel name** (item 10) is what is left of the performance
-item: a `KevinHall_FINCH` profile taken after this run's change still has `_platform_memcmp` as its
-largest entry, and what remains of it is the analysis module looking channels up by `std::string`
-rather than anything per person per year.
+Two more would each remove a hedge from this document. **`HLM_India` at the cohort it ships**
+(item 5) is machine time rather than work, and it is the largest single gap in the validation. And
+**`DataSeries` keyed by channel name** (item 9) is what is left of the performance item, now with a
+number on it: 868 of 4,238 thread samples, and `_platform_memcmp` unmoved by this run's change. It
+is the same fix in a different file. A fifth of the run is the ceiling on what it could be
+worth, and no reading of the profile says all of that fifth would go.
 
 [docs/backlog.md](backlog.md) has the rest, ranked, with what each costs.
 
@@ -243,7 +276,7 @@ three of the nine findings, so it is a cost worth having and worth naming.
 
 The mitigation is `ctest -j` on the sanitizer presets — these tests are almost all single-threaded
 and run serially today. It is not done here because changing how CI runs its tests at the end of a
-run leaves no time to find out what it breaks; it is [docs/backlog.md](backlog.md) item 10.
+run leaves no time to find out what it breaks; it is [docs/backlog.md](backlog.md) item 11.
 
 ## What a reader should still be sceptical about
 
