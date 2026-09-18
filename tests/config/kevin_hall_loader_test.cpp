@@ -184,6 +184,18 @@ TEST(KevinHallLoader, TheUpstreamFinchDynamicModelLoads) {
     EXPECT_EQ("Dynamic", loaded.model->name());
 }
 
+TEST(KevinHallLoader, TheKevinHallModelDoesNotConsultTheActiveScenario) {
+    // Nothing in this model family calls `Scenario::apply`, which is why a config selecting an
+    // intervention with impacts on it is refused at load time (ADR 0035, deviation D-39). The answer
+    // lives on the model rather than in the loader so that it is the code's own statement about
+    // itself; this is the test that the statement is true of this family.
+    const auto config = finch_config();
+    const auto mapping = finch_mapping();
+    auto loaded = load(finch_dynamic_model(), config, mapping, finch_expected());
+    ASSERT_NE(nullptr, loaded.model) << loaded.report.to_string();
+    EXPECT_FALSE(loaded.model->applies_the_active_scenario());
+}
+
 TEST(KevinHallLoader, TheQuintileWeightCurvesAreLoadedAndDifferFromEachOther) {
     const auto config = finch_config();
     const auto mapping = finch_mapping();

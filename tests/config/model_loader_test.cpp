@@ -168,6 +168,25 @@ TEST(ModelLoader, ReadsTheDynamicModelInTheFormatTheFilesUse) {
     EXPECT_EQ(hgps::model::RiskFactorModelType::Dynamic, model->type());
 }
 
+TEST(ModelLoader, OnlyTheDynamicHierarchicalModelConsultsTheActiveScenario) {
+    // `Scenario::apply` has one call site in this build, in the dynamic HLM's `update_exposure`, and
+    // one in the baseline, in the same model. Every model family answers for itself whether it makes
+    // that call, and the load-time intervention check reads the answer (ADR 0035, deviation D-39).
+    // Here are two of the four; the other two are in the FINCH loader tests, next to their fixtures.
+    Fixture fixture;
+    IssueReport report;
+
+    const auto dynamic_hlm =
+        load_ebhlm(dynamic_model(), "dynamic_model.json", fixture.context(), report);
+    ASSERT_NE(nullptr, dynamic_hlm) << report.to_string();
+    EXPECT_TRUE(dynamic_hlm->applies_the_active_scenario());
+
+    const auto static_hlm = load_hlm(static_model(), "static_model.json", fixture.context(), report);
+    ASSERT_NE(nullptr, static_hlm) << report.to_string();
+    EXPECT_FALSE(static_hlm->applies_the_active_scenario())
+        << "a static model runs once, before any policy is active; it has nothing to apply";
+}
+
 TEST(ModelLoader, RejectsTheInternalNamesForTheLevelMatrices) {
     // The bug this file exists for: `m`, `w` and `s` are what the files say. Reading
     // `transition`, `inverse_transition` and `residual_distribution` instead made every real

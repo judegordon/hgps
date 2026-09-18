@@ -17,6 +17,11 @@ tests/equivalence/run.py --example KevinHall_FINCH --seeds 20
 
 ## What is compared, and how
 
+The **method** — the reduction, the exclusions, the allowance and its derivation, the lattice
+rule, and the self-consistency suite — is in [docs/equivalence-method.md](equivalence-method.md),
+in one place, so that a reviewer can check what the comparison does without reading the script or
+this document. What follows is what the method was applied *to*, and then what it produced.
+
 **The examples.** Two, one per model family
 ([docs/examples.md](examples.md)):
 
@@ -58,132 +63,6 @@ The two configs are equivalent by construction: the converter's defaults for
 `project_requirements` are the baseline's own struct defaults, checked against
 `hgps_main/src/HealthGPS.Input/poco.h`, and the column sets of the two result files are identical.
 
-**The reduction.** Each result file has one row per (scenario, run, year, sex, age). The two
-implementations' age bands hold *different people*, so comparing rows is meaningless; comparing
-population figures is not. The harness reduces each file to one value per
-(scenario, year, sex, variable):
-
-- `count`, `deaths` and `emigrations` are counts, so they are summed over the age bands.
-- everything else is a mean or a proportion within the band, so it is the count-weighted mean over
-  the bands — the figure the variable is reporting for the population.
-
-**What the reduction leaves out.** Two things, and they are different in kind.
-
-*The emptying bands.* The age bands that either implementation empties, on both sides and for every
-seed — 785 of HLM_France's 16,564 bands and 692 of KevinHall_FINCH's, in each case a fraction of a
-percent of the head count and all at the top of the age range. That is not a convenience: it is the
-one place the two implementations are not reporting the same quantity, for a reason traced below
-under *the emptying-band mechanism*. The excluded set is derived from the runs rather than
-declared, is recorded in the reference manifest, and a run that finds an empty band outside it
-fails rather than quietly widening it.
-
-*A variable the baseline does not compute.* `std_income`, on FINCH only. The baseline emits the
-column and never fills it: the loop that accumulates squared deviations skips `income` on the
-ground that the mapping loop handles it, and the mapping loop skips it for the same reason, so
-every value in the column is exactly zero in every band of every year of every run. That is
-deviation **B-22**, and this build computes it. The harness's `BASELINE_DOES_NOT_COMPUTE` list
-drops the variable **only while the baseline's series is identically zero**, and compares it
-normally the moment that stops being true — so the exclusion cannot outlive the defect, and a
-future baseline that fixes it turns the comparison back on by itself.
-
-**The statistics.** For each of those series the harness takes the 20 seeds' values and computes
-the **mean**, the **standard deviation** and the **5th, 50th and 95th percentiles** (type-7
-quantiles, so they can be reproduced in R or numpy), for each implementation, and compares them —
-except for a **lattice-valued** series, where four of the five are replaced by one exact test of
-the whole distribution (below). That is 31,468 comparisons on HLM_France and 22,679 on
-KevinHall_FINCH.
-
-## The thresholds, and why they are what they are
-
-Two Monte Carlo simulations with different random streams cannot agree exactly. The question is
-whether they agree to within what that noise allows, so each comparison is a hypothesis test rather
-than a fixed tolerance:
-
-```
-allowed(statistic) = 4.5 × SE(statistic) + 1e-5 × scale
-```
-
-**The standard error.** For a sample of *n* values with standard deviations `s_b` and `s_n`:
-
-| Statistic | SE of the difference | Why |
-| --- | --- | --- |
-| mean | `sqrt((s_b² + s_n²)/n)` | textbook |
-| median | `1.2533 × sqrt((s_b² + s_n²)/n)` | a quantile's SE is `sqrt(q(1−q)/n)/φ(z_q)`; at q=0.5 that is 1.2533σ/√n |
-| 5th, 95th percentile | `2.1133 × sqrt((s_b² + s_n²)/n)` | the same formula at q=0.05: `sqrt(0.0475/n)/0.10314` |
-| standard deviation | `sqrt((s_b² + s_n²)/(2(n−1)))` | the SE of a sample standard deviation is `s/sqrt(2(n−1))` |
-
-The standard deviation is compared as a **difference** rather than a ratio, deliberately: a ratio
-cannot be formed when one implementation's standard deviation is exactly zero, and that case — a
-quantity that is deterministic in one implementation and not the other — is precisely the one worth
-seeing rather than skipping.
-
-**Why 4.5 sigma and not 3.** A 3σ threshold has a one-in-370 false-failure rate per comparison. Over
-38,000 comparisons that is about a hundred failures from noise alone, which would make the result
-unreadable. The threshold is therefore set for the whole family: a Bonferroni correction at
-α = 0.05 over ~5,000 independent series needs z = 4.4, so 4.5 is used. This is a deliberate trade:
-the test is now insensitive to a real difference smaller than about 4.5 standard errors in a single
-series. What protects against that is the *pattern* — a systematic difference shows up in many
-series at once, and the harness prints the largest differences that passed as well as the ones that
-failed, so a shift sitting just inside the allowance is visible rather than silent.
-
-**Why a floor at all.** No comparison can be tighter than the precision of the numbers compared,
-and the baseline writes its CSV with **six significant digits**. Each of its band figures therefore
-carries a relative rounding error of up to 4×10⁻⁶, and the difference of two such figures up to
-8×10⁻⁶; the floor is set at 1×10⁻⁵ of the larger of the two values. This matters more than it
-sounds, because many of this model's variables are *nearly deterministic* (see below), so their
-standard-error term collapses to nothing and the floor becomes the whole allowance. For those
-variables the test is "equal to the precision the baseline prints", which is the strongest test the
-baseline's output supports. Making it stronger would require changing the baseline's writer, and the
-baseline is read-only ([ADR 0003](decisions/0003-read-only-sources-and-out-of-tree-baseline-build.md)).
-
-**Where normal theory does not apply: lattice-valued series.** Every standard error above assumes
-the seeds are a sample from something like a normal distribution. For a large minority of the
-series — **2,264 of HLM_France's 7,652 and 625 of KevinHall_FINCH's 4,924** — that is plainly
-false. Two shapes, with one consequence:
-
-- a population aggregate that calibration pins, where the seed moves nothing except whether one
-  particular person happened to die: the same value in most seeds, with rare jumps;
-- a count over a denominator — the incidence or prevalence of a rare disease — which can only be
-  0, one case, two cases: values on a **lattice**.
-
-In both, every **quantile** of the sample is a lattice point, so a quantile comparison has a
-resolution of one whole lattice step. And the normal-theory allowance shrinks as 1/√n while the
-lattice step does not, so such a comparison gets *worse* with more seeds. That is not a theoretical
-worry: it is what the 60-seed FINCH confirmation found, and it is set out below under *the eighteen
-medians*.
-
-So a series is treated as lattice-valued when **either** the two implementations' samples pooled
-take at most **six distinct values at the baseline's printed precision**, **or** one value covers
-more than half of either sample. For such a series:
-
-- the **mean** is compared exactly as before. It is not a lattice point, its allowance shrinks
-  correctly, and for a rare-disease series it is the summary that carries the content;
-- the standard deviation and all three quantiles — every one of which is a function of the same
-  counts — are replaced by **one exact test of those counts**: a two-sided Fisher exact test per
-  distinct value, "this value against every other", Bonferroni-corrected for the number of values
-  tested. That tests the whole shape of the discrete distribution rather than three points of it.
-
-Bucketing at printed precision is part of the rule and not a detail. `0.00029274` and
-`0.000292741` are one value that the baseline cannot print apart, and counting them as two was
-enough to hide a lattice series from an earlier version of this rule.
-
-**How strong that test is, exactly.** It is a real test rather than a waiver, but it is blunt at
-twenty seeds, and the numbers are worth stating rather than assuming. Against the family-wide
-α = 10⁻⁵, for a two-valued series:
-
-| | n = 20 | n = 60 |
-|---|---|---|
-| baseline never leaves one value; this build leaves it in *k* seeds | fails at k = 14 | fails at k = 17 |
-| baseline at 0 in half its seeds; this build at 0 in *k* | never fails, even at k = n | fails at k = 54 |
-
-So **a rare-event rate is barely testable at twenty seeds and properly testable at sixty**. That is
-a second reason for the 60-seed confirmation, independent of the one the standard deviation gives.
-`tests/equivalence/run_test.py` pins both rows.
-
-**What is skipped.** A burden, death, emigration or incidence variable in the first simulated year,
-where the quantity is not defined yet: 56 comparisons on HLM_France and 136 on KevinHall_FINCH.
-Nothing else is excluded.
-
 ## The result — HLM_France
 
 **31,468 comparisons over 20 seeds. Zero out of tolerance.**
@@ -196,6 +75,11 @@ Nothing else is excluded.
 | 95th percentile | **0** | 5,388 | 0.74× (`above_weight`, baseline 2044 male, 20.813 against 20.375) |
 | standard deviation | **0** | 5,388 | 0.87× (`mean_bmi`, intervention 2024 female, 0.000858 against 0.003127) |
 | distribution | **0** | 2,264 | p = 1 for every one of them |
+
+56 further comparisons are skipped, all of them a death, emigration, incidence or burden variable in
+the first simulated year, where the quantity is not defined yet
+([docs/equivalence-method.md](equivalence-method.md) §3.3). Nothing else is left out but the emptying
+bands, below, and `std_income`, which does not arise on this example.
 
 Nothing sits on the edge: **the worst comparison in the whole run uses 87% of its allowance.** That
 is a different kind of result from "everything passes", because a set of comparisons clustered at
@@ -219,6 +103,10 @@ the answer the test gives rather than one assumed.
 | 95th percentile | **0** | 4,277 | 0.76× (`incidence_esophaguscancer`, intervention 2032 male, 0.000314 against 0.000851) |
 | standard deviation | **0** | 4,277 | 0.74× (`mean_fruit`, baseline 2031 female, 0.6642 against 0.2750) |
 | distribution | **0** | 647 | p = 0.081 against a threshold of 10⁻⁵ (`incidence_kidneycancer`, baseline 2030 female, modal share 0.60 against 0.50) |
+
+136 further comparisons are skipped as not defined in the first simulated year, and `std_income` is
+excluded for as long as the baseline's series stays identically zero
+([docs/equivalence-method.md](equivalence-method.md) §3).
 
 The worst numeric comparison uses 90% of its allowance, and the smallest distribution p-value is
 0.081 — nearly four orders of magnitude clear of its threshold. Nor is there a direction to what
@@ -302,6 +190,32 @@ baseline does not. What they do not do is exercise the five policies' own rules 
 
 Whether an intervention scenario *should* reach the Kevin Hall surface is an upstream design
 question, and it is in [docs/backlog.md](backlog.md) as one.
+
+**Since this run these five FINCH comparisons can no longer be produced by this build, and that is
+deliberate.** A config whose active intervention declares impacts the configured dynamic model would
+never apply is now refused at load time
+([ADR 0035](decisions/0035-refuse-an-intervention-no-model-applies.md), deviation D-39), because a
+run that reports success and no effect is the shape of thing somebody mistakes for a result. The
+harness's FINCH overlay supplies non-empty impacts, so this build refuses exactly the five runs that
+produced the paragraphs above.
+
+That is a real cost of the decision, paid knowingly:
+
+- what those runs showed is **unchanged and recorded here**, and it was never more than "both
+  implementations agree these policies are inert on this surface";
+- they cannot be re-run without changing the overlay to declare no impacts, at which point the
+  comparison would be of two runs of the baseline scenario and would show nothing;
+- the five policies' own rules are still compared against the baseline on `HLM_France`, which is
+  where the definitions are real and the model consults them, and nothing about that changed;
+- the *property* the five runs were evidence for — that this build does not wire `apply` into a model
+  the baseline leaves alone — is now asserted directly instead, by
+  `ModelLoader.OnlyTheDynamicHierarchicalModelConsultsTheActiveScenario`,
+  `StaticLinearLoader.TheStaticLinearModelDoesNotConsultTheActiveScenario` and
+  `KevinHallLoader.TheKevinHallModelDoesNotConsultTheActiveScenario`, in milliseconds rather than in
+  an hour of runs.
+
+`KevinHall_FINCH` with its own `simple` — the primary comparison, and the one the checked-in reference
+is keyed to — is untouched: an empty impact list is accepted, with a warning saying what it means.
 
 ### The results
 

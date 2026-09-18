@@ -112,6 +112,10 @@ class DynamicHierarchicalLinearModel final : public AdjustableRiskFactorModel {
     /// @brief Moves every non-newborn one year, then calibrates.
     void update_risk_factors(RuntimeContext &context, sim::ScenarioJournal &journal) override;
 
+    /// @brief True. `update_exposure` is the one place in this build that calls `Scenario::apply`,
+    ///        which is also true of the baseline (`dynamic_hierarchical_linear_model.cpp:110`).
+    bool applies_the_active_scenario() const noexcept override { return true; }
+
   private:
     std::shared_ptr<const std::map<core::IntegerInterval, AgeGroupGenderEquation>> equations_;
     std::shared_ptr<const std::map<core::Identifier, core::Identifier>> variables_;

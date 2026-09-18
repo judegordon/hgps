@@ -11,6 +11,8 @@ Tags:
 - `validation` — makes an existing claim checkable, or checks it harder.
 - `platform` — build, CI, packaging.
 - `cleanup` — internal, no behaviour change.
+- `needs-ruling` — cannot be done here: it needs a decision that belongs to whoever owns the model
+  or the data, and guessing would put an invented number into somebody else's fitted model.
 - `docs`
 
 The previous run's first three items — `StaticLinear`, `KevinHall`, the other five interventions —
@@ -94,21 +96,59 @@ Nothing here can fix that: raising the curve or lowering the bound would be inve
 somebody else's fitted model. What this item needs is upstream to say which of the two is wrong.
 Until then the FINCH surface has one country, and that is the largest single gap in the validation.
 
-### 7. Ask upstream whether a policy should reach the Kevin Hall surface — `docs`
+### 7. Apply interventions on Kevin Hall models — `needs-ruling`
 
-**Value: medium. Effort: none here, and it is not this project's call.** In the whole baseline,
-`Scenario::apply` — the call that offers a person and a risk factor to the active policy — has one
-call site, in `dynamic_hierarchical_linear_model.cpp`. The `StaticLinear` and `KevinHall` models
-never call it, so **all six intervention scenarios are inert on the FINCH surface**: `marketing`
-and `simple` produce byte-identical output there, in both implementations
+**Value: unknown, and it is not this project's call. Effort: small to wire, unbounded to justify.**
+In the whole baseline, `Scenario::apply` — the call that offers a person and a risk factor to the
+active policy — has one call site, in `dynamic_hierarchical_linear_model.cpp:110`. The `StaticLinear`
+and `KevinHall` models never call it, so **every intervention scenario is inert on that surface**:
+`marketing` and `simple` produce byte-identical output there, in both implementations
 ([docs/equivalence.md](equivalence.md)).
 
-That may be deliberate — FINCH's policy mechanism is `policy_start_year` and the S1 policy-effect
-coefficients, which is a different and arguably better-founded thing than an age-banded shift. But
-a config can select `food_labelling` on a Kevin Hall model today and get a run that reports no
-error and no effect, which is the shape of thing somebody eventually mistakes for a result. At the
-very least this build should say so at load time, and that is a small change once upstream has said
-which way it is meant to be.
+**What this run did about it.** Not implement it. A config whose active intervention declares impacts
+the configured dynamic model would never apply is now **rejected at load time**, naming both
+([ADR 0035](decisions/0035-refuse-an-intervention-no-model-applies.md), deviations D-39). An
+intervention with an empty impact list — which is what all four Kevin Hall examples ship — is
+accepted with a warning. So the silent-no-effect run is gone; the feature is not there.
+
+**What the upstream authors' intent appears to be, from the evidence rather than from asking.** Three
+things point the same way, and one points the other.
+
+Pointing at "deliberate":
+
+- `KevinHall_FINCH` ships `simple` with an **empty** `impacts` list, and so do `KevinHall_India`,
+  `KevinHall_PIF` and `Dummy_disease_test`. Somebody who expected the mechanism to work and filled in
+  coefficients would have noticed it doing nothing; somebody who knew it was inert would ship it
+  empty, which is what they did. Four examples out of four.
+- That surface has its own policy mechanism and it does work: `modelling.policy_start_year`, from
+  which `StaticLinear` applies the S1 policy-effect coefficients and the residual policy covariance to
+  the intervention scenario. The baseline's two FINCH scenarios are identical in 2022 and 2023 and
+  differ in 2,476 of 4,600 reduced series in 2024. A per-factor fitted policy effect is a
+  better-founded thing than an age-banded constant shift, and having built the former there is a
+  reason not to wire up the latter.
+- `KevinHall_PIF` is a third mechanism again — a population impact fraction multiplying disease
+  incidence — and it also does not go through `Scenario::apply`. Two of the three policy mechanisms
+  upstream has built since the HLM surface bypass the scenario object entirely.
+
+Pointing at "an oversight":
+
+- The `interventions` block is still parsed, validated and carried for those configs, and
+  `active_type_id` still selects a scenario object that is constructed and then never consulted. If
+  the mechanism were deliberately out of scope for that surface, the natural thing would have been to
+  refuse the key — which is what this build now does.
+
+**What it would take.** Wiring is one call in `StaticLinearModel::update_risk_factors` and one in
+`KevinHallModel::update_risk_factors`, at the point where each writes a factor value. The hard part is
+not the call: it is deciding **where** in the chain it goes on a surface where the factors are
+food-group intakes that feed nutrients that feed an energy balance that produces weight. An age-banded
+shift to `EnergyIntake` is not the same intervention as the same shift to `FoodCarbohydrate`, and
+nothing in the data says which upstream means. It also changes results, so it needs a deviation entry,
+an ADR, and both equivalence references re-run.
+
+**So this is tagged `needs-ruling` rather than estimated.** The question for upstream is: on the
+`StaticLinear`/`KevinHall` surface, should `running.interventions` do anything, and if so, at which
+point in the food → nutrient → energy → body chain does an impact apply? Until there is an answer,
+refusing the config is the honest behaviour, and it is what is implemented.
 
 ### 8. A fallback donor for immigration into an empty band — `correctness`
 

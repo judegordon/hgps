@@ -144,6 +144,48 @@ std::optional<std::string> read_model_name(const std::filesystem::path &path,
     return model_name_of(*document, path, report);
 }
 
+namespace detail {
+
+void check_intervention_reaches_the_model(const Config &config,
+                                          const model::RiskFactorModel &dynamic_model,
+                                          const std::filesystem::path &dynamic_model_path,
+                                          diag::IssueReport &report) {
+    const auto &active = config.running.active_intervention;
+    if (!active.has_value() || dynamic_model.applies_the_active_scenario()) {
+        return;
+    }
+
+    const auto location =
+        IssueLocation{.file = config.source_path.string(),
+                      .field = "/running/interventions/active_type_id"};
+
+    if (active->impacts.empty()) {
+        report.warning(
+            IssueCode::config_default_applied, location,
+            fmt::format("the active intervention '{}' declares no impacts, and the configured "
+                        "dynamic model ({}) would not apply them if it did — nothing in that model "
+                        "family consults the active scenario, so this run's intervention arm "
+                        "differs from its baseline arm only through modelling.policy_start_year, if "
+                        "that is set. See docs/deviations.md D-39.",
+                        active->identifier, dynamic_model_path.filename().string()));
+        return;
+    }
+
+    report.error(
+        IssueCode::config_bad_value, location,
+        fmt::format("the active intervention '{}' declares {} impact{} that the configured dynamic "
+                    "model would never apply: nothing in that model family calls the active "
+                    "scenario, so the run would report no error and no effect. The dynamic model is "
+                    "{}. Either select an intervention on a config whose dynamic model is 'EBHLM', "
+                    "or remove running.interventions.active_type_id and use "
+                    "modelling.policy_start_year, which this model family does implement. See "
+                    "docs/deviations.md D-39 and docs/backlog.md.",
+                    active->identifier, active->impacts.size(),
+                    active->impacts.size() == 1 ? "" : "s", dynamic_model_path.string()));
+}
+
+} // namespace detail
+
 std::optional<RiskFactorModels> load_risk_factor_models(const LoadContext &given,
                                                         diag::IssueReport &report) {
     const auto before = report.error_count();
@@ -227,6 +269,11 @@ std::optional<RiskFactorModels> load_risk_factor_models(const LoadContext &given
     }
 
     result.dynamic_model = load_one("dynamic");
+
+    if (result.dynamic_model) {
+        detail::check_intervention_reaches_the_model(*context.config, *result.dynamic_model,
+                                                    models.find("dynamic")->second, report);
+    }
 
     if (report.error_count() != before || !result.static_model || !result.dynamic_model) {
         return std::nullopt;

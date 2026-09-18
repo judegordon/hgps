@@ -91,6 +91,23 @@ class RiskFactorModel {
     /// a person all the same, so a later model's coefficients may name them, and load-time
     /// validation has to know about them or it would reject a correct model file.
     virtual std::vector<core::Identifier> generated_factors() const { return {}; }
+
+    /// @brief Whether this model offers each person's factor values to the active scenario.
+    ///
+    /// `Scenario::apply` — the call that hands a person and a risk factor to the active policy — has
+    /// exactly one call site in this build and exactly one in the baseline, and both are in the
+    /// dynamic hierarchical linear model. No other model family consults the policy, so on the
+    /// `StaticLinear`/`KevinHall` surface every one of the six intervention scenarios is inert: a
+    /// config can select `food_labelling` there and get a run that reports no error and no effect.
+    ///
+    /// This says so, per model, so that the load-time check can refuse that config instead of
+    /// producing it ([ADR 0035](../../../docs/decisions/0035-refuse-an-intervention-no-model-applies.md)).
+    /// It is a property of the code — whether this class's update calls `apply` — and
+    /// `InterventionReach` asserts that each family answers it correctly.
+    ///
+    /// Default false: a new model family does not consult the policy until somebody writes the call
+    /// and changes this, which is the safe direction for a default to point.
+    virtual bool applies_the_active_scenario() const noexcept { return false; }
 };
 
 /// @brief Which people a calibration pass covers, and against which expected values.

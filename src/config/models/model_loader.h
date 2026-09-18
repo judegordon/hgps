@@ -114,6 +114,25 @@ std::optional<RegionEthnicityPrevalence>
 load_region_and_ethnicity(const nlohmann::json &document, const std::filesystem::path &path,
                           const LoadContext &context, diag::IssueReport &report);
 
+/// @brief Refuses a config whose active intervention the configured dynamic model would ignore.
+///
+/// `Scenario::apply` — the call that offers a person and a risk factor to the active policy — has one
+/// call site in this build and one in the baseline, both in the dynamic hierarchical linear model. So
+/// on the `StaticLinear`/`KevinHall` surface every intervention scenario is inert, in both
+/// implementations, and a config selecting `food_labelling` there runs with no error and no effect
+/// ([ADR 0035](../../../docs/decisions/0035-refuse-an-intervention-no-model-applies.md), deviation
+/// D-39).
+///
+/// An intervention that **declares impacts** the model would never apply is an error. One with an
+/// **empty** impact list is a warning: that is upstream's own way of saying "no policy here", and all
+/// four Kevin Hall examples ship exactly that.
+///
+/// Exposed for testing, because the rule is worth testing without loading an 18 MB model file.
+void check_intervention_reaches_the_model(const Config &config,
+                                          const model::RiskFactorModel &dynamic_model,
+                                          const std::filesystem::path &dynamic_model_path,
+                                          diag::IssueReport &report);
+
 /// @brief Checks a coefficient name against the declared factors and the derived predictors.
 /// @return true if it resolves; otherwise records a located error and returns false.
 bool validate_predictor_name(const std::string &name, const std::filesystem::path &path,
