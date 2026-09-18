@@ -33,7 +33,7 @@ Three things happened, in the order the run found them.
 | Tests, the equivalence harness's own | **39** (was 30) |
 | Tests, the frontend | **48** |
 | Comparisons against the baseline this run | **131,061**, **0** out of tolerance |
-| Source | `src/` 153 files; `tests/` 67 files; 43,576 lines of C++ between them; `web/src/` 13 files, 2,357 lines |
+| Source | `src/` 153 files; `tests/` 67 files; 43,576 lines of C++ between them; `web/src/` 14 files, 2,357 lines |
 | Documents | 12, plus **43 ADRs** |
 | CI | **13 jobs**, green on every matrix entry |
 
