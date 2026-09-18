@@ -1,9 +1,12 @@
-# Summary of the sixth build run
+# Summary of the seventh build run
 
 What was built, what is proven, and where it stops. Written at the end of the run it describes.
 Earlier runs' summaries are in the history of this file: the first covered the HLM surface, the
 second the FINCH one, the third the library split and the index-keyed store, the fourth `HLM_India`
-and the first CI workflow, the fifth the local server, the frontend, and switchable deviations.
+and the first CI workflow, the fifth the local server, the frontend and switchable deviations, the
+sixth a second fixture pack, a browser in CI, and nine findings. A comment in the code that cites
+"`docs/SUMMARY.md`, finding N" means the run that wrote the comment; `git log -p docs/SUMMARY.md`
+is where to find it.
 
 ## The short version
 
@@ -11,332 +14,300 @@ A deterministic C++20 reimplementation of the Health-GPS microsimulation, with t
 model surface implemented, three examples compared against the baseline, and three ways to use it:
 as a library, from a command line, and from a browser.
 
-**This run added no feature.** Every one of its tasks was a way of making the existing tree harder to
-fool, and the point of it is the count at the bottom of this section: **nine findings** — eight
-defects and one component with no test that ran it — seven of them found by something that was not
-there before.
+**This run had three tasks and all of them were the previous run's leftovers**: the one correctness
+defect it found and did not fix, the ThreadSanitizer job its new tests had made twice as long, and
+the performance item its profile pointed at. All three are done. The finding worth the run is the
+one nobody asked for, and it came out of the first task:
 
-Three things did most of the finding.
-
-- **A second synthetic configuration**, differing from the first in every way a program might have
-  assumed it did not, with every test that runs a configuration parameterised over both. The
-  previous run found a hard-coded output file name that forty-five passing server tests had missed,
-  because all forty-five used the one fixture. This is that lesson made structural
-  ([ADR 0044](decisions/0044-two-fixture-packs-and-a-parameterised-suite.md)).
-- **A browser, driving the built frontend against a real server**, in CI. The previous run recorded
-  nine defects in its new code and none found by a test; three of those were found by a person
-  opening the page. This is that person, written down
-  ([ADR 0045](decisions/0045-end-to-end-tests-in-a-real-browser.md)).
-- **A randomised server-lifetime stress test**, under ThreadSanitizer, which is the first test of
-  that layer written without knowing what it is looking for.
+> **Nothing has ever compared the income-stratified result files.** On `KevinHall_FINCH`, **49
+> columns are identically zero in every row of every stratum file this build writes and non-zero in
+> the baseline's** — same example, same data, same header. Four of them are the weight categories and
+> are fixed here; the other 45 are [docs/backlog.md](backlog.md) item 2. The equivalence harness
+> reduces the whole-population CSV, and `find_result_csv` exists precisely to *exclude* the
+> stratified ones, so the only comparison this project has against the baseline does not cover them
+> at all.
 
 | | |
 |---|---:|
-| Tests, C++ | **845** in 100 suites — 848 CTest entries — passing under release, debug, ASan+UBSan and TSan |
-| Tests, the equivalence harness's own | **48** (was 39) |
+| Tests, C++ | **850** in 101 suites — 853 CTest entries — passing under release, debug, ASan+UBSan and TSan, where 761 of them run ([ADR 0046](decisions/0046-what-runs-under-which-sanitizer.md)) |
+| Tests, the equivalence harness's own | **50** (was 48) |
 | Tests, the frontend | **48** unit, **19** end to end in a browser |
-| Comparisons against the baseline this run | **187,754**, **0** out of tolerance |
-| Source | `src/` 153 files; `tests/` 71 files; 44,978 lines of C++ between them; `web/src/` 18 files and `web/e2e/` 6, 3,039 lines |
-| Documents | 13, plus **45 ADRs** |
+| Comparisons against the baseline this run | **187,754**, **0** out of tolerance — all four references regenerated |
+| Source | `src/` 153 files; `tests/` 72 files; 45,559 lines of C++ between them; `web/src/` 19 files and `web/e2e/` 6, 3,215 lines |
+| Documents | **14**, plus **46 ADRs** |
 | CI | **15 jobs** — see below |
-| Findings this run | **9** — eight defects and one untested component. Five came from the three mechanisms above, one from re-scoring the stored references, one from a unit test, two from reading |
+| Findings this run | **5**, three of them one thing: a whole output file family nothing was checking |
 
-## The ten tasks, and how each ended
+## The three tasks, and how each ended
 
 | | Task | Outcome |
 |---:|---|---|
-| 1 | Orientation, pre-flight, the concurrency group, CI on HEAD | **Done.** No stale processes of this project's were running; the concurrency group was already in the workflow from the end of the previous run; run 35360811751 on the starting commit was 13 of 13 green. |
-| 2 | A second fixture, and parameterised tests | **Done.** [ADR 0044](decisions/0044-two-fixture-packs-and-a-parameterised-suite.md). **Three findings**, and 184 tests where there were 92. |
-| 3 | Playwright end to end, and a CI job | **Done.** [ADR 0045](decisions/0045-end-to-end-tests-in-a-real-browser.md). 19 tests in about seven seconds, **one defect**, green in CI on its first run. |
-| 4 | A server stress test under TSan | **Done.** `tests/server/stress_test.cpp`, **one defect** — a hang — on its first run. 78 seconds under TSan at six shuffles, trimmed to three. |
-| 5 | GCC required | **Done.** One line, and the reason for it had expired. |
-| 6 | The lattice detector, and the India re-score | **Done**, with no threshold moved. All four stored references re-scored; **one defect in the first version of the change**, found by that re-score. |
-| 7 | Names to indices at the call site | **Done**, byte-identical on all three runnable examples. `KevinHall_FINCH` is **1.36×** faster; `HLM_France` is unchanged and had to be. **Two defects**, one of them a hazard rather than a fault. |
-| 8 | A Linux timing job | **Done.** `scripts/measure.sh`, run by CI and by a person, uploading its JSON. Indicative only, and it cannot fail the build. |
-| 9 | The briefing for Imperial | **Done.** [docs/briefing.md](briefing.md). |
-| 10 | Docs, ADRs, backlog, this file | **Done.** |
+| 1 | The weight-category defect | **Done**, and **not** the way the ruling assumed. It is not a deviation from the baseline, so there is no compatibility flag. **Four findings.** All four stored references regenerated against the baseline binary; the comparison counts and the verdict are unchanged. |
+| 2 | ThreadSanitizer runtime | **Done.** [ADR 0046](decisions/0046-what-runs-under-which-sanitizer.md): one fixture pack and six self-check seeds under that sanitizer only. `macos · appleclang · tsan` **88m08s → 33m09s**, `linux · clang · tsan` **42m07s → 15m56s**, and the macOS job is no longer the workflow's long pole. |
+| 3 | The analysis module's channels | **Done.** `KevinHall_FINCH` **1.33×**, `HLM_France` **1.22×**, and every CSV of every runnable example byte-identical — including `HLM_India` at the 1,240,613-person cohort it ships. Backlog item 9 closed. |
+| + | Anything else small, output-preserving and undisputed | **One taken, and it is documentation.** [docs/upstream-reports.md](upstream-reports.md) writes up the four findings that belong to upstream, each with the command that reproduces it against their binary and data (backlog item 14's writing half). Nothing else was taken, and the reason is worth stating: by then `scripts/check.sh` was running against the tree the three tasks produced, and any further change to `src/` or `tests/` would have thrown that verification away to save an hour of somebody else's reading. |
 
-## The nine findings, and what found each
-
-The point of the run, in one table. **Seven of the nine were found by something running**, which is
-the difference between this run and the one before it — that one found nine defects in its new code
-and none of them by a test. Two of these were still found by reading, and they are marked as such,
-because a summary that claimed otherwise would be doing the thing this project keeps catching.
+## The five findings, and what found each
 
 | | What | Found by |
 |---|---|---|
-| 1 | **An age range narrower than the population data crashed with `map::at: key not found` and no location.** The cohort is drawn from the data while several per-age tables are built over the configured range. The baseline reaches the same place inside a parallel loop | the second fixture pack, in its first run |
-| 2 | **A cancelled two-scenario run started the intervention anyway and simulated a year of it**, so the result file held a baseline stopping in one year and an intervention stopping in another — and `years_completed` was four rather than three. The comment above that code claimed the opposite | the second fixture pack, which is the first fixture with two scenarios |
-| 3 | **The CLI had no test that ran it.** Everything ran in process with the output folder overridden, so honouring a configuration's own `output.folder` and printing the files it wrote were untested | writing the second fixture's tests |
-| 4 | **A server stopped before it had served anything hung for ever.** cpp-httplib's `stop()` does nothing unless the server is already running, so a `start()` that returned as soon as its thread was spawned could lose the stop, and the join never returned | the stress test, on its first run, because one of its shuffled moments was "immediately" |
-| 5 | **Pressing Start left the previous run on screen** — its id, its `completed` state and a "See the results" button pointing at the run before — for as long as the POST took | the end-to-end tests, whose helper read that stale id |
-| 6 | **The first version of the lattice change rounded the numerator to a whole event**, which is finer than printed precision for a large total. Every calibrated mean on `HLM_India` failed: 216 comparisons, all of them two runs agreeing to every digit the baseline prints | re-scoring the stored references |
-| 7 | **`resolve_predictors` used `find`**, which answers `unknown` for a name nothing has interned *yet* as well as for one that never will — freezing a predictor into the string-resolver path for the life of the model. A whole `KevinHall_FINCH` run was byte-identical with it | a unit test that resolves a model before building the person it is evaluated against |
-| 8 | **The per-call fallback wrote to a process-wide table**, which is a race waiting for a caller even though nothing calls it from a parallel region today | reading back the change in 7 |
-| 9 | **The weight-category columns are head counts and both reductions treat them as means**, so the server's chart of `normal_weight` has a meaningless level. Not fixed: the harness's reduction has to change with it, and that invalidates every stored reference | reading the reduction while fixing the lattice detector |
+| 1 | **It is not a deviation, so the ruling's first branch does not apply.** The weight categories are head counts in the baseline's result file too — `analysis_module.cpp:2014` increments one per person per band and nothing divides them — so this build does not differ from the baseline about them, and there is nothing for [ADR 0041](decisions/0041-deliberate-deviations-are-switchable.md)'s compatibility flag to restore. The defect was entirely in this project's own two reductions | reading the baseline's analysis module beside this one's, before writing any code |
+| 2 | **This build writes four columns of zeros in every income-stratified file that the baseline fills.** `calculate_income_based_series` never classified weight at all | fixing finding 1, and then checking whether the four columns were right in *every* file rather than in the one the harness reads |
+| 3 | **45 more columns in those files are zero here and non-zero in the baseline** — `deaths`, `emigrations`, the three burden channels, seven demographic means and all 33 standard deviations. And **nothing compares those files**: the harness reduces the whole-population CSV only | the same measurement, run column by column over both implementations' output |
+| 4 | **The income series had no test at all.** Neither fixture pack assigns an income category — both are HLM, and only the StaticLinear family assigns one — so no test that runs a configuration could reach that code | writing a test for finding 2 and discovering there was nowhere to put it |
+| 5 | **The first version of the performance change cost `HLM_France` 5.4 MiB of peak memory** while making it faster: it resolved the income strata eagerly, allocating a channel vector per age for strata nobody is in, once per simulated year | the peak-memory column of the A/B, which is in that table for exactly this |
 
-Defect 7 is the one worth dwelling on. **The byte-for-byte comparison that this project trusts more
-than any statistical one did not find it** — a whole `KevinHall_FINCH` run was identical with the
-defect present, because something else happened to have interned every name that run uses before the
-models were built. What found it was a unit test that passed in debug and failed in release, for the
-same reason: a different test had interned the name first. A check that depends on the order tests
-run in is a check that can be right by accident, and this one was.
+Findings 2, 3 and 4 are one thing seen from three sides, and the thing is worth stating plainly:
+**a whole output file family has been written by this build for as long as it has written them,
+with nothing checking it against anything.** The comparison that this project trusts reduces one
+file per run; the tests that
+run configurations use packs that cannot produce the others. What fixed finding 2 was four lines;
+what finding 3 needs is a comparison, which is why it is [docs/backlog.md](backlog.md) item 2 rather
+than more four-line fixes.
 
-## The second fixture pack
+## The weight categories, and the ruling that turned out not to apply
 
-`gen-fixtures` writes two configurations over one data store. They differ in file layout (model files
-in subdirectories, named differently), output folder (nested three deep), output file name (carrying
-a `{TIMESTAMP}` token, so it is neither `result.csv` nor the same name twice), scenario set (an
-active intervention, so two scenarios rather than one), disease set (two, reordered, against three),
-comorbidity count, seed, horizon, cohort fraction and age range.
+The previous run found that `normal_weight`, `over_weight`, `obese_weight` and `above_weight` are
+head counts and that both of this project's reductions treated them as means. The ruling for this
+run said: if that is a deviation from the baseline, fix it and give it a named compatibility flag
+after its deviation ID, default off; if it turns out to be in the new code only, it is a plain bug —
+fix it, regenerate the affected references, and say so.
 
-**`FixturePack` deliberately carries no facts about a pack's contents.** A test that needs the
-horizon or the scenario names asks the loaded configuration. That rule is the mechanism: it is what
-stops a test asserting a constant only one pack satisfies, which is exactly what
-`tests/engine/manifest_test.cpp` was doing when it named `result_manifest.json`, and what
-`tests/sim/simulation_test.cpp` was doing when it named 2010–2014, fifty ages and three diseases.
+**It is the second case, and the evidence is one function in each implementation.**
+`AnalysisModule::classify_weight` increments one of four channels per person per band, here and in
+`hgps_main/src/HealthGPS/analysis_module.cpp:2014`, and neither implementation's "sums become means"
+pass touches those four channels. So the result files agree, column for column, and there is nothing
+to restore: a flag exists to reproduce a baseline behaviour this build deliberately does not have,
+and this build has the baseline's behaviour exactly.
 
-One assertion is worth quoting because it was wrong in a way nothing would have caught: a
-reproducibility test used 987654321 as "a different seed", which is the *second pack's own seed*.
-Against that pack it would have compared a run with itself and passed.
+What was wrong was three things this project owns:
 
-**Two packs is not a proof.** A third would find things the second does not, and the real examples
-find things neither does — the previous run's server defect came from `HLM_France`, not from a
-fixture. What this buys is that the cheap, fast, always-run layer can no longer be satisfied by a
-program that assumes one particular configuration.
+- **the equivalence harness** count-weighted them, which made the reduced figure for `normal_weight`
+  on `HLM_France` at (baseline, 2030, male) **15.3** where the population figure is **1,311.85**;
+- **`GET /api/runs/{id}/summary`** applied the same rule, and that is what the results screen charts,
+  so the level of that chart meant nothing;
+- **the income-stratified series** never filled the four columns at all.
 
-## The end-to-end tests
+The first two go together because [docs/server-api.md](server-api.md) says they must: two reductions
+that disagree are worse than one that is wrong, since a client cannot tell which it is looking at.
+`SummaryReduction.TheSummedColumnsAreTheOnesTheHarnessSums` now asserts the two lists are the same
+list.
 
-Nineteen tests, about seven seconds, one spec per screen plus one for the journey across them: edit a
-configuration, see a located diagnostic land on the field it names, start a run, watch it finish over
-the event stream, open the results, download the CSV, find it in the history. Chromium only, serial,
-one worker — one run at a time is the server's contract, not an accident of the configuration.
+**No comparison was ever wrong about this**, because both implementations were reduced identically,
+and the series' shape followed the underlying quantity, which is why it never looked wrong. What it
+broke was the level of a number a reader sees.
 
-Nothing is mocked. `scripts/e2e-server.sh` lays out the two fixture packs and starts the real binary
-with the real built frontend; a run of a synthetic pack takes about a fifth of a second, which is
-what keeps this a thing that runs rather than a thing that is run.
+**And nothing was added to [docs/deviations.md](deviations.md) or to the list of baseline findings
+in
+[docs/briefing.md](briefing.md)**, deliberately: both of those record places where this build
+differs from the baseline on purpose, and this was not one. What went into the briefing instead is
+the thing upstream would want to know — that the comparison reads one file per run, so their
+stratified output has never been checked against ours.
 
-Two things the suite reported were the tests being wrong rather than the code, and both are worth
-knowing about this app: **all four screens are in the DOM at once**, hidden rather than unmounted,
-so a bare locator matches screens nobody is looking at; and **a form section is a closed `<details>`**
-until something in it is wrong, so a field has to be revealed before it can be typed into.
+### The check that the new figure is right
 
-`scripts/check.sh` now runs the frontend too — type-check, unit tests, build, then the browser.
-Until this run it verified nothing in `web/` at all, so "green at every commit" was a claim about the
-C++ only.
+A stored reference holds *reduced* values, so all four had to be regenerated by running the baseline
+binary again — 20 seeds each, the same derived configs and so the same hashes. That gives the check,
+and it is a check against the **baseline's** numbers rather than against this build's:
 
-## The lattice detector
+| `HLM_France`, baseline, 2030, male | Before | After |
+|---|---:|---:|
+| `normal_weight` | 15.3194 | **1,311.85** |
+| `over_weight` | 12.1496 | **1,068.70** |
+| `obese_weight` | 8.5006 | **765.45** |
+| `above_weight` | 20.6501 | **1,834.15** |
+| `count` | 3,146.00 | 3,146.00 |
 
-The equivalence harness compares a quantile of a lattice-valued series with an exact test of the
-counts rather than numerically, because the normal-theory allowance shrinks as 1/√n while the lattice
-step does not. Its detector was asking the question of the **rate**: a disease rate reduces to total
-cases over total head count, the cases are a small integer and the head count moves seed to seed, so
-a series that is a handful of counts in disguise presented 43 to 79 distinct rates and neither rule
-fired. Six comparisons on `HLM_India` at 60 seeds failed because of it.
+In the regenerated references, `normal + over + obese` equals `count` and `over + obese` equals
+`above` **exactly — residual 0.0 — in all 3,280 `HLM_France` cells and all 880 `KevinHall_FINCH`
+cells**. The old reduction could not satisfy that identity in any cell whose bands differ in size,
+which is every cell.
 
-It now asks the question of the numerator, bucketed at the baseline's printed precision exactly as
-the reduced value was. **No threshold moved**, and that is checkable rather than asserted: if the
-head count were the same in every seed, multiplying both the values and the scale by it would leave
-every bucket where it was, so the change can only act where the denominator moves.
+And the comparison counts did not move: 31,546 on `HLM_France`, 22,616 on `KevinHall_FINCH`, 66,787
+and 66,805 on `HLM_India`'s two — the same four counts the previous run's re-score produced, none of
+them out of tolerance. The four variables are compared numerically before and after, five statistics
+each, so what changed is the level of a number and not how it is tested.
 
-All four stored references re-scored:
+## The income-stratified files
 
-| Example | Intervention | Comparisons, before | After | Out of tolerance |
-|---|---|---:|---:|---:|
-| `HLM_France` | `simple` | 31,468 | **31,546** | **0** |
-| `KevinHall_FINCH` | `simple` | 22,679 | **22,616** | **0** |
-| `HLM_India` *(reduced)* | `simple` | 67,885 | **66,787** | **0** |
-| `HLM_India` *(reduced)* | `food_labelling` | 68,041 | **66,805** | **0** |
+Run both implementations on `KevinHall_FINCH` and ask of every column of every stratum file whether
+it is identically zero in all 4,884 of its rows. All four strata give the same answer:
 
-The counts move in both directions, which is the mechanism rather than noise: a series entering the
-lattice class trades three quantiles and a standard deviation for one distribution test. India loses
-1,236 comparisons — 412 series entering — and France gains 78, because France's cohort is nearly
-seed-constant and most of its buckets do not move at all.
+| | Columns |
+|---|---:|
+| zero here, non-zero in the baseline | **49** |
+| of those, fixed this run | 4 |
+| zero in both — channels neither fills for this example | 7 |
+| non-zero here and in the baseline | the rest |
 
-**And the six residuals the fix was made for: three of the four series, not all four.** Measured on
-the stored 60-seed reference at the cell that failed in both runs, `prevalence_pancreascancer`,
-`incidence_arthritis` and `prevalence_livercancer` have **4, 5 and 5** distinct case counts behind
-22, 39 and 20 distinct rates — a handful of counts wearing dozens of rates, which is the thing the
-detector was missing. They are lattice-valued now. `incidence_gout` has **nine** distinct case counts
-and a modal share of 0.28, so it is above one rule and below the other, and it is compared
-numerically as a series with nine distinct values should be. The 60-seed `simple` run goes from three
-failures to **two**, both `incidence_gout` p95, worst at 1.08× of its allowance.
+The four this run fixed are the weight categories, and they now satisfy in our file the identity
+they satisfy in the baseline's: `normal + over + obese == count` in all 4,884 rows of both.
 
-**The threshold is not moving from six to nine**, which would be changing a rule after seeing which
-comparisons it excludes — the thing this project has twice refused. What is left is reported and is
-smaller and better understood than what the run started with.
+The other 45 are `deaths`, `emigrations`, `mean_yll`, `mean_yld`, `mean_daly`, seven demographic
+means, and **33 `std_` columns** — the last because `calculate_income_based_series` has no
+standard-deviation pass at all, while the baseline has
+`calculate_income_based_standard_deviation`. They are [docs/backlog.md](backlog.md) item 2, and the
+item is as much about the missing comparison as about the missing columns: filling them with nothing
+to check them against is how the four got missed in the first place.
 
-## What a deviation is worth, measured
+## ThreadSanitizer
 
-Unchanged from the previous run, and re-confirmed by the re-scores above. With
-`--baseline-compat all` the engine reproduces the baseline's deliberate deviations, so a comparison
-tests everything except them; the harness then runs once more with the flags off and reports the
-difference. Mean BMI of males in the intervention scenario, this build minus the baseline-compatible
-one, over twenty seeds:
+**88 minutes was the problem, and the second fixture pack was the cause.** The previous run
+doubled the simulations the suite runs and under TSan a simulation is seconds rather than a fifth of
+one; the `macos · appleclang · tsan` job went from 48m28s to 88m08s and became the workflow's long
+pole by a wide margin.
 
-| | Largest | When | Relative |
-|---|---:|---:|---:|
-| `HLM_France` | **+0.0531** | 2037 | **+0.209%** |
-| `HLM_India` *(reduced)* | **+0.0313** | 2050 | **+0.160%** |
+Two changes, under that sanitizer only ([ADR
+0046](decisions/0046-what-runs-under-which-sanitizer.md)):
+the `Packs/` suites run against the first fixture pack, and the harness's two self-checks run at six
+seeds rather than twenty. Nothing is dropped from release, from debug or from AddressSanitizer,
+which is where the second pack's *logic* coverage lives; what TSan is for is races, and a race is a
+property of the code rather than of the configuration that reaches it.
 
-**The deviation reaches much further than mean BMI.** On `HLM_India`, **194 series differ** and
-12,532 agree to the printed precision — years of life lost, disability-adjusted life years, head
-counts, and the prevalence and incidence of eleven diseases.
-
-## Performance: names resolved at the call site
-
-The previous run's backlog item 2, and the half
-[ADR 0037](decisions/0037-index-keyed-risk-factor-store.md) left behind.
-The store stopped comparing strings; its callers went on handing it a `core::Identifier`, and some of
-them *constructed* one per factor per person per year from a string concatenation. Three places, all
-of them "do it once when the model is built": the linear model's coefficient list holds each name's
-index **and** the three name-shaped questions the evaluator used to ask of the string; the static
-linear model builds its `<factor>_residual`, `_policy`, `_trend` and `_income_trend` names once; the
-Kevin Hall model's food-to-nutrient and nutrient-to-energy equations are index-keyed.
-
-Five runs of each binary on an idle machine, alternating them run by run so drift falls on both
-equally ([docs/performance.md](performance.md)):
-
-| macOS, Apple M5 | Wall, best of 5 | CPU, best of 5 | Peak memory |
-|---|---|---|---|
-| `KevinHall_FINCH` | 6.14 → **4.53 s, 1.36×** | 6.12 → **4.51 s, 1.36×** | 78.2 → 78.2 MiB |
-| `HLM_France` | 2.44 → 2.44 s, **1.00×** | 2.43 → 2.43 s | 52.7 → 52.6 MiB |
-
-**France had to be unchanged**: it is the HLM family, and none of the three places above is on its
-path. A change that moved it would have been doing something other than what it says.
-
-Against the baseline the build now stands at **3.5× faster and 5.5× less CPU on FINCH**, 2.0× and
-3.2× on France, running its two scenarios sequentially against a baseline that runs them
-concurrently.
-
-**A whole-run profile says where the time went**, and it is the part worth keeping: the run lost
-1,169 of its 5,407 thread samples and **1,063 of them — 91% — are name handling**. It did not move
-elsewhere in the program. `case_insensitive::equals` went 203 → 24 samples, `validate_identifier`
-141 → 26, `is_metadata_predictor` 112 → 15, the name→index hash probe 303 → 129.
-
-**And `_platform_memcmp` did not move at all** — 795 samples before, 832 after, still the largest
-single entry. The linear models stopped comparing strings, so what is left is elsewhere: 868
-samples, a fifth of the run, in the analysis module building `"mean_" + key` per factor per person
-per year and looking the channel up by that string. That is the same defect one layer up, it is now
-measured rather than suspected, and it moved [docs/backlog.md](backlog.md) item 9 out of *Smaller
-things*.
-
-**Linux, for the first time**, as an indicative figure rather than a claim: a CI job runs
-`scripts/measure.sh` on `ubuntu-latest` and uploads its JSON — `HLM_France` 2.93 s and
-`KevinHall_FINCH` 11.98 s, best of three, with peak memory 29% and 17% *lower* than macOS on the
-same inputs. A GitHub runner is a shared virtual machine, so nothing compares it against a stored
-number or can fail the build, and the figures move from push to push. What survives the noise is
-the ratio between the two examples: 4.09× on the runner against 3.52× on the laptop.
-
-**The check that matters is byte identity**, not a statistical comparison over twenty seeds, which
-would call a last-bit difference agreement. It is also the check that did not find defect 7 above.
-
-## CI, per matrix entry
-
-Fifteen jobs, two of them new this run.
-
-Run **35386188262** on `ec075f2`, every entry read with `gh run view` rather than from the run's
-own summary. **15 of 15 success.**
-
-| Job | Result | Time |
-|---|---|---:|
-| `linux · clang · release` | **success** | 5m54s |
-| `linux · clang · debug` | **success** | 10m35s |
-| `linux · clang · asan-ubsan` | **success** | 43m13s |
-| `linux · clang · tsan` | **success** | 42m07s |
-| `linux · gcc · release` | **success** | 5m24s |
-| `linux · gcc · debug` | **success** | 16m20s |
-| `macos · appleclang · release` | **success** | 3m56s |
-| `macos · appleclang · debug` | **success** | 16m01s |
-| `macos · appleclang · asan-ubsan` | **success** | 34m12s |
-| `macos · appleclang · tsan` | **success** | **88m08s** |
-| `equivalence · HLM_France · 20 seeds` | **success** | 7m16s |
-| `equivalence · KevinHall_FINCH · 20 seeds` | **success** | 5m06s |
-| `web · typecheck, test, build` | **success** | 0m09s |
-| `web · end-to-end` | **success** | 3m02s |
-| `performance · linux · indicative` | **success** | 5m42s |
-
-The two GCC entries are required this run, so those two rows are the first that could have failed
-the build rather than been waved through.
-
-**Nine seconds for the frontend job is real, not a skipped step.** `npm ci` installs 44 packages in
-two seconds from the lockfile cache, `tsc --noEmit` and 48 vitest tests take 432 ms, and
-`vite build` transforms 16 modules in 58 ms. That is what a frontend with no framework in it costs
-([ADR 0043](decisions/0043-a-plain-typescript-frontend.md)); the browser tests are the three
-minutes in the row below it.
-
-**The same tree locally**, `scripts/check.sh` with nothing skipped:
-
-| | Result | Time |
-|---|---|---:|
-| release | **848 / 848** | 34 s |
-| debug | **848 / 848** | 336 s |
-| asan-ubsan | **848 / 848** | 1,026 s |
-| tsan | **848 / 848** | 2,529 s |
-| frontend, type-check and unit | **48 / 48** in 5 files | under a second |
-| frontend, end to end in a browser | **19 / 19** | 6.6 s |
-| equivalence, `HLM_France` | **31,546** comparisons, **0** out of tolerance | — |
-| equivalence, `KevinHall_FINCH` | **22,616** comparisons, **0** out of tolerance | — |
-
-Those last two counts are the ones the numerator detector produces, and they are the same numbers
-the re-score table in [docs/equivalence.md](equivalence.md) records — reproduced here by a run that
-was not looking for them, and by CI independently.
-
-## The recommended next run
-
-**Answer the Kevin Hall intervention question, or decide not to** —
-[docs/briefing.md](briefing.md) states it as a question for the upstream authors, and
-[docs/backlog.md](backlog.md) item 1 is the work it would unblock. It is first because everything
-above it is done and because it is the largest thing this build refuses that a user could reasonably
-want: four of the six upstream examples can only be run with a no-op policy.
-
-If that answer is not available, the next run is **item 2**: the weight-category columns are head
-counts and both reductions treat them as means. It is four names in two places and a regeneration of
-every stored reference, and until it is done the server draws a chart whose level means nothing. It
-is the only correctness item this run found and did not fix.
-
-Two more would each remove a hedge from this document. **`HLM_India` at the cohort it ships**
-(item 5) is machine time rather than work, and it is the largest single gap in the validation. And
-**`DataSeries` keyed by channel name** (item 9) is what is left of the performance item, now with a
-number on it: 868 of 4,238 thread samples, and `_platform_memcmp` unmoved by this run's change. It
-is the same fix in a different file. A fifth of the run is the ceiling on what it could be
-worth, and no reading of the profile says all of that fifth would go.
-
-[docs/backlog.md](backlog.md) has the rest, ranked, with what each costs.
-
-## What the second fixture pack cost
-
-Worth its own section, because it is the largest consequence of this run and it is not a number
-anybody would have guessed.
-
-Doubling every test that runs a configuration doubled the *simulations* the suite runs, and under
-ThreadSanitizer a simulation is seconds rather than a fifth of one. The `macos · appleclang · tsan`
-CI job went from **48m28s** before this run to **88m08s** on the final run, and the tsan preset's
-2,529 seconds of local test time divide like this:
+Locally, the same command before and after:
 
 | | Tests | Time | Share |
 |---|---:|---:|---:|
-| `Packs/` — the parameterised suite | 184 | **1,975 s** | **78%** |
-| the harness's two self-checks | 2 | 501 s | 20% |
-| everything else | 662 | 51 s | 2% |
+| `Packs/` — the parameterised suite | 184 → **92** | 1,975 → **1,207 s** | 78% → 83% |
+| the harness's two self-checks | 2 | 501 → **185 s** | 20% → 13% |
+| everything else | 662 → **667** | 51 → **64 s** | 2% → 4% |
+| **total** | 848 → **761** | **2,529 → 1,458 s** | |
 
-**It is not the stress test.** That one had an explicit two-minute budget and its six entries come
-to **46 seconds, 1.8% of TSan's test time** — well inside the budget. The growth belongs to the
-fixture pack, which is the thing that found three of the nine findings, so it is a cost worth having
-and worth naming.
+**That after column was measured while a twenty-seed baseline sweep ran beside it**, so it is
+pessimistic, and the split is what it is for. The clean figure is the one `scripts/check.sh`
+produced on a quieter machine two hours later: **1,001 seconds**, which is 2.5× rather than 1.7×.
+**In CI, where the two numbers are directly comparable job for job**:
+`macos · appleclang · tsan` went **88m08s → 33m09s** and `linux · clang · tsan` **42m07s → 15m56s**,
+both 2.6×. The macOS job was the workflow's long pole by a factor of two; the longest entry is now
+`linux · clang · asan-ubsan` at 33m20s, and the two are within eleven seconds of each other.
 
-**An earlier version of this section had the split wrong**, and the correction is the reason the
-number above is a measurement rather than a recollection: it said 2,219 of 2,272 seconds were the
-`Packs/` tests and that every other test rounded to zero. The final run says 1,975 of 2,529, and
-that the two `EquivalenceHarness` self-checks are 251 seconds each — a fifth of the preset, and not
-close to zero. The conclusion survives and the arithmetic behind it did not.
+**What it costs** is stated in the ADR rather than explained away: a race reachable only through the
+second pack's configuration and not the first's would no longer be found. Nothing this project has
+recorded is of that shape, and both packs still run under AddressSanitizer.
 
-The mitigation is `ctest -j` on the sanitizer presets — these tests are almost all single-threaded
-and run serially today. It is not done here because changing how CI runs its tests at the end of a
-run leaves no time to find out what it breaks; it is [docs/backlog.md](backlog.md) item 11.
+## The analysis module
+
+The previous run resolved names to indices at the call site and `_platform_memcmp` did not move —
+795 samples before, 832 after. Its profile said why: the string work had moved one layer up, into
+the analysis module, at 868 of 4,238 thread samples.
+
+Both of the module's passes over the population, and the income-stratified one, built
+`"mean_" + key` per factor **per person per year**, lower-cased it, probed a `std::set<std::string>`
+and then looked the channel up again by name in a `std::map<std::string, std::vector<double>>` — for
+the income series, in a map of maps of maps. A channel is now resolved once a year to the two
+vectors it writes, and the mapping's factors once a year to `(index, channel)`, so the person loop
+reads `find_index` and adds through a pointer.
+
+Five runs of each binary, alternating run by run on an idle machine
+([docs/performance.md](performance.md)):
+
+| | Wall, best of 5 | CPU, best of 5 | Peak memory |
+|---|---|---|---|
+| `HLM_France` | 1.26 → **1.03 s, 1.22×** | 1.25 → **1.02 s** | 42.8 → 42.9 MiB |
+| `KevinHall_FINCH` | 4.60 → **3.47 s, 1.33×** | 4.56 → **3.46 s** | 79.0 → 79.0 MiB |
+
+**France moves this time and it had to**: the previous change was three places on the FINCH surface,
+this one is in the module every example runs.
+
+A whole-run profile of FINCH: **3,652 thread samples before, 2,828 after, and 622 of the 824 that
+went — 75% — are name handling**. `DataSeries::at` by name goes from 111 samples to below the
+profiler's five-sample floor; `memcmp` and its stub from 751 to 501; the `tolower` family from 391
+to 165; the four analysis functions' own time from 128 to 14.
+
+**And the output did not change**: byte for byte, every CSV of all three runnable examples,
+`HLM_India` included at the cohort it ships — 16,650,850 bytes of result CSV and three stratum files
+of 3,926,215 each, identical before and after. That one is twenty-five minutes a side, and it is the
+example where a constant factor is paid 1.24 million times a year.
+
+**The first version of it cost `HLM_France` 5.4 MiB of peak memory**, by resolving the income strata
+eagerly for every category the layout declares rather than on first sighting — vectors nobody was
+in,
+allocated once a year. Measured, then fixed. It is in this summary because the only reason it was
+caught is that the A/B carries a peak-memory column, and a performance change that quietly trades
+memory for time should have to say so.
+
+## CI, per matrix entry
+
+Fifteen jobs. Run **35400069202** on `6b01398`, every entry read with `gh run view` rather than
+from the run's own summary. **15 of 15 success.** The last column is the same job on the previous
+run's final commit.
+
+| Job | Result | Time | The previous run |
+|---|---|---:|---:|
+| `linux · clang · release` | **success** | 5m07s | 5m54s |
+| `linux · clang · debug` | **success** | 13m09s | 10m35s |
+| `linux · clang · asan-ubsan` | **success** | 33m20s | 43m13s |
+| `linux · clang · tsan` | **success** | **15m56s** | 42m07s |
+| `linux · gcc · release` | **success** | 4m23s | 5m24s |
+| `linux · gcc · debug` | **success** | 11m51s | 16m20s |
+| `macos · appleclang · release` | **success** | 5m23s | 3m56s |
+| `macos · appleclang · debug` | **success** | 9m33s | 16m01s |
+| `macos · appleclang · asan-ubsan` | **success** | 29m49s | 34m12s |
+| `macos · appleclang · tsan` | **success** | **33m09s** | 88m08s |
+| `equivalence · HLM_France · 20 seeds` | **success** | 4m42s | 7m16s |
+| `equivalence · KevinHall_FINCH · 20 seeds` | **success** | 5m44s | 5m06s |
+| `web · typecheck, test, build` | **success** | 0m13s | 0m09s |
+| `web · end-to-end` | **success** | 2m54s | 3m02s |
+| `performance · linux · indicative` | **success** | 3m19s | 5m42s |
+
+`6b01398` is the last commit of this run that changes code; everything after it is documentation,
+and the workflow's concurrency group cancels the earlier run on each push, so this is the newest
+run that reports on the code as it now stands. The push that adds this file starts one more, on the
+same matrix over the same code.
+
+**The two ThreadSanitizer entries are the point of the table.** `linux · clang · tsan` went from
+42m07s to 15m56s and `macos · appleclang · tsan` from 88m08s to the figure above, which is what
+[ADR 0046](decisions/0046-what-runs-under-which-sanitizer.md) was for. Nothing else in the table
+moved for a reason belonging to this run: the other entries differ by runner weather, and the
+previous run's numbers are beside them so a reader can see which is which.
+
+## The same tree locally
+
+`scripts/check.sh` with nothing skipped, on the tree these commits leave behind — 43 minutes end to
+end, exit 0:
+
+| | Result | Time |
+|---|---|---:|
+| release | **853 / 853** | 33 s |
+| debug | **853 / 853** | 327 s |
+| asan-ubsan | **853 / 853** | 982 s |
+| tsan | **761 / 761** | 1,001 s |
+| frontend, type-check and unit | **48 / 48** | under a second |
+| frontend, end to end in a browser | **19 / 19** | 6.3s |
+| equivalence, `HLM_France` | **31,546** comparisons, **0** out of tolerance | — |
+| equivalence, `KevinHall_FINCH` | **22,616** comparisons, **0** out of tolerance | — |
+
+The TSan row is the clean measurement of this run's change: **1,001 seconds against 2,529**, on a
+machine with nothing else on it. The 1,458 s in the table above was taken while a twenty-seed
+baseline sweep ran beside it.
+
+**The two equivalence rows are the check that the regenerated references are the right ones**, run
+here against a build this session made and in CI against one the runner made, independently.
+
+## The recommended next run
+
+**Give the income-stratified files a comparison** — [docs/backlog.md](backlog.md) item 2. It is
+first because of what this run found out: 45 columns of every stratum file are zero here and filled
+in the baseline, and the reason nobody noticed is that the harness reduces one file per run.
+Filling the columns without a comparison would be writing code against a baseline read by eye,
+which is how the four that were fixed here came to be wrong in the first place. The shape is to
+reduce and compare every CSV a run writes rather than the one; it would also cover the
+individual-tracking file if item 4 ever writes one.
+
+If a modelling answer arrives before then, **item 1 outranks it**: interventions on the Kevin Hall
+surface are a question for the upstream authors ([docs/briefing.md](briefing.md)), and four of the
+six examples can only be run with a no-op policy until it is answered. It has been first on this
+list for two runs and it is work nobody here can do.
+
+And **`HLM_India` at the cohort it ships** (item 5) is still the largest single gap in the
+validation: machine time rather than work, a few days of it, and the one thing that would let this
+document stop hedging about a hundredth of a cohort.
 
 ## What a reader should still be sceptical about
 
+- **The income-stratified files are not compared against anything**, and 45 of their columns are
+  zero here and non-zero in the baseline. This run fixed four of the 49 and measured the rest; the
+  files have never been part of any comparison ([docs/backlog.md](backlog.md) item 2).
 - **India was compared at a hundredth of its cohort**, 12,406 people rather than 1,240,613. Nothing
   in the India result is evidence about the example as shipped.
 - **Population impact fraction has never met the baseline.** Only the synthetic pack exercises it end
@@ -348,14 +319,16 @@ run leaves no time to find out what it breaks; it is [docs/backlog.md](backlog.m
   repository cannot make — [docs/briefing.md](briefing.md) states it as a question.
 - **The comparison's floor.** The baseline writes six significant digits, so no comparison is tighter
   than about 10⁻⁵ relative.
-- **The harness has been wrong five times now** — a normal-theory allowance on a point mass, the same
-  on a lattice-valued median, a detector that could not see a lattice in a numerator, a rule that
-  checked half of its own justification, and this run's first attempt at the numerator fix. It has 48
-  tests, which is better than nothing and is not the same as being right.
-- **The reduction mislabels four columns**, and both the harness and the server's charting endpoint
-  do it. It makes no comparison wrong and it makes those numbers meaningless
-  ([docs/backlog.md](backlog.md) item 2).
+- **The harness has been wrong five times** — a normal-theory allowance on a point mass, the same on
+  a lattice-valued median, a detector that could not see a lattice in a numerator, a rule that
+  checked half of its own justification, and the previous run's first attempt at the numerator fix.
+  Its reduction was also wrong about four columns until this run, which is a sixth thing if you count
+  the level of a number as a result, and you should. It has 50 tests, which is better than nothing
+  and is not the same as being right.
+- **Under ThreadSanitizer the suite is 761 tests rather than 850**, on purpose, and the risk that
+  buys the time is named in [ADR 0046](decisions/0046-what-runs-under-which-sanitizer.md).
 - **The synthetic packs are invented.** Both of them; their `SYNTHETIC.md` says so. The second is not
-  more realistic than the first, only *different*, which is the only property claimed for it.
+  more realistic than the first, only *different*, which is the only property claimed for it. Neither
+  assigns an income category, which is why the income series had no test until this run.
 - **Nineteen end-to-end tests is not coverage.** They cover each screen's principal job and the
   hand-offs between them, in one browser.
