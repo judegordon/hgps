@@ -1,9 +1,11 @@
 // Screen 3: the results browser — a table and a line chart per variable, baseline against
 // intervention, with a CSV download.
 //
-// The reduction is the server's, deliberately: it is the same count-weighted rule the equivalence
-// harness reduces by, so a chart here and a comparison there mean the same thing by `mean_bmi`
-// (ADR 0042).
+// The reduction is the server's, deliberately: it is the same rule the equivalence harness reduces
+// by — head counts summed over the age bands, everything else count-weighted — so a chart here and
+// a comparison there mean the same thing by `mean_bmi` (ADR 0042). The server prints the rule it
+// used, and this screen shows that text rather than restating it, which is why the four weight
+// categories moving from one half of the rule to the other needed no change here.
 import { api } from '../api/client.js';
 import type { ResultSummary, RunInfo } from '../api/types.js';
 import { colourFor, renderChart, type Line } from '../ui/chart.js';

@@ -348,7 +348,7 @@ count-weighted over age bands and sexes the way the equivalence harness reduces
 ```json
 {
   "id": "…",
-  "reduction": "count-weighted mean over age bands; count, deaths and emigrations summed",
+  "reduction": "count-weighted mean over age bands; head counts — count, deaths, emigrations and the four weight categories — summed, the same rule docs/equivalence-method.md reduces by",
   "scenarios": ["Baseline", "Intervention"],
   "years": [2010, 2011, …],
   "variables": ["mean_bmi", "prevalence_asthma", …],
@@ -369,13 +369,21 @@ This is the one endpoint that computes rather than reports, and it earns its pla
 is every client re-implementing a reduction the harness already had to get right, and getting a
 different answer.
 
-**One thing in that reduction is wrong, in both places.** `normal_weight`, `over_weight`,
-`obese_weight` and `above_weight` are head counts — the analysis module increments one per person —
-so their population figure is a sum, and the rule above gives them a count-weighted mean. The series
-still moves with the underlying quantity, which is why it does not look wrong; its level is
-meaningless. It is not fixed here because the harness's reduction has to change with it — the two
-must not disagree — and that invalidates every stored equivalence reference.
-[docs/backlog.md](backlog.md) item 2 has the cost.
+**One thing in that reduction was wrong in both places until this run, and is fixed.**
+`normal_weight`, `over_weight`, `obese_weight` and `above_weight` are head counts — the analysis
+module increments one per person per band, in both implementations, and neither divides them by
+anything — so their population figure is a sum, and the rule was giving them a count-weighted mean.
+The reduced figure for `normal_weight` on `HLM_France` at (baseline, 2030, male) was **15.3** where
+the population figure is about 1,550: the average band's count. The series still moved with the
+underlying quantity, which is why it never looked wrong, and no comparison was ever wrong about it —
+both implementations were reduced identically — but the level a client charted had no meaning.
+
+The two halves went together, because two reductions that disagree would be worse than one that is
+wrong: a client would have no way to tell which it was looking at. `is_counted_column` here and
+`SUMMED_VARIABLES` in `tests/equivalence/run.py` are the same list, and
+`SummaryReduction.TheSummedColumnsAreTheOnesTheHarnessSums` says so. Changing the harness's
+reduction invalidated all four stored equivalence references, which were regenerated against the
+baseline binary ([docs/equivalence.md](equivalence.md)).
 
 ## The event stream
 

@@ -210,6 +210,28 @@ void AnalysisModule::calculate_income_based_series(RuntimeContext &context,
                 accumulate(gender, income, "incidence_" + disease.to_string(), age, 1.0);
             }
         }
+
+        // The weight categories, which this series left empty until this run: the four columns
+        // existed in every stratum file and every value in them was zero, while the baseline fills
+        // them (`analysis_module.cpp:1352-1367`). They are head counts, not means, so nothing
+        // divides them below — the same rule the whole-population series follows in series.cpp,
+        // and the same rule the harness and the server now reduce them by.
+        //
+        // They are the four columns of the 49 this file still leaves empty that this run fixed;
+        // docs/backlog.md item 2 has the other 45 and the measurement behind them.
+        switch (classifier_.classify_weight(person)) {
+        case WeightCategory::normal:
+            accumulate(gender, income, "normal_weight", age, 1.0);
+            break;
+        case WeightCategory::overweight:
+            accumulate(gender, income, "over_weight", age, 1.0);
+            accumulate(gender, income, "above_weight", age, 1.0);
+            break;
+        case WeightCategory::obese:
+            accumulate(gender, income, "obese_weight", age, 1.0);
+            accumulate(gender, income, "above_weight", age, 1.0);
+            break;
+        }
     }
 
     // Sums become means, per income category.

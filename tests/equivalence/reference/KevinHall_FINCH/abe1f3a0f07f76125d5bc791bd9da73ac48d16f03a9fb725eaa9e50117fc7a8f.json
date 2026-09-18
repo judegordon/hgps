@@ -26,8 +26,9 @@
   "new_config_sha256": "4654ee92451d74d6f25d27e279e793b7df8c1c8461240d405ec5234cd3a69c8d",
   "intervention": "simple",
   "stop_time_override": null,
+  "size_fraction_override": null,
   "baseline_binary": "/tmp/hgps-build/baseline-release/src/HealthGPS.Console/HealthGPS.Console",
-  "reduction": "count-weighted mean over age bands; counts summed; the age bands listed in excluded_bands are left out on both sides \u2014 see docs/equivalence.md",
+  "reduction": "count-weighted mean over age bands; head counts (count, deaths, emigrations and the four weight categories) summed; the age bands listed in excluded_bands are left out on both sides \u2014 see docs/equivalence.md",
   "baseline_empty_bands": [
     [
       "baseline",
@@ -8210,6 +8211,5 @@
       110
     ]
   ],
-  "written_utc": "2026-09-17T23:20:12Z",
-  "config_hash_note": "over the derived config with the seed removed and input paths left relative, so the hash identifies the scenario and not the machine the reference was written on"
+  "written_utc": "2026-09-18T21:37:52Z"
 }

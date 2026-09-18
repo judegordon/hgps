@@ -16,8 +16,9 @@ What it does, for each example and each seed:
      active intervention, so the only difference is the implementation.
   2. Runs both, and reduces each result file to one value per (scenario, year, sex, variable) by
      taking the count-weighted mean over the age bands — the population figure the variable is
-     reporting. Age bands that either implementation ever empties are left out of that reduction,
-     on both sides: see "the emptying-band exclusion" below.
+     reporting — or, for a head count, the sum over them (SUMMED_VARIABLES). Age bands that either
+     implementation ever empties are left out of that reduction, on both sides: see "the
+     emptying-band exclusion" below.
   3. Across the seeds, computes the mean, standard deviation and 5th, 50th and 95th percentiles of
      each of those series, for each implementation, and compares them.
 
@@ -191,7 +192,21 @@ PRINTED_PRECISION_FLOOR = 1e-5
 # the defect it fixes.
 
 # The variables the reduction sums rather than count-weights. Their reduced value IS the numerator.
-SUMMED_VARIABLES = {"count", "deaths", "emigrations"}
+#
+# **The four weight categories belong here, and did not until this run.** `normal_weight`,
+# `over_weight`, `obese_weight` and `above_weight` are head counts: the analysis module increments
+# one of them per person per band, in both implementations, and neither divides them by anything —
+# `tests/sim/simulation_test.cpp` pins `normal + over + obese == count` for every row. Reducing a
+# per-band head count by the count-weighted mean gave a population figure of 15.3 for `normal_weight`
+# on `HLM_France` at (baseline, 2030, male), where the population figure is about 1,550: the average
+# band's count rather than the population's total, which is a number with no meaning. The *shape* of
+# the series still followed the underlying quantity, which is why nothing looked obviously wrong and
+# why no comparison was wrong — both implementations were reduced identically — but the level was.
+#
+# Moving them here changes every stored reference, because a reference holds reduced values, so all
+# four were regenerated against the baseline binary when this changed (docs/equivalence.md).
+SUMMED_VARIABLES = {"count", "deaths", "emigrations",
+                    "normal_weight", "over_weight", "obese_weight", "above_weight"}
 
 # (1) At most this many distinct values, at the baseline's printed precision, in the two
 #     implementations' samples pooled. A continuous quantity gives one distinct value per seed, so
@@ -526,10 +541,11 @@ def reduce_result(path: Path, excluded: set[Band] | None = None
                   ) -> dict[tuple[str, int, str, str], float]:
     """One value per (scenario, year, sex, variable), as the count-weighted mean over ages.
 
-    Every variable in the file is a per-age-band figure. `count`, `deaths` and `emigrations` are
-    counts, so the population figure is their sum; everything else is a mean or a proportion over
-    the band's members, so the population figure is the count-weighted mean. Reducing this way is
-    what makes the two implementations comparable at all: their age bands hold different people.
+    Every variable in the file is a per-age-band figure. `SUMMED_VARIABLES` — `count`, `deaths`,
+    `emigrations` and the four weight categories — are head counts, so the population figure is
+    their sum; everything else is a mean or a proportion over the band's members, so the population
+    figure is the count-weighted mean. Reducing this way is what makes the two implementations
+    comparable at all: their age bands hold different people.
 
     `excluded` names the age bands to leave out, on both sides and for every seed. It is the set of
     bands that either implementation empties in any seed: the bands where immigration falls short
@@ -555,7 +571,10 @@ def reduce_result(path: Path, excluded: set[Band] | None = None
             if band_key(source, year, sex, int(row["index_id"])) in excluded:
                 continue
 
-            for variable in ("count", "deaths", "emigrations"):
+            # Before the `count <= 0` guard below: a band with nobody alive in it can still have
+            # deaths and emigrations to contribute, and a summed variable has no denominator to
+            # care about either way.
+            for variable in sorted(summed):
                 if variable in row and row[variable] != "":
                     key = (source, year, sex, variable)
                     totals[key] = totals.get(key, 0.0) + float(row[variable])
@@ -1571,7 +1590,8 @@ def main() -> int:
                 "stop_time_override": arguments.stop_time,
                 "size_fraction_override": arguments.size_fraction,
                 "baseline_binary": str(arguments.baseline),
-                "reduction": "count-weighted mean over age bands; counts summed; the age bands "
+                "reduction": "count-weighted mean over age bands; head counts (count, deaths, "
+                             "emigrations and the four weight categories) summed; the age bands "
                              "listed in excluded_bands are left out on both sides — see "
                              "docs/equivalence.md",
                 "baseline_empty_bands": sorted(baseline_empty),

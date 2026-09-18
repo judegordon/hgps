@@ -41,17 +41,25 @@ meaningless: the two implementations' age bands hold *different people*, because
 streams differ. Comparing population figures is not meaningless, so every file is reduced to one
 value per **(scenario, year, sex, variable)**:
 
-- `count`, `deaths` and `emigrations` are counts, so they are **summed** over the age bands;
+- `count`, `deaths`, `emigrations` and the four weight categories — `normal_weight`, `over_weight`,
+  `obese_weight`, `above_weight` — are head counts, so they are **summed** over the age bands;
 - everything else is a mean or a proportion within a band, so it is the **count-weighted mean** over
   the bands — which is the figure the variable reports for the population.
 
-**The second bullet is not true of four columns, and they are reduced by it anyway.**
-`normal_weight`, `over_weight`, `obese_weight` and `above_weight` are head counts — the analysis
-module increments one per person — so their population figure is a sum and they are getting a
-weighted mean. It does not make any comparison wrong, because both implementations are reduced
-identically; it makes the *number* meaningless, here and in the server's charting endpoint, which
-applies the same rule. [docs/backlog.md](backlog.md) item 2 has the fix and what it costs, which is
-a regeneration of every stored reference.
+**The four weight categories were in the second bullet until this run.** The analysis module
+increments one of them per person per band, in both implementations, and neither divides them by
+anything — so a count-weighted mean of them is the average band's count rather than the population's
+total: **15.3** for `normal_weight` on `HLM_France` at (baseline, 2030, male), where the population
+figure is about 1,550. It made no comparison wrong, because both implementations were reduced
+identically, and the series still moved with the underlying quantity, which is why it never looked
+wrong. It made the number meaningless, here and in the server's charting endpoint, which applies the
+same rule.
+
+Fixing it changed every stored reference — a reference holds *reduced* values — so all four were
+regenerated against the baseline binary ([docs/equivalence.md](equivalence.md)). The
+one-list-two-readers rule is checked rather than trusted:
+`SummaryReduction.TheSummedColumnsAreTheOnesTheHarnessSums` asserts the server's list is the
+harness's `SUMMED_VARIABLES`.
 
 A band with no people in it contributes nothing to a weighted mean and nothing to a sum.
 

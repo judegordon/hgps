@@ -333,11 +333,12 @@ class LatticeOnTheNumeratorTest(unittest.TestCase):
 class ReductionTest(unittest.TestCase):
     """The count-weighted reduction over age bands, and what it leaves out."""
 
-    HEADER = ["source", "run", "time", "gender_name", "index_id", "count", "deaths", "mean_bmi"]
+    HEADER = ["source", "run", "time", "gender_name", "index_id", "count", "deaths", "mean_bmi",
+              "normal_weight", "over_weight", "obese_weight", "above_weight"]
     ROWS = [
-        ["baseline", 1, 2020, "male", 30, 10, 1, 25.0],
-        ["baseline", 1, 2020, "male", 31, 30, 2, 27.0],
-        ["baseline", 1, 2020, "male", 32, 0, 0, 0.0],
+        ["baseline", 1, 2020, "male", 30, 10, 1, 25.0, 6, 3, 1, 4],
+        ["baseline", 1, 2020, "male", 31, 30, 2, 27.0, 12, 10, 8, 18],
+        ["baseline", 1, 2020, "male", 32, 0, 0, 0.0, 0, 0, 0, 0],
     ]
 
     def _write(self, rows):
@@ -356,11 +357,41 @@ class ReductionTest(unittest.TestCase):
         # (10*25 + 30*27) / 40 — the empty band contributes nothing to either side of it.
         self.assertAlmostEqual(26.5, reduced[("baseline", 2020, "male", "mean_bmi")])
 
+    def test_the_weight_categories_are_head_counts_and_are_summed(self):
+        """They were count-weighted until this run, which gave the average band's count.
+
+        18 people of the 40 are above normal weight; the reduction used to report
+        (10*4 + 30*18) / 40 = 14.5, which is neither a count nor a proportion. This is the
+        defect docs/backlog.md item 2 recorded and nothing else would catch: both
+        implementations were reduced identically, so no comparison was ever wrong about it.
+        """
+        reduced = eqrun.reduce_result(self._write(self.ROWS))
+        self.assertAlmostEqual(18.0, reduced[("baseline", 2020, "male", "normal_weight")])
+        self.assertAlmostEqual(13.0, reduced[("baseline", 2020, "male", "over_weight")])
+        self.assertAlmostEqual(9.0, reduced[("baseline", 2020, "male", "obese_weight")])
+        self.assertAlmostEqual(22.0, reduced[("baseline", 2020, "male", "above_weight")])
+        # And they still partition the population the way the result file does.
+        self.assertAlmostEqual(reduced[("baseline", 2020, "male", "count")],
+                               reduced[("baseline", 2020, "male", "normal_weight")]
+                               + reduced[("baseline", 2020, "male", "over_weight")]
+                               + reduced[("baseline", 2020, "male", "obese_weight")])
+
+    def test_a_summed_variable_is_its_own_numerator_for_the_lattice_rule(self):
+        """Which is why the four have to be in SUMMED_VARIABLES rather than merely summed.
+
+        `numerator_series` reconstructs a count-weighted variable's numerator as value * count.
+        For a head count the reduced value IS the numerator, and multiplying it by the head count
+        again would classify a series of 18s as a series of 720s — a different lattice.
+        """
+        for variable in ("normal_weight", "over_weight", "obese_weight", "above_weight"):
+            self.assertIn(variable, eqrun.SUMMED_VARIABLES)
+
     def test_an_excluded_band_is_left_out_of_both_the_weight_and_the_total(self):
         excluded = {eqrun.band_key("baseline", 2020, "male", 31)}
         reduced = eqrun.reduce_result(self._write(self.ROWS), excluded)
         self.assertAlmostEqual(10.0, reduced[("baseline", 2020, "male", "count")])
         self.assertAlmostEqual(25.0, reduced[("baseline", 2020, "male", "mean_bmi")])
+        self.assertAlmostEqual(6.0, reduced[("baseline", 2020, "male", "normal_weight")])
 
     def test_an_empty_band_is_reported_as_one(self):
         bands = eqrun.empty_bands(self._write(self.ROWS))

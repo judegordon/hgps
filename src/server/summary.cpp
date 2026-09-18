@@ -58,9 +58,21 @@ bool is_key_column(const std::string &name) noexcept {
            key == "index_id" || key == "count";
 }
 
+/// @brief Is this column a head count, to be summed over the bands rather than averaged over them?
+///
+/// The four weight categories are head counts and were averaged here until this run: the analysis
+/// module increments one of them per person per band and neither implementation divides them by
+/// anything. The chart's level was therefore the average band's count — 15.3 for `normal_weight` on
+/// `HLM_France` at (baseline, 2030, male), where the population figure is about 1,550 — while its
+/// shape still followed the underlying quantity, which is why it did not look wrong.
+///
+/// This list and the equivalence harness's `SUMMED_VARIABLES` are the same rule, and they have to
+/// stay the same rule: docs/server-api.md says the server reduces the way the harness does so that
+/// a client and the comparison cannot disagree about what a series means.
 bool is_counted_column(const std::string &name) noexcept {
     const auto key = lower(name);
-    return key == "deaths" || key == "emigrations" || key == "count";
+    return key == "deaths" || key == "emigrations" || key == "count" || key == "normal_weight" ||
+           key == "over_weight" || key == "obese_weight" || key == "above_weight";
 }
 
 nlohmann::json summarise_results(const std::filesystem::path &csv, const SummaryFilter &filter) {
@@ -194,8 +206,8 @@ nlohmann::json summarise_results(const std::filesystem::path &csv, const Summary
 
     return {
         {"reduction",
-         "count-weighted mean over age bands; count, deaths and emigrations summed — the same "
-         "rule docs/equivalence-method.md reduces by"},
+         "count-weighted mean over age bands; head counts — count, deaths, emigrations and the "
+         "four weight categories — summed, the same rule docs/equivalence-method.md reduces by"},
         {"sex", filter.sex},
         {"scenarios", std::vector<std::string>{scenarios.begin(), scenarios.end()}},
         {"years", std::vector<int>{years.begin(), years.end()}},

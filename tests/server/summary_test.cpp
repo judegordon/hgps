@@ -9,6 +9,8 @@
 
 #include <fstream>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -147,6 +149,48 @@ TEST(SummaryReduction, TheVariableFilterNarrowsToWhatWasAsked) {
     filter.variables = {"mean_bmi"};
     const auto document = summarise_results(write_csv("narrow", kTwoBands), filter);
     EXPECT_EQ(nlohmann::json::array({"mean_bmi"}), document.at("variables"));
+}
+
+/// @brief A band's weight-category columns, which are head counts rather than means.
+constexpr const char *kWeightCategories =
+    R"(source,run,time,gender_name,index_id,count,normal_weight,over_weight,obese_weight,above_weight
+Baseline,1,2010,male,0,10,6,3,1,4
+Baseline,1,2010,male,1,90,40,30,20,50
+)";
+
+TEST(SummaryReduction, TheWeightCategoriesAreSummedBecauseTheyAreHeadCounts) {
+    // The defect docs/backlog.md item 2 recorded, in the half of it a user could see: the chart's
+    // level. Count-weighting these gave (10*6 + 90*40) / 100 = 36.6 for `normal_weight` where the
+    // population figure is 46 — the average band's count, which is a number with no meaning. The
+    // shape of the series was right, which is why it never looked wrong.
+    const auto document =
+        summarise_results(write_csv("weight_categories", kWeightCategories), SummaryFilter{});
+
+    for (const auto &[variable, expected] : std::vector<std::pair<std::string, double>>{
+             {"normal_weight", 46.0}, {"over_weight", 33.0}, {"obese_weight", 21.0},
+             {"above_weight", 54.0}}) {
+        const auto *series = series_for(document, "Baseline", variable);
+        ASSERT_NE(nullptr, series) << variable;
+        EXPECT_DOUBLE_EQ(expected, series->at("values").at(0).get<double>()) << variable;
+    }
+
+    // Which is the population it partitions: 46 + 33 + 21 = 100 = the head count.
+    const auto *count = series_for(document, "Baseline", "count");
+    ASSERT_NE(nullptr, count);
+    EXPECT_DOUBLE_EQ(100.0, count->at("values").at(0).get<double>());
+}
+
+TEST(SummaryReduction, TheSummedColumnsAreTheOnesTheHarnessSums) {
+    // Two reductions that disagree would be worse than one that is wrong, because a client would
+    // have no way to tell which it was looking at (docs/server-api.md). The harness's list is
+    // `SUMMED_VARIABLES` in tests/equivalence/run.py; this is the same list.
+    for (const auto *counted : {"count", "deaths", "emigrations", "normal_weight", "over_weight",
+                                "obese_weight", "above_weight"}) {
+        EXPECT_TRUE(hgps::server::is_counted_column(counted)) << counted;
+    }
+    for (const auto *weighted : {"mean_bmi", "std_bmi", "prevalence_diabetes", "mean_yll"}) {
+        EXPECT_FALSE(hgps::server::is_counted_column(weighted)) << weighted;
+    }
 }
 
 TEST(SummaryReduction, TheKeyColumnsAreNotVariables) {
