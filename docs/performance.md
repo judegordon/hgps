@@ -13,9 +13,17 @@ intervention scenario. Both run both scenarios, one trial run, seed 1, on:
 | This build | `out/build/release`, `--threads 1` |
 
 The exact configs are the ones `tests/equivalence/run.py` derives, so the two implementations are
-given the same inputs in the same layout as in [docs/equivalence.md](equivalence.md). Every figure
-is three runs on an otherwise idle machine and all three are given, because the spread is part of
-the measurement. `/usr/bin/time -l`, so peak memory is the maximum resident set size.
+given the same inputs in the same layout as in [docs/equivalence.md](equivalence.md). That matters
+for reading the France figures: the derived config activates the `simple` intervention, so France
+runs **two** scenarios here, where the shipped `examples/HLM_France/config.json` ships
+`active_type_id` null and runs one. `scripts/measure.sh`, the Linux job below and the A/B in *Names
+resolved at the call site* use the shipped config, which is why France is about 1.3 s there and
+about 2.4 s here. FINCH ships an active intervention and runs two scenarios either way.
+
+The three rows of each table below are **one session**, five runs of each binary, alternating the
+three run by run so that any drift in the machine falls on all of them equally. All five are given,
+because the spread is part of the measurement. `/usr/bin/time -l`, so peak memory is the maximum
+resident set size.
 
 A note on the machine: the first attempt at these numbers was taken while Spotlight was indexing
 the working directories, and it put `HLM_France` at 3.38 s rather than 2.78 s — a 20% error, larger
@@ -27,21 +35,29 @@ than any difference discussed below. The figures here were taken after `mds_stor
 
 | | Wall | CPU | Peak memory |
 |---|---:|---:|---:|
-| **Baseline** | 4.78 / 4.88 / 5.26 s | 7.69 / 7.90 / 8.22 s | 85.2 MiB |
-| This build, before the index-keyed store | 2.74 / 2.74 / 2.76 s | 2.68 / 2.70 / 2.71 s | 57.0–57.1 MiB |
-| **This build** | **2.41 / 2.41 / 2.42 s** | **2.36 / 2.36 / 2.37 s** | **52.4 MiB** |
+| **Baseline** | 4.86 / 4.96 / 4.99 / 5.11 / 5.25 s | 7.76 / 7.96 / 7.99 / 8.04 / 8.11 s | 83.1–85.6 MiB |
+| This build, before *names resolved at the call site* | 2.44 / 2.45 / 2.46 / 2.52 / 2.52 s | 2.43 / 2.44 / 2.44 / 2.50 / 2.50 s | 52.6–52.9 MiB |
+| **This build** | **2.44 / 2.46 / 2.46 / 2.48 / 2.50 s** | **2.43 / 2.43 / 2.44 / 2.45 / 2.49 s** | **52.6–52.7 MiB** |
 
 **KevinHall_FINCH**, 2022–2032:
 
 | | Wall | CPU | Peak memory |
 |---|---:|---:|---:|
-| **Baseline** | 15.19 / 15.52 / 15.52 s | 24.05 / 24.31 / 24.46 s | 197.8–198.7 MiB |
-| This build, before the index-keyed store | 11.85 / 11.91 / 12.04 s | 11.66 / 11.76 / 11.89 s | 195.3–195.8 MiB |
-| **This build** | **7.71 / 7.73 / 7.89 s** | **7.58 / 7.63 / 7.76 s** | **77.5 MiB** |
+| **Baseline** | 15.88 / 16.17 / 16.28 / 16.81 / 17.54 s | 25.00 / 25.35 / 25.62 / 25.78 / 25.97 s | 196.5–197.8 MiB |
+| This build, before *names resolved at the call site* | 6.14 / 6.23 / 6.26 / 6.34 / 6.35 s | 6.12 / 6.21 / 6.22 / 6.32 / 6.33 s | 78.1–78.5 MiB |
+| **This build** | **4.53 / 4.56 / 4.63 / 4.70 / 4.79 s** | **4.51 / 4.54 / 4.61 / 4.68 / 4.77 s** | **78.1–78.6 MiB** |
 
-Against the baseline: on the HLM surface **2.0× faster in wall time, 3.3× less CPU work, 38% less
-memory**; on the FINCH surface **2.0× faster, 3.2× less CPU, and 2.6× less memory** — running its two
-scenarios one after the other, on one thread, against a baseline that runs them concurrently.
+Against the baseline, best of five against best of five: on the HLM surface **2.0× faster in wall
+time, 3.2× less CPU work, 37% less memory**; on the FINCH surface **3.5× faster, 5.5× less CPU, and
+2.5× less memory** — running its two scenarios one after the other, on one thread, against a
+baseline that runs them concurrently.
+
+**The middle row is this run's change and nothing else**, so the two bottom rows of each table are
+the A/B that *Names resolved at the call site* reports below, measured in the same session as the
+baseline row rather than spliced in from another one. The earlier comparison — this build before and
+after the index-keyed store — used to be the middle row here; it has its own table in *What the
+index-keyed store bought*, because the binary it needs no longer exists and re-measuring it in this
+session is not possible.
 
 The CPU column is the one that says something about the code. The baseline's wall time is shorter
 than its CPU time because it runs the baseline and intervention scenarios on separate threads; this
@@ -52,10 +68,11 @@ example, because the work itself is smaller.
 
 ### What the index-keyed store bought
 
-The middle row of each table is this build immediately before
-[ADR 0037](decisions/0037-index-keyed-risk-factor-store.md) and the bottom row immediately after, both
-measured on an idle machine in one session, alternating the two binaries run by run so that any drift
-in the machine falls on both equally:
+This build immediately before [ADR 0037](decisions/0037-index-keyed-risk-factor-store.md) and
+immediately after, measured on an idle machine in one session, alternating the two binaries run by
+run so that any drift in the machine falls on both equally. It is **not** the same session as the
+table at the top of this file — it is three runs older, and the pre-ADR-0037 binary is gone — so
+read the ratio and not the absolute numbers:
 
 | | Wall | Peak memory |
 |---|---:|---:|
@@ -133,6 +150,12 @@ probe per coefficient per person per year, three string predicates on the same c
 worst of it — an `Identifier` *constructed* per factor per person per year from a string
 concatenation, which is what `validate_identifier` and `chars::is_alnum` at 8.3% of a profile mean.
 
+That 31% is the *call-site* part only. Name handling of every kind is a larger number — the
+whole-run profile in *After the call-site change* puts it at 65.6% — and the two are not the same
+measurement:
+the 31% counted a narrower set of symbols over a five-second window. What the change was aimed at is
+the 31%.
+
 Three places, all of them "do it once when the model is built":
 
 - `LinearModelParams` carries a `ResolvedPredictor` per coefficient, in the map's own order, which is
@@ -144,7 +167,29 @@ Three places, all of them "do it once when the model is built":
 - `KevinHallModel` resolves the food-to-nutrient and nutrient-to-energy equations to indices, and
   `FactorValues` gains `at_index_or_insert` so the writing half of that loop needs no name either.
 
-<!--PERF-AB-->
+Five runs of each binary, **alternating run by run** so that any drift in the machine falls on both
+equally, on an idle machine. These are the two bottom rows of the tables at the top of this file —
+the equivalence-derived configs, both scenarios on both examples:
+
+| | Wall, best of 5 | Median of 5 | CPU, best of 5 | Peak memory |
+|---|---|---|---|---|
+| `HLM_France` | 2.44 → 2.44 s, **1.00×** | 2.46 → 2.46 s | 2.43 → 2.43 s | 52.7 → 52.6 MiB |
+| `KevinHall_FINCH` | 6.14 → **4.53 s, 1.36×** | 6.26 → 4.63 s | 6.12 → **4.51 s, 1.36×** | 78.2 → 78.2 MiB |
+
+The same A/B on the shipped `examples/*/config.json` — what `scripts/measure.sh` and the Linux job
+run, where France runs one scenario rather than two:
+
+| | Wall, best of 5 | Median of 5 | Peak memory |
+|---|---|---|---|
+| `HLM_France` | 1.28 → 1.28 s, **1.00×** | 1.28 → 1.29 s | 42.7 → 42.7 MiB |
+| `KevinHall_FINCH` | 6.08 → **4.50 s, 1.35×** | 6.11 → 4.57 s | 78.2 → 78.2 MiB |
+
+1.36× and 1.35× on two different configurations of the same example, which is the only thing the
+second table is for.
+
+**Memory does not move**, and it should not have: the change stores one small vector per model
+instead of asking a name per person, so nothing per person got bigger or smaller. A performance
+change that moved memory would be a change doing something it had not said it was doing.
 
 **France is unchanged and had to be.** It is the HLM family, and none of the three places above is on
 its path. A change that had moved it would have been a change doing something other than what it
@@ -185,9 +230,10 @@ build, because a regression test on these would fail on the weather.
 
 Two things in them are worth having anyway, and both survive the noise.
 
-**The ratio between the two examples does.** FINCH is 4.11× France on the Linux runner and 3.95× on
-the laptop — the same shape of workload, measured twice on machines that differ by a factor of two
-and a half in absolute speed. That is the thing a single job can say.
+**The ratio between the two examples does.** FINCH is 4.11× France on the Linux runner and 3.52× on
+the laptop, taking best-of-run against best-of-run on the same shipped configs — the same shape of
+workload on machines that differ by about two and a half in absolute speed, and as close as two
+numbers carrying this much noise are going to get. That is the thing a single job can say.
 
 **And the memory is lower on Linux than on macOS**, by 29% on France (30.1 against 42.7 MiB) and 17%
 on FINCH (64.9 against 78 MiB). The same binary, the same inputs, the same allocations: what differs
@@ -356,8 +402,12 @@ the result series.
 
 ## Where the time goes now
 
-`sample` at 1 ms over five seconds of a `KevinHall_FINCH` run, grouped by top of stack, 3,758
-attributed samples. The previous profile of the same example is below it for comparison.
+Three profiles of the same example, newest last. This first one is `sample` at 1 ms over five
+seconds of a `KevinHall_FINCH` run, grouped by top of stack, 3,758 attributed samples: it is the
+state **after** the index-keyed store and **before** both the bounded search and this run's
+call-site change, and it is the profile those two were made from. *After the call-site change*,
+below, is where the code stands now; the profile from before the index-keyed store is at the end of
+this file.
 
 | Share | What |
 |---:|---|
@@ -384,10 +434,72 @@ by [ADR 0040](decisions/0040-a-bounded-search-for-the-long-vectors.md):
 
 1. **`find_index` is a linear scan, and 55 entries is where that stops being free.** Answered: a scan
    below sixteen entries and a bounded binary search above it, worth 1.44× on FINCH.
-2. **The remaining 31% is names being resolved at the *call site*.** Done. The section above has
-   the change and the A/B.
+2. **The remaining 31% is names being resolved at the *call site*.** Done. *Names resolved at the
+   call site* has the change and the A/B, and *After the call-site change*, immediately below, is
+   the profile that says where the time actually went.
 
-<!--PERF-PROFILE-->
+### After the call-site change
+
+`sample` at 1 ms over the **whole** run of `KevinHall_FINCH`, both binaries, back to back in one
+session, on the shipped config. Whole runs rather than a fixed window: the faster binary gets
+further through a window of the same length, so every share in it rises for the wrong reason. Over a
+whole run a sample is worth a millisecond of that run, and the two columns can be subtracted.
+
+| | Before | After |
+|---|---:|---:|
+| Thread samples, ≈ ms of run | 5,407 | 4,238 |
+| of those, name handling at top of stack | **3,549** | **2,486** |
+
+**The run lost 1,169 samples and 1,063 of them are name handling — 91%.** That is what the change
+claimed, measured rather than assumed: the time did not move elsewhere in the program, it stopped
+being spent.
+
+The 65.6% and 58.7% those two rows work out to are **not** comparable with the 31% quoted in *Names
+resolved at the call site* or the 52.3% in the section above. Both of those counted a narrower set
+of symbols over a five-second window; this counts every name-shaped symbol over a whole run. What is
+comparable is the pair of columns here, because they were taken the same way an hour apart.
+
+The symbols say it more precisely. Leaf samples, before against after:
+
+| Symbol | Before | After |
+|---|---:|---:|
+| `case_insensitive::equals` | 203 | **24** |
+| `chars::to_lower` | 178 | **87** |
+| `validate_identifier` | 141 | **26** |
+| `is_metadata_predictor` | 112 | **15** |
+| `chars::is_alnum` | 87 | **35** |
+| the name→index hash probe | 303 | **129** |
+| `Person::try_risk_factor_value` | 189 | 269 |
+| `FactorValues::find_index` | 116 | 163 |
+| `evaluate_linear_model` | 84 | 124 |
+| `_platform_memcmp` | 795 | **832** |
+
+The five predicates and the hash probe are what went; the three that rose are where the work went
+instead — the index path, which is a larger share of a smaller run.
+
+**`memcmp` did not move at all, and that is the next run's finding.** 795 samples before, 832 after.
+The linear models stopped comparing strings entirely, so whatever is doing it now is somewhere this
+change did not reach. Attributing the *after* profile's name handling to the caller that asked for
+it:
+
+| Caller | Samples |
+|---|---:|
+| the analysis module's `DataSeries`, keyed by `std::string` | 868 |
+| derived predictors — an `Identifier` built from a concatenation | 456 |
+| the linear models | 298 |
+| the Kevin Hall model's expected values | 233 |
+| the disease models, loading, the result writer | 50 |
+| `memcmp` `sample` could not attribute to a caller | 888 |
+
+The linear models were **1,398** in that table before this change and are 298 now, which is the same
+1,100 samples from the other direction. The analysis module is untouched by this change and is now
+the largest named consumer: `DataSeries::at(Gender, Income, std::string)` is a string lookup per
+series per person per year, the same shape of problem one layer up. It is
+[docs/backlog.md](backlog.md) item 9, and it now has a number on it rather than a suspicion.
+
+Two cautions on that last table. The 888 unattributed samples are a fifth of the run, so treat the
+split as indicative; and its counts are inclusive call-graph counts, which are not additive with the
+leaf counts above.
 
 ## Where the time went before the index-keyed store
 

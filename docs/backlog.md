@@ -15,7 +15,7 @@ Tags:
   or the data, and guessing would put an invented number into somebody else's fitted model.
 - `docs`
 
-**This run closed items 2, 10 and 11, and opened 11a.** Names are resolved to indices at the call
+**This run closed the previous run's items 2, 10 and 11.** Names are resolved to indices at the call
 site and `KevinHall_FINCH` is faster for it, byte-identically
 ([docs/performance.md](performance.md)); the GCC entries are required; the lattice detector asks its
 question of the numerator. It also did three things nobody had asked for and a ruling did: a second
@@ -26,7 +26,7 @@ randomised server-lifetime stress test. Between them those three found five defe
 
 What is left is what it was, minus the performance item: **one modelling question that belongs to
 you** (interventions on Kevin Hall models), the validation this project's own documents hedge about,
-one correctness item this run found and did not fix (11a), and Windows. The top of the list is a
+one correctness item this run found and did not fix (item 2), and Windows. The top of the list is a
 question rather than work for the second run running.
 
 ## Do these first
@@ -126,7 +126,7 @@ specific rather than hypothetical: the emptying-band exclusion is **1,641 bands 
 against 785 on `HLM_France`, and at 1.24 million almost none of those bands would empty at all — so
 the full-scale comparison would exclude far less and test more; and a rare disease that gives 0, 1 or
 2 cases at this cohort size gives hundreds at the shipped one, which moves several of the comparisons
-off the lattice that item 11 is about.
+off the lattice that item 9 is about.
 
 So this is worth doing once, on a machine that can be left alone for a few days, and the stored
 reference would be large — which is item 8.
@@ -169,7 +169,29 @@ store the reduction rather than the raw results — the harness reduces to (scen
 variable) before it compares anything, and the reduction is two orders of magnitude smaller — at
 the cost of not being able to change the reduction without a re-run.
 
-### 9. Windows — `platform`
+### 9. `DataSeries` is still keyed by channel name — `performance`
+
+**Value: medium-high, and measured. Effort: low-medium.** The other half of the old item 2, and the
+half that item called smaller — wrongly, as it turns out. A whole-run `KevinHall_FINCH` profile
+taken after this run's change still has `_platform_memcmp` as its largest single entry, at **832 of
+4,238 thread samples**, and this run's change did not move it at all (it was 795 before).
+Attributing that profile's name handling to its caller puts **868 samples — a fifth of the run — in
+the analysis module**, which is the largest named consumer left
+([docs/performance.md](performance.md), *After the call-site change*).
+
+It is the same defect this run just fixed one layer up, in a different file.
+`AnalysisModule::calculate_income_based_series` builds `"mean_" + key` **per factor per person per
+year**, lowercases the result, probes a `std::set<std::string>`, and then looks the channel up again
+by name in `DataSeries::at(Gender, Income, const std::string &)`. The previous version of this item
+said the remaining `memcmp` was "rather than anything per person per year"; the call graph says
+otherwise, and the correction is why the item moved up the list.
+
+The same treatment applies: resolve the channel name to a column index when the series is built, and
+build the derived channel names once instead of per person per year. The check is the one this run
+used — byte identity on all three runnable examples, with the A/B alternation
+[docs/performance.md](performance.md) describes.
+
+### 10. Windows — `platform`
 
 **Value: unknown. Effort: medium, and better understood than it was.** Not targeted
 ([ADR 0013](decisions/0013-platforms-linux-and-macos.md)). The code avoids PSTL and
@@ -191,7 +213,7 @@ Still only worth doing if someone needs it.
 
 ## Smaller things
 
-### 10. Run the sanitizer presets' tests in parallel — `platform`
+### 11. Run the sanitizer presets' tests in parallel — `platform`
 
 **Value: medium. Effort: low, and the risk is what makes it an item rather than a one-liner.** The
 second fixture pack doubled every test that runs a configuration, and the cost lands almost entirely
@@ -206,16 +228,6 @@ on runners with several cores. What makes it an item rather than a one-liner is 
 and the stress test runs several clients — so the right degree of parallelism has to be found rather
 than assumed, and under a sanitizer the memory cost multiplies too. Doing it at the end of a run
 leaves no time to find out what it breaks.
-
-### 11. `DataSeries` is still keyed by channel name — `cleanup`
-
-**Value: low-medium. Effort: low-medium.** The other half of the old item 2, and the half that item
-always called smaller. A `KevinHall_FINCH` profile taken after this run's change still has
-`_platform_memcmp` as its largest single entry, and what is left of it is the analysis module and the
-result writer looking a channel up by its `std::string` name — `DataSeries::at(Gender, Income,
-const std::string &)` and `Map2d<Gender, Identifier, …>::contains` — rather than anything per person
-per year. The same treatment applies: resolve the channel name to a column index when the series is
-built.
 
 ### 12. A schema for the model definition files — `docs`
 
@@ -250,7 +262,7 @@ data and the baseline, and telling them is not done:
    its weight quantile curve produces (item 3), and its `new_config.json` contradicts itself
    between the deprecated root `trend_type` and `project_requirements.trend.type`, which the
    baseline's own validator refuses.
-2. **An intervention scenario is inert on the FINCH model surface** (item 7): `Scenario::apply` has
+2. **An intervention scenario is inert on the FINCH model surface** (item 1): `Scenario::apply` has
    one call site and neither Kevin Hall model calls it, so a config selecting `food_labelling` on
    that surface runs with no error and no effect.
 3. **`KevinHall_FINCH`'s legacy `static_model.json` names two files the pack does not contain**
@@ -272,7 +284,7 @@ them by number.
 
 | Was | | |
 |---|---|---|
-| **2** | Resolve names to indices at the call site | done; [docs/performance.md](performance.md) has the A/B, byte-identical on all three runnable examples. What is left of it is item 11 above |
+| **2** | Resolve names to indices at the call site | done; [docs/performance.md](performance.md) has the A/B, byte-identical on all three runnable examples. What is left of it is item 9 above |
 | **10** | Make the GCC entries required | done; `experimental: true` is gone from both entries |
 | **11** | The lattice detector should classify on the numerator | done, with no threshold moved; all four stored references re-scored and within tolerance ([docs/equivalence.md](equivalence.md)) |
 
