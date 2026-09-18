@@ -43,7 +43,7 @@ one nobody asked for, and it came out of the first task:
 | | Task | Outcome |
 |---:|---|---|
 | 1 | The weight-category defect | **Done**, and **not** the way the ruling assumed. It is not a deviation from the baseline, so there is no compatibility flag. **Four findings.** All four stored references regenerated against the baseline binary; the comparison counts and the verdict are unchanged. |
-| 2 | ThreadSanitizer runtime | **Done.** [ADR 0046](decisions/0046-what-runs-under-which-sanitizer.md): one fixture pack and six self-check seeds under that sanitizer only. `macos · appleclang · tsan` **88m08s → 33m09s**, `linux · clang · tsan` **42m07s → 15m56s**, and the macOS job is no longer the workflow's long pole. |
+| 2 | ThreadSanitizer runtime | **Done.** [ADR 0046](decisions/0046-what-runs-under-which-sanitizer.md): one fixture pack and six self-check seeds under that sanitizer only. `macos · appleclang · tsan` **88m08s → 30m12s**, `linux · clang · tsan` **42m07s → 15m51s**, measured twice on two runs, and the macOS job is no longer the workflow's long pole. |
 | 3 | The analysis module's channels | **Done.** `KevinHall_FINCH` **1.33×**, `HLM_France` **1.22×**, and every CSV of every runnable example byte-identical — including `HLM_India` at the 1,240,613-person cohort it ships. Backlog item 9 closed. |
 | + | Anything else small, output-preserving and undisputed | **One taken, and it is documentation.** [docs/upstream-reports.md](upstream-reports.md) writes up the four findings that belong to upstream, each with the command that reproduces it against their binary and data (backlog item 14's writing half). Nothing else was taken, and the reason is worth stating: by then `scripts/check.sh` was running against the tree the three tasks produced, and any further change to `src/` or `tests/` would have thrown that verification away to save an hour of somebody else's reading. |
 
@@ -177,9 +177,11 @@ Locally, the same command before and after:
 pessimistic, and the split is what it is for. The clean figure is the one `scripts/check.sh`
 produced on a quieter machine two hours later: **1,001 seconds**, which is 2.5× rather than 1.7×.
 **In CI, where the two numbers are directly comparable job for job**:
-`macos · appleclang · tsan` went **88m08s → 33m09s** and `linux · clang · tsan` **42m07s → 15m56s**,
-both 2.6×. The macOS job was the workflow's long pole by a factor of two; the longest entry is now
-`linux · clang · asan-ubsan` at 33m20s, and the two are within eleven seconds of each other.
+`macos · appleclang · tsan` went **88m08s → 30m12s** and `linux · clang · tsan` **42m07s → 15m51s**,
+2.9× and 2.7×, and both figures reproduced on the run before this one at 33m09s and 15m56s. The
+macOS job was the workflow's long pole by a factor of two; the longest entry is now
+`macos · appleclang · asan-ubsan`, and the whole run finishes in half an hour rather than an hour
+and a half.
 
 **What it costs** is stated in the ADR rather than explained away: a race reachable only through the
 second pack's configuration and not the first's would no longer be found. Nothing this project has
@@ -228,35 +230,37 @@ memory for time should have to say so.
 
 ## CI, per matrix entry
 
-Fifteen jobs. Run **35400069202** on `6b01398`, every entry read with `gh run view` rather than
+Fifteen jobs. Run **35403508140** on `95cd8a8`, every entry read with `gh run view` rather than
 from the run's own summary. **15 of 15 success.** The last column is the same job on the previous
 run's final commit.
 
 | Job | Result | Time | The previous run |
 |---|---|---:|---:|
-| `linux · clang · release` | **success** | 5m07s | 5m54s |
-| `linux · clang · debug` | **success** | 13m09s | 10m35s |
-| `linux · clang · asan-ubsan` | **success** | 33m20s | 43m13s |
-| `linux · clang · tsan` | **success** | **15m56s** | 42m07s |
-| `linux · gcc · release` | **success** | 4m23s | 5m24s |
-| `linux · gcc · debug` | **success** | 11m51s | 16m20s |
-| `macos · appleclang · release` | **success** | 5m23s | 3m56s |
-| `macos · appleclang · debug` | **success** | 9m33s | 16m01s |
-| `macos · appleclang · asan-ubsan` | **success** | 29m49s | 34m12s |
-| `macos · appleclang · tsan` | **success** | **33m09s** | 88m08s |
-| `equivalence · HLM_France · 20 seeds` | **success** | 4m42s | 7m16s |
-| `equivalence · KevinHall_FINCH · 20 seeds` | **success** | 5m44s | 5m06s |
-| `web · typecheck, test, build` | **success** | 0m13s | 0m09s |
-| `web · end-to-end` | **success** | 2m54s | 3m02s |
-| `performance · linux · indicative` | **success** | 3m19s | 5m42s |
+| `linux · clang · release` | **success** | 5m46s | 5m54s |
+| `linux · clang · debug` | **success** | 6m47s | 10m35s |
+| `linux · clang · asan-ubsan` | **success** | 22m32s | 43m13s |
+| `linux · clang · tsan` | **success** | **15m51s** | 42m07s |
+| `linux · gcc · release` | **success** | 4m56s | 5m24s |
+| `linux · gcc · debug` | **success** | 13m03s | 16m20s |
+| `macos · appleclang · release` | **success** | 4m36s | 3m56s |
+| `macos · appleclang · debug` | **success** | 10m57s | 16m01s |
+| `macos · appleclang · asan-ubsan` | **success** | 26m43s | 34m12s |
+| `macos · appleclang · tsan` | **success** | **30m12s** | 88m08s |
+| `equivalence · HLM_France · 20 seeds` | **success** | 4m27s | 7m16s |
+| `equivalence · KevinHall_FINCH · 20 seeds` | **success** | 6m03s | 5m06s |
+| `web · typecheck, test, build` | **success** | 0m12s | 0m09s |
+| `web · end-to-end` | **success** | 3m00s | 3m02s |
+| `performance · linux · indicative` | **success** | 5m23s | 5m42s |
 
-`6b01398` is the last commit of this run that changes code; everything after it is documentation,
-and the workflow's concurrency group cancels the earlier run on each push, so this is the newest
-run that reports on the code as it now stands. The push that adds this file starts one more, on the
-same matrix over the same code.
+That run is the one on `95cd8a8`, which carries every change this run made and every document but
+this table. The push that updates this table starts one more, on the same code and the same matrix
+— a fixed point a summary of its own run cannot reach, so what is quoted is the newest run that had
+reported when it was written, and the next one is a documentation-only change to this file. The run
+before it, 35400069202 on `6b01398`, was also 15 of 15, with `macos · appleclang · tsan` at 33m09s
+and `linux · clang · tsan` at 15m56s: the two TSan figures reproduce.
 
 **The two ThreadSanitizer entries are the point of the table.** `linux · clang · tsan` went from
-42m07s to 15m56s and `macos · appleclang · tsan` from 88m08s to the figure above, which is what
+42m07s to 15m51s and `macos · appleclang · tsan` from 88m08s to 30m12s, which is what
 [ADR 0046](decisions/0046-what-runs-under-which-sanitizer.md) was for. Nothing else in the table
 moved for a reason belonging to this run: the other entries differ by runner weather, and the
 previous run's numbers are beside them so a reader can see which is which.
