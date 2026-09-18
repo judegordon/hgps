@@ -51,16 +51,34 @@ add_library(hgps::internal ALIAS hgps_internal)
 target_link_libraries(hgps_internal INTERFACE hgps_engine)
 target_include_directories(hgps_internal INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
 
+# The local JSON server: the engine over HTTP, a second host rather than part of the engine
+# (docs/decisions/0042-a-local-server-in-the-same-binary.md). It links hgps::engine and nothing
+# internal, exactly as the CLI does, and tests/app/cli_boundary_test.cpp holds it to that rule.
+#
+# A library rather than code inside the executable, so tests/server/ can drive it in process — an
+# HTTP API whose only test is "the binary starts" is an HTTP API with no tests.
+find_package(httplib CONFIG REQUIRED)
+add_library(hgps_server STATIC
+            "${CMAKE_CURRENT_SOURCE_DIR}/server/server.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/server/run_store.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/server/summary.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/server/json_view.cpp")
+add_library(hgps::server ALIAS hgps_server)
+hgps_target_options(hgps_server)
+target_include_directories(hgps_server PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/server")
+target_link_libraries(hgps_server PUBLIC hgps::engine PRIVATE httplib::httplib)
+
 # The CLI's own code: argument parsing and printing, and nothing else. A library rather than two
 # files compiled straight into the executable, so that tests/app/ can test the parsing — which is
 # the one thing the CLI still owns, and was untested while it was buried in main.cpp.
 add_library(hgps_cli STATIC
             "${CMAKE_CURRENT_SOURCE_DIR}/app/options.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/app/serve_options.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/app/reporter.cpp")
 add_library(hgps::cli ALIAS hgps_cli)
 hgps_target_options(hgps_cli)
 target_include_directories(hgps_cli PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/app")
-target_link_libraries(hgps_cli PUBLIC hgps::engine)
+target_link_libraries(hgps_cli PUBLIC hgps::engine hgps::server)
 
 add_executable(healthgps "${CMAKE_CURRENT_SOURCE_DIR}/app/main.cpp")
 hgps_target_options(healthgps)

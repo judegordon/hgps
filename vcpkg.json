@@ -9,6 +9,10 @@
     "fmt",
     "nlohmann-json",
     {
+      "name": "cpp-httplib",
+      "default-features": false
+    },
+    {
       "name": "gtest",
       "default-features": false
     }

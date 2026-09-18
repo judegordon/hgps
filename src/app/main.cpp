@@ -12,6 +12,8 @@
 // Origin: src/HealthGPS.Console/program.cpp.
 #include "options.h"
 #include "reporter.h"
+#include "serve_options.h"
+#include "server.h"
 
 #include "hgps/engine.h"
 
@@ -35,6 +37,64 @@ enum class ExitCode : int {
 
 int to_int(ExitCode code) { return static_cast<int>(code); }
 
+/// @brief `healthgps serve …` — the local JSON server (docs/server-api.md).
+///
+/// Recognised only as the *first* argument, so no existing command line changes meaning. A test
+/// asserts that.
+int serve(const std::vector<std::string> &arguments) {
+    auto parsed = hgps::app::parse_serve_options(arguments);
+    if (!parsed.options.has_value()) {
+        std::cerr << kProgramName << " serve: " << parsed.message << "\n\n"
+                  << hgps::app::serve_usage_text();
+        return to_int(ExitCode::usage);
+    }
+    const auto &options = *parsed.options;
+    if (options.help) {
+        std::cout << hgps::app::serve_usage_text();
+        return to_int(ExitCode::success);
+    }
+
+    if (const auto refusal = hgps::server::loopback_refusal(options.host); !refusal.empty()) {
+        std::cerr << kProgramName << " serve: " << refusal << "\n";
+        return to_int(ExitCode::usage);
+    }
+
+    hgps::server::Options server_options;
+    server_options.host = options.host;
+    server_options.port = options.port;
+    server_options.config_roots = options.config_roots;
+    server_options.runs_root = options.runs_root;
+    server_options.web_root = options.web_root;
+    server_options.schema_path = options.schema_path;
+
+    hgps::server::Server server{server_options};
+    const auto port = server.start();
+    if (port == 0) {
+        return to_int(ExitCode::input_problem);
+    }
+
+    std::cout << "hgps serve: http://" << options.host << ":" << port << "\n";
+    if (!options.web_root.empty()) {
+        std::cout << "  web:     " << options.web_root.string() << "\n";
+    }
+    for (const auto &root : options.config_roots) {
+        std::cout << "  configs: " << root.string() << "\n";
+    }
+    std::cout << "  runs:    " << options.runs_root.string() << "\n";
+    std::cout << "Ctrl-C to stop.\n" << std::flush;
+
+    // Nothing to do but wait: the server has its own thread and the engine's runs have theirs.
+    std::string line;
+    while (std::cin.good() && !std::cin.eof()) {
+        std::getline(std::cin, line);
+        if (std::cin.eof()) {
+            break;
+        }
+    }
+    server.stop();
+    return to_int(ExitCode::success);
+}
+
 /// @brief Prints a report if it has anything in it.
 void print(const hgps::api::Report &report) {
     if (!report.empty()) {
@@ -46,6 +106,15 @@ void print(const hgps::api::Report &report) {
 
 int main(int argc, char **argv) {
     const std::vector<std::string> arguments(argv + 1, argv + argc);
+
+    if (!arguments.empty() && arguments.front() == "serve") {
+        try {
+            return serve({arguments.begin() + 1, arguments.end()});
+        } catch (const std::exception &failure) {
+            std::cerr << kProgramName << " serve: " << failure.what() << "\n";
+            return to_int(ExitCode::internal_error);
+        }
+    }
 
     auto parsed = hgps::app::parse_options(arguments);
     if (!parsed.options.has_value()) {

@@ -1,7 +1,8 @@
-// The library/CLI boundary, checked rather than asserted in a comment.
+// The library/host boundary, checked rather than asserted in a comment.
 //
-// The CLI is meant to be a client of the published API: it may include include/hgps/ and its own
-// two headers, and nothing else. CMake already enforces half of this — src/ is not on the include
+// There are two hosts now — the CLI in src/app and the local server in src/server — and both are
+// meant to be clients of the published API: each may include include/hgps/ and its own directory's
+// headers, and nothing else. CMake already enforces half of this — src/ is not on the include
 // path of anything that links hgps::engine — but a relative include or a future change to the
 // target's include directories could put it back, and the failure mode is silent: the program goes
 // on working while the boundary quietly stops existing.
@@ -38,9 +39,13 @@ std::vector<std::string> includes_of(const std::filesystem::path &path) {
     return found;
 }
 
-/// @brief The standard library and the two third-party headers the project already depends on.
+/// @brief The standard library and the third-party headers the project already depends on.
 bool is_external(const std::string &header) {
     if (header.starts_with("fmt/") || header.starts_with("nlohmann/")) {
+        return true;
+    }
+    // cpp-httplib, which only the server links (ADR 0042).
+    if (header == "httplib.h") {
         return true;
     }
     // A standard header has no slash and, but for <cstdint> and friends, no extension either.
@@ -51,10 +56,9 @@ bool is_external(const std::string &header) {
 
 class CliBoundary : public ::testing::Test {
   protected:
-    static std::vector<std::filesystem::path> cli_sources() {
-        const auto app = source_root() / "src" / "app";
+    static std::vector<std::filesystem::path> sources_under(const std::filesystem::path &directory) {
         std::vector<std::filesystem::path> sources;
-        for (const auto &entry : std::filesystem::directory_iterator{app}) {
+        for (const auto &entry : std::filesystem::directory_iterator{directory}) {
             const auto extension = entry.path().extension();
             if (extension == ".cpp" || extension == ".h") {
                 sources.push_back(entry.path());
@@ -62,6 +66,35 @@ class CliBoundary : public ::testing::Test {
         }
         std::sort(sources.begin(), sources.end());
         return sources;
+    }
+
+    static std::vector<std::filesystem::path> cli_sources() {
+        return sources_under(source_root() / "src" / "app");
+    }
+
+    static std::vector<std::filesystem::path> server_sources() {
+        return sources_under(source_root() / "src" / "server");
+    }
+
+    /// @brief Every include of `sources` that is neither external, nor the public API, nor a file
+    ///        sitting in `own_directory`.
+    static void expect_only_the_api_and_its_own(
+        const std::vector<std::filesystem::path> &sources,
+        const std::filesystem::path &own_directory, const std::string &what) {
+        for (const auto &source : sources) {
+            for (const auto &header : includes_of(source)) {
+                if (is_external(header) ||
+                    std::filesystem::is_regular_file(own_directory / header)) {
+                    continue;
+                }
+                EXPECT_TRUE(header.starts_with("hgps/"))
+                    << source.filename().string() << " includes \"" << header
+                    << "\", which is neither the public API (hgps/…) nor one of " << what
+                    << "'s own headers. Both hosts are clients of hgps::engine; see "
+                       "docs/decisions/0032-library-and-a-thin-cli.md and "
+                       "docs/decisions/0042-a-local-server-in-the-same-binary.md.";
+            }
+        }
     }
 };
 
@@ -77,11 +110,14 @@ TEST_F(CliBoundary, TheCliHasSourcesToCheck) {
 }
 
 TEST_F(CliBoundary, TheCliIncludesNothingOutsideThePublicApiAndItsOwnHeaders) {
-    const std::set<std::string> own{"options.h", "reporter.h"};
-
-    for (const auto &source : cli_sources()) {
+    // The CLI may also include the server's header, because `hgps serve` is a subcommand of it —
+    // and the server is held to the same rule by the test below, so this does not open a door.
+    auto own = source_root() / "src" / "app";
+    auto sources = cli_sources();
+    for (const auto &source : sources) {
         for (const auto &header : includes_of(source)) {
-            if (is_external(header) || own.contains(header)) {
+            if (is_external(header) || std::filesystem::is_regular_file(own / header) ||
+                header == "server.h") {
                 continue;
             }
             EXPECT_TRUE(header.starts_with("hgps/"))
@@ -91,6 +127,24 @@ TEST_F(CliBoundary, TheCliIncludesNothingOutsideThePublicApiAndItsOwnHeaders) {
                    "docs/decisions/0032-library-and-a-thin-cli.md.";
         }
     }
+}
+
+TEST_F(CliBoundary, TheServerHasSourcesToCheck) {
+    const auto sources = server_sources();
+    ASSERT_FALSE(sources.empty()) << "no server sources under "
+                                  << (source_root() / "src" / "server");
+    EXPECT_NE(sources.end(), std::find_if(sources.begin(), sources.end(),
+                                          [](const std::filesystem::path &path) {
+                                              return path.filename() == "server.cpp";
+                                          }));
+}
+
+TEST_F(CliBoundary, TheServerIncludesNothingOutsideThePublicApiAndItsOwnHeaders) {
+    // The reason this matters more for the server than for the CLI: the server is where somebody
+    // will one day want a number the API does not expose, and reaching into src/ for it would be
+    // one line and would end the boundary. A compile error is better than a review comment.
+    expect_only_the_api_and_its_own(server_sources(), source_root() / "src" / "server",
+                                    "the server");
 }
 
 TEST_F(CliBoundary, ThePublicHeadersIncludeNoInternalHeader) {

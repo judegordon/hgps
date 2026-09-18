@@ -266,3 +266,70 @@ compiler axis on Linux rather than sitting in a separate job, and the three verb
 checkout-plus-Ninja-plus-vcpkg bootstrap became one composite action at
 `.github/actions/prepare/action.yml`. Three copies of a bootstrap is how a pinned commit gets updated
 in two places out of three.
+
+## Fifth run: CI actually ran, and what it found
+
+The previous section ends *"the first time this workflow executes will be the first evidence that it
+works, and the honest expectation is that something in it is wrong — most likely in the GCC
+entries."* The workflow then ran, for the first time, on the commit that pushed this repository to
+GitHub. **Every job failed.** The expectation was right about there being something wrong and wrong
+about where: the GCC entries were not the problem, and one of the two guesses in that table —
+"`-Wno-missing-designated-field-initializers` under GCC" — was the exact thing that broke.
+
+Five causes, each fixed in its own commit, in the order CI surfaced them.
+
+| # | What failed | Where | Why it was invisible locally |
+|---|---|---|---|
+| 1 | `std::mt19937::result_type` narrowed implicitly | every Linux job, first file compiled | `result_type` is `std::uint_fast32_t`: **32 bits on libc++, 64 on libstdc++**. `return engine_()` from a function returning `std::uint32_t` is an exact, value-preserving narrowing — and an implicit one, which `-Wconversion` rejects on Linux and has no reason to mention on macOS |
+| 2 | a constructor parameter shadowing a member | both GCC jobs | **GCC's `-Wshadow` covers constructor parameters and clang's does not**; clang puts that check behind `-Wshadow-field-in-constructor`, which was not on |
+| 3 | nineteen missing standard headers | every Linux job | libc++ supplies `<cstdint>` through `<source_location>`, `<stdexcept>` through others, and libstdc++ does not. The first one CI hit was `std::uint_least32_t` in `src/diagnostics/internal_error.h` |
+| 4 | `-Wmissing-field-initializers` on 213 designated initialisers | every Linux job, twice | clang 19 has a **narrow** warning for this and the tree turns it off. An older clang and every GCC fold the construct into `-Wextra`'s broad one, and there is no narrow flag to turn off |
+| 5 | a stored equivalence reference could not be found | both equivalence jobs | the reference's key is the hash of the derived config — taken **after** absolutising its input paths, so it carried `/Users/jude/work/hpgs/…` and could only match on the machine that wrote it |
+
+Cause 4 took two commits, and the second one is the interesting part. The first added a fallback:
+probe for the narrow flag, and turn off the broad one where the narrow one is missing. CI failed
+again, in the same place, on GCC. The reason is that **GCC accepts any `-Wno-<anything>` it has never
+heard of**, and complains only if some other diagnostic is emitted — so probing
+`-Wno-missing-designated-field-initializers` is answered "yes" by a compiler that has never heard of
+it, the narrow flag was added, it did nothing, and the fallback was never reached. Probing the
+**positive** spelling, `-Wmissing-designated-field-initializers`, is answered honestly by everybody.
+That is a property of `check_cxx_compiler_flag` worth remembering: a `-Wno-` probe on GCC tests
+nothing.
+
+### What was done about the class rather than the instance
+
+Causes 1–3 are all one shape: **a portability defect the development compiler cannot see.** So each
+was fixed by finding every instance rather than the one CI stopped on.
+
+- **Cause 2** — clang's `-Wshadow-all` was run over every translation unit in `src/`, `tests/` and
+  `tools/`. It found exactly the two `person.h` constructors GCC had named and nothing else, and
+  `-Wshadow-field-in-constructor` is now on wherever the compiler understands it, so the development
+  compiler says what the Linux one would.
+- **Cause 3** — a scan for `std::` names used without the header that declares them, following each
+  file's project-local includes **transitively**, so a header a `.cpp` genuinely inherits is not
+  reported. 245 candidates before following includes, **19** after, every one of them real. All 19
+  were fixed in one commit and the scan now reports none.
+- **Cause 1** — contained to one header by inspection (`grep` for `mt19937`, `uint_fast`), and pinned
+  by a `static_assert` that the engine's range is exactly 32 bits, so the cast stays value-preserving
+  whatever a future standard library makes `result_type`.
+
+Cause 1 has no local detector and that is worth being honest about: nothing on this machine can see
+it, because the types are genuinely the same width here. The `static_assert` protects the *reasoning*
+rather than the platform.
+
+### What CI is now worth
+
+It found five real defects in a tree that had been green locally for four runs, four presets and 668
+tests, and three of the five were **portability defects invisible to the only compiler that had ever
+built it.** The fourth run's summary listed "CI has never run" and "GCC has never built this tree"
+among the things a reader should be sceptical about. Both are now false, and the second one is the
+more useful: **GCC on Linux is green**, so the `experimental: true` flag on those matrix entries has
+done its job and is a candidate for removal ([docs/backlog.md](backlog.md)).
+
+### What is still not tested by CI
+
+- **The baseline is still not built there**, by design (see the workflow's own header comment), so
+  the equivalence jobs compare against the checked-in references and `--refresh-reference` remains a
+  deliberate local act.
+- **`HLM_India` is still not compared there**, for the same reason as before: its reference is at a
+  reduced `size_fraction` and a job would be forty minutes.
