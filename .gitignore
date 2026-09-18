@@ -22,3 +22,4 @@ out/runs/
 # The A/B measurement's temporary configs: an example's own config with a fixed output name, so two
 # binaries' results can be compared byte for byte (docs/performance.md).
 examples/*/ab-config.json
+examples/*/measure-config.json

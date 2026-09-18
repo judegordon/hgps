@@ -269,6 +269,79 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------------------------------
+  # Timings, on Linux, which is the platform every number in docs/performance.md is not.
+  #
+  # Every figure in that document was taken on one macOS laptop with Apple clang, and the document
+  # says so under what a reader should be sceptical about. This job is the first Linux measurement
+  # of anything. It runs `scripts/measure.sh` — the same script a person runs — and uploads its JSON.
+  #
+  # **Indicative only, and nothing here can fail the build.** A GitHub-hosted runner is a shared
+  # virtual machine with neighbours: the same job on the same commit has been seen to vary by tens
+  # of percent, which is larger than any difference docs/performance.md discusses. So there is no
+  # threshold, no comparison against a stored number and no `exit 1` on a slow run. What the numbers
+  # are worth is an order of magnitude and the ratio between two examples measured in one job.
+  performance:
+    name: performance · linux · indicative
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the implementation
+        uses: actions/checkout@v4
+        with:
+          path: hgps_new_rewrite
+
+      - name: Prepare
+        uses: ./hgps_new_rewrite/.github/actions/prepare
+        with:
+          vcpkg-commit: ${{ env.VCPKG_COMMIT }}
+          examples-repo: ${{ env.EXAMPLES_REPO }}
+          cache-id: linux-clang
+          examples: |
+            HLM_France
+            KevinHall_FINCH
+
+      # The same cache the equivalence jobs use: the disease data is fetched from a release URL and
+      # verified against the checksum the config declares (ADR 0011), so a cache hit is a directory
+      # the engine has already verified.
+      - name: Cache the extracted data pack
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/healthgps
+          key: healthgps-data-${{ hashFiles('hgps_new_rewrite/examples/HLM_France/config.json') }}
+          restore-keys: |
+            healthgps-data-
+
+      - name: Build (release)
+        working-directory: hgps_new_rewrite
+        env:
+          CC: clang
+          CXX: clang++
+        run: |
+          cmake --preset release
+          cmake --build --preset release
+
+      # GNU time, for the peak resident set size. The shell builtin does not report it.
+      - name: Install /usr/bin/time
+        run: sudo apt-get install -y time
+
+      - name: Measure
+        working-directory: hgps_new_rewrite
+        run: |
+          echo "::group::runner"
+          nproc && free -g && cat /proc/cpuinfo | grep -m1 "model name" || true
+          echo "::endgroup::"
+          scripts/measure.sh --runs 3 --json out/timings-linux.json
+
+      - name: Upload the timings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: timings-linux
+          path: hgps_new_rewrite/out/timings-linux.json
+          if-no-files-found: warn
+          retention-days: 90
+
+  # ---------------------------------------------------------------------------------------------
   # Statistical equivalence against the baseline, without building the baseline: the two reductions
   # of its output are checked in, and the harness compares this build against them. That is the half
   # of the validation a unit test cannot do, and until this workflow existed nothing ran it
