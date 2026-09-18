@@ -15,17 +15,19 @@ Tags:
   or the data, and guessing would put an invented number into somebody else's fitted model.
 - `docs`
 
-**This run closed the previous one's first two items and part of a third.** The graphical host
-exists — a local JSON server and a single-page app over it ([ADR 0042](decisions/0042-a-local-server-in-the-same-binary.md),
-[ADR 0043](decisions/0043-a-plain-typescript-frontend.md)) — and CI has run, which promoted GCC from
-"has never built this tree" to a required, green check. It also added one thing nobody asked for and
-the ruling did: every deliberate deviation is now switchable, so its effect is measured rather than
-argued ([ADR 0041](decisions/0041-deliberate-deviations-are-switchable.md)).
+**This run closed items 2, 10 and 11, and opened 11a.** Names are resolved to indices at the call
+site and `KevinHall_FINCH` is faster for it, byte-identically
+([docs/performance.md](performance.md)); the GCC entries are required; the lattice detector asks its
+question of the numerator. It also did three things nobody had asked for and a ruling did: a second
+synthetic configuration with every test that runs one parameterised over both
+([ADR 0044](decisions/0044-two-fixture-packs-and-a-parameterised-suite.md)), a browser driving the
+frontend end to end ([ADR 0045](decisions/0045-end-to-end-tests-in-a-real-browser.md)), and a
+randomised server-lifetime stress test. Between them those three found five defects.
 
-So the ranking changes shape again. What is left is: one question that belongs to whoever owns the
-model (interventions on Kevin Hall models), the performance item the profile keeps pointing at, the
-validation this project's own documents hedge about, and Windows. There is no large piece of new work
-at the top any more, which is the first time that has been true.
+What is left is what it was, minus the performance item: **one modelling question that belongs to
+you** (interventions on Kevin Hall models), the validation this project's own documents hedge about,
+one correctness item this run found and did not fix (11a), and Windows. The top of the list is a
+question rather than work for the second run running.
 
 ## Do these first
 
@@ -54,31 +56,35 @@ work. Until it is answered, four of the six upstream examples can only be run wi
 
 See [docs/deviations.md](deviations.md) B-25 and `tests/config/intervention_reach_test.cpp`.
 
-### 2. Resolve names to indices at the call site — `cleanup`
+### 2. The weight-category columns are counts and both reductions treat them as means — `correctness`
 
-**Value: medium-high. Effort: medium, and it touches the model loaders.** Unchanged from the
-previous run except in rank: it is the largest remaining performance item and the profile has
-pointed at it for two runs.
+**Value: medium-high. Effort: low for the code, a reference regeneration for the consequences.**
+Found this run while reading the reduction for the lattice detector (closed below).
 
-[ADR 0037](decisions/0037-index-keyed-risk-factor-store.md) made `Person::risk_factors` index-keyed
-and [ADR 0040](decisions/0040-a-bounded-search-for-the-long-vectors.md) fixed the lookup that left
-behind — `KevinHall_FINCH` is 1.54× and then a further 1.44× faster, byte-identical across both.
-**The first half of this item is done**; what is left is the half the profile said was bigger.
+`normal_weight`, `over_weight`, `obese_weight` and `above_weight` are **head counts** in the result
+CSV — the analysis module increments one per person per band, and
+`tests/sim/simulation_test.cpp` pins `normal + over + obese == count` for every row. Both reductions
+that exist treat them as per-band means:
 
-**About 31% of the FINCH profile is names being resolved at the call site.** The store no longer
-compares strings; its callers still hand it a `core::Identifier`, which costs a hash probe, and some
-of them *construct* one per person per year — which is what `Identifier::validate_identifier` and
-`chars::is_alnum` at 8.3% of a profile mean. The fix is ADR 0037's idea one level up: the linear
-model's coefficient list and the Kevin Hall model's nutrient names hold **resolved indices**, so no
-name reaches the hot loop.
+- the equivalence harness sums `count`, `deaths` and `emigrations` and takes the count-weighted mean
+  of everything else, on the stated premise that "everything else is a mean or a proportion within a
+  band" — which is false for these four;
+- `GET /api/runs/{id}/summary` applies the same rule, and it is what the results screen charts.
 
-`DataSeries` is still keyed by channel name and is the smaller half again: the analysis module and
-the result writer are well below the per-person work in the profile.
+So the reduced figure for `normal_weight` on `HLM_France` at (baseline, 2030, male) is **15.3** where
+the population figure is about 1,550: the count-weighted average of a per-band count, which is a
+number with no meaning. The *shape* of the series still follows the underlying quantity, which is why
+nothing looked obviously wrong.
 
-Whatever is done here, the check that matters is the one ADR 0040 used and that caught a defect in
-the first attempt at ADR 0037 within minutes: run both examples before and after and compare the
-result files **byte for byte**. A statistical comparison over twenty seeds calls a last-bit
-difference agreement.
+**It does not make any comparison wrong.** Both implementations are reduced identically, so the
+equivalence result stands; what is wrong is the label on the number and the chart the server draws.
+
+The fix is four names in two places. What makes it more than that is the consequence: the stored
+equivalence references hold *reduced* values, so changing the reduction invalidates all four of them
+and they have to be regenerated against the baseline binary — about an hour and a half of machine
+time for `HLM_France`, `KevinHall_FINCH` and `HLM_India`'s two. Fixing only the server would make
+the two reductions disagree, which is the one thing [docs/server-api.md](server-api.md) says the
+shared rule exists to prevent, so the two halves go together.
 
 ### 3. A runnable Kevin Hall example, which needs upstream — `needs-ruling`
 
@@ -185,70 +191,17 @@ Still only worth doing if someone needs it.
 
 ## Smaller things
 
-### 10. Make the GCC entries required — `platform` — **done**
+### 10. `DataSeries` is still keyed by channel name — `cleanup`
 
-Done this run. `experimental: true` is gone from both GCC entries, so a GCC regression fails the
-build instead of being reported quietly.
+**Value: low-medium. Effort: low-medium.** The other half of the old item 2, and the half that item
+always called smaller. A `KevinHall_FINCH` profile taken after this run's change still has
+`_platform_memcmp` as its largest single entry, and what is left of it is the analysis module and the
+result writer looking a channel up by its `std::string` name — `DataSeries::at(Gender, Income,
+const std::string &)` and `Map2d<Gender, Identifier, …>::contains` — rather than anything per person
+per year. The same treatment applies: resolve the channel name to a column index when the series is
+built.
 
-### 11a. The weight-category columns are counts and both reductions treat them as means — `correctness`
-
-**Value: medium-high. Effort: low for the code, a reference regeneration for the consequences.**
-Found this run while reading the reduction for item 11.
-
-`normal_weight`, `over_weight`, `obese_weight` and `above_weight` are **head counts** in the result
-CSV — the analysis module increments one per person per band, and
-`tests/sim/simulation_test.cpp` pins `normal + over + obese == count` for every row. Both reductions
-that exist treat them as per-band means:
-
-- the equivalence harness sums `count`, `deaths` and `emigrations` and takes the count-weighted mean
-  of everything else, on the stated premise that "everything else is a mean or a proportion within a
-  band" — which is false for these four;
-- `GET /api/runs/{id}/summary` applies the same rule, and it is what the results screen charts.
-
-So the reduced figure for `normal_weight` on `HLM_France` at (baseline, 2030, male) is **15.3** where
-the population figure is about 1,550: the count-weighted average of a per-band count, which is a
-number with no meaning. The *shape* of the series still follows the underlying quantity, which is why
-nothing looked obviously wrong.
-
-**It does not make any comparison wrong.** Both implementations are reduced identically, so the
-equivalence result stands; what is wrong is the label on the number and the chart the server draws.
-
-The fix is four names in two places. What makes it more than that is the consequence: the stored
-equivalence references hold *reduced* values, so changing the reduction invalidates all four of them
-and they have to be regenerated against the baseline binary — about an hour and a half of machine
-time for `HLM_France`, `KevinHall_FINCH` and `HLM_India`'s two. Fixing only the server would make
-the two reductions disagree, which is the one thing [docs/server-api.md](server-api.md) says the
-shared rule exists to prevent, so the two halves go together.
-
-### 11. The lattice detector should classify on the numerator — `validation`
-
-**Value: medium-high. Effort: low-medium, and the measurement is already taken.** The equivalence
-harness compares a quantile of a **lattice-valued** series with an exact test of the counts rather
-than numerically, because the normal-theory allowance shrinks as 1/√n while the lattice step does
-not — a test that gets worse with more evidence. That rule was derived and added last run, and it is
-right.
-
-**Its detector looks at the wrong number.** It classifies a series as lattice-valued when the pooled
-sample has at most 6 distinct values, or when one value covers more than half the seeds. Both rules
-are applied to the **rate**. But a disease rate is a small integer count of cases over a band head
-count that differs from seed to seed, so dividing smears the lattice: the `HLM_India` comparison at
-60 seeds produced four such series with **43 to 79 distinct values** and a modal share of 0.30 to
-0.40 — under both rules — while a third of their seeds were **exactly zero**. Six comparisons, at
-1.02× to 1.09× of their allowance, in both the `simple` and the `food_labelling` runs, which is what
-says they belong to the comparison and not to either implementation
-([docs/equivalence.md](equivalence.md)).
-
-The fix is specific: classify on the **numerator**. The harness reduces to a rate and throws the
-count away; carrying the count alongside it would let the detector ask the question it means to ask —
-"how many distinct case counts are there, and how often is it zero?" — instead of asking it of a
-quotient.
-
-**Do not do this by widening the thresholds.** Moving 0.5 to 0.3 after seeing which comparisons it
-excludes is not evidence, which is the same rule this project applied to the one `HLM_France`
-residual ([docs/equivalence.md](equivalence.md), "The threshold was not changed"). The detector
-either measures the right quantity or it does not.
-
-### 12. A schema for the model definition files — `docs`
+### 11. A schema for the model definition files — `docs`
 
 **Value: medium. Effort: low.** `schemas/v2/` covers the config. The static and dynamic model
 files have no published schema, which is why their member names were wrong for a week in the
@@ -257,14 +210,14 @@ and its R row-index columns. The shapes are documented only in `src/config/model
 the three loader test files. Write them, and extend `schema_agreement_test.cpp` to cover them the
 way it covers the config.
 
-### 13. Sector, and `demographic_models` — `scope`
+### 12. Sector, and `demographic_models` — `scope`
 
 **Value: low. Effort: low.** `person.sector` (urban/rural) is assigned nowhere; the channel
 appears if the mapping declares the factor. `modelling.demographic_models` is carried through as
 opaque JSON, deliberately — its shape belongs to the model family that reads it — and no model
 family reads it yet.
 
-### 14. The fixture pack's top-age artefact — `validation`
+### 13. The fixture pack's top-age artefact — `validation`
 
 **Value: low. Effort: low.** The synthetic pack's population table stops at the same age as the
 config's `age_range`, so anyone reaching the top age leaves the cohort and the pack's simulated
@@ -272,7 +225,7 @@ death rate runs above what its mortality table implies. Recorded in the pack's o
 Extending the pack's age range by a few years above the configured one would remove the artefact;
 nothing depends on it, because no test reads the pack's death rates as a check on anything.
 
-### 15. Report four things upstream — `docs`
+### 14. Report four things upstream — `docs`
 
 **Value: low here, high upstream. Effort: low.** Four findings belong to the people who own the
 data and the baseline, and telling them is not done:
@@ -295,6 +248,17 @@ data and the baseline, and telling them is not done:
 
 Each is reproducible from this repository with one command, which is most of the work of a good
 bug report.
+
+## Closed this run
+
+Kept as a record of what the numbers above used to be, because three documents and a test reference
+them by number.
+
+| Was | | |
+|---|---|---|
+| **2** | Resolve names to indices at the call site | done; [docs/performance.md](performance.md) has the A/B, byte-identical on all three runnable examples. What is left of it is item 10 above |
+| **10** | Make the GCC entries required | done; `experimental: true` is gone from both entries |
+| **11** | The lattice detector should classify on the numerator | done, with no threshold moved; all four stored references re-scored and within tolerance ([docs/equivalence.md](equivalence.md)) |
 
 ## Explicitly not planned
 

@@ -375,7 +375,7 @@ so their population figure is a sum, and the rule above gives them a count-weigh
 still moves with the underlying quantity, which is why it does not look wrong; its level is
 meaningless. It is not fixed here because the harness's reduction has to change with it — the two
 must not disagree — and that invalidates every stored equivalence reference.
-[docs/backlog.md](backlog.md) item 11a has the cost.
+[docs/backlog.md](backlog.md) item 2 has the cost.
 
 ## The event stream
 

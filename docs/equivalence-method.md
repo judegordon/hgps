@@ -50,7 +50,7 @@ value per **(scenario, year, sex, variable)**:
 module increments one per person — so their population figure is a sum and they are getting a
 weighted mean. It does not make any comparison wrong, because both implementations are reduced
 identically; it makes the *number* meaningless, here and in the server's charting endpoint, which
-applies the same rule. [docs/backlog.md](backlog.md) item 11a has the fix and what it costs, which is
+applies the same rule. [docs/backlog.md](backlog.md) item 2 has the fix and what it costs, which is
 a regeneration of every stored reference.
 
 A band with no people in it contributes nothing to a weighted mean and nothing to a sum.

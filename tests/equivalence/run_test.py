@@ -214,7 +214,7 @@ def _of(outcome, variable):
 
 
 class LatticeOnTheNumeratorTest(unittest.TestCase):
-    """The detector asks its question of the case count, not of the rate (docs/backlog.md item 11).
+    """The detector asks its question of the case count, not of the rate, which was backlog item 11.
 
     The four `HLM_India` series this fixes had 43 to 79 distinct *rates* and a third of their seeds
     exactly zero: a handful of case counts divided by a head count that moves seed to seed.

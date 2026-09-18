@@ -28,7 +28,7 @@ Two separate questions follow, and they have different owners.
 surface has its own policy mechanism — `modelling.policy_start_year` and the S1 policy-effect
 coefficients — which does work and is better founded than an age-banded constant shift, and all four
 Kevin Hall examples upstream ship their intervention with an **empty** impact list, which reads like
-people who knew. [docs/backlog.md](../backlog.md) item 7 carries the question, tagged `needs-ruling`,
+people who knew. [docs/backlog.md](../backlog.md) item 1 carries the question, tagged `needs-ruling`,
 with the evidence on both sides.
 
 **Should a config that asks for it be accepted?** That one is this project's call, and the answer is
