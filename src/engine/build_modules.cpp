@@ -472,7 +472,10 @@ std::optional<sim::Modules> build_modules(const LoadedInputs &loaded,
                                                .expected = loaded.expected,
                                                .config = &config,
                                                .trend = loaded.trend,
-                                               .trend_steps = loaded.trend_steps};
+                                               .trend_steps = loaded.trend_steps,
+                                               // Filled in by the loader once the static model has
+                                               // said what it generates; empty is correct here.
+                                               .extra_factors = {}};
 
     auto models = config::models::load_risk_factor_models(context, report);
     if (!models.has_value()) {

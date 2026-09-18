@@ -180,6 +180,25 @@ struct RunOptions {
     /// @brief Write the run manifest beside the results. On by default, because a result file with
     ///        no record of what produced it is not evidence.
     bool write_manifest{true};
+
+    /// @brief Test-only: corrupt named output channels, to check that the equivalence harness fails
+    ///        where it should.
+    ///
+    /// Empty in every ordinary run, and this is the only field on this API whose purpose is to make a
+    /// test fail — a cost paid knowingly
+    /// ([ADR 0036](decisions/0036-the-harness-is-tested-against-itself.md)).
+    ///
+    /// The form is `channel=op:value`, separated by `;`, with `scale` (multiply every age band) and
+    /// `step` (add to one band) as the operations:
+    ///
+    ///     mean_bmi=scale:1.01;mean_energy=scale:1.05;emigrations=step:1
+    ///
+    /// A specification that does not parse, or that names a channel the output does not have, makes
+    /// the run **fail** rather than quietly doing nothing — because a silently unperturbed run would
+    /// make the test that uses this pass for the wrong reason. Every run manifest records whatever was
+    /// set here, and `null` when nothing was, so no output that came out of this can be mistaken for
+    /// a real one (docs/equivalence-method.md §7.2).
+    std::string perturbation;
 };
 
 /// @brief What a run produced.

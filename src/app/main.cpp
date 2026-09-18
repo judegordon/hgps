@@ -105,6 +105,7 @@ int main(int argc, char **argv) {
 
         hgps::api::RunOptions run_options;
         run_options.threads = options.threads;
+        run_options.perturbation = options.perturb;
 
         hgps::app::ConsoleReporter reporter{std::cout, std::cerr, options.progress};
         const hgps::api::CancellationToken cancellation;

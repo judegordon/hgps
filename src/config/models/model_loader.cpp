@@ -166,7 +166,7 @@ void check_intervention_reaches_the_model(const Config &config,
                         "dynamic model ({}) would not apply them if it did — nothing in that model "
                         "family consults the active scenario, so this run's intervention arm "
                         "differs from its baseline arm only through modelling.policy_start_year, if "
-                        "that is set. See docs/deviations.md D-39.",
+                        "that is set. See docs/deviations.md B-25.",
                         active->identifier, dynamic_model_path.filename().string()));
         return;
     }
@@ -179,7 +179,7 @@ void check_intervention_reaches_the_model(const Config &config,
                     "{}. Either select an intervention on a config whose dynamic model is 'EBHLM', "
                     "or remove running.interventions.active_type_id and use "
                     "modelling.policy_start_year, which this model family does implement. See "
-                    "docs/deviations.md D-39 and docs/backlog.md.",
+                    "docs/deviations.md B-25 and docs/backlog.md.",
                     active->identifier, active->impacts.size(),
                     active->impacts.size() == 1 ? "" : "s", dynamic_model_path.string()));
 }

@@ -33,6 +33,10 @@ Options:
       --dry-run         Validate the config, the models, the data index and the disease
                         registry, then stop. Reports every problem it finds, not just the first.
       --progress        Print a line as each simulated year finishes, on stderr.
+      --perturb SPEC    Test-only. Corrupts named output channels — 'mean_bmi=scale:1.01', say —
+                        so that the equivalence harness can check it fails where it should. The
+                        run's manifest records what was set, and a specification naming a channel
+                        the output does not have fails the run. Never use it for analysis.
   -j, --jobid N         An HPC array job identifier. Appended to the output file name unless the
                         name contains {JOBID}.
   -T, --threads N       Workers for the RNG-free parallel sections (default 1). The output is
@@ -96,6 +100,16 @@ OptionsResult parse_options(const std::vector<std::string> &arguments) {
 
         if (argument == "--dry-run") {
             options.dry_run = true;
+            continue;
+        }
+
+        if (argument == "--perturb") {
+            const auto value = next_value(argument);
+            if (!value.has_value()) {
+                return OptionsResult{.options = std::nullopt,
+                                     .message = fmt::format("{} needs a specification", argument)};
+            }
+            options.perturb = *value;
             continue;
         }
 

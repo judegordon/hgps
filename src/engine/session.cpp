@@ -13,6 +13,7 @@
 #include "build_modules.h"
 #include "diagnostics_bridge.h"
 #include "manifest.h"
+#include "perturbation.h"
 
 #include "config/loader.h"
 #include "config/types.h"
@@ -23,7 +24,10 @@
 #include "random/seed.h"
 #include "sim/engine.h"
 
+#include <string>
 #include <utility>
+
+#include <fmt/format.h>
 
 namespace hgps::api {
 namespace {
@@ -325,6 +329,27 @@ RunSummary execute(Run &run, const RunOptions &options, EventSubscriber *subscri
     RunSummary summary;
     summary.seed = description.seed;
 
+    // Parsed before anything runs, because a specification that does not parse must not produce an
+    // unperturbed run: the test that uses this asserts a failure, and a silent no-op would make it
+    // pass for the wrong reason (ADR 0036).
+    engine::Perturbation perturbation;
+    if (!options.perturbation.empty()) {
+        std::string error;
+        auto parsed = engine::Perturbation::parse(options.perturbation, error);
+        if (!parsed.has_value()) {
+            report.add(Diagnostic{.severity = Severity::error,
+                                  .code = "config_bad_value",
+                                  .location = Location{.field = "perturbation"},
+                                  .message = fmt::format("{}. The form is 'channel=op:value', "
+                                                         "separated by ';', with 'scale' and 'step' "
+                                                         "as the operations",
+                                                         error)});
+            return summary;
+        }
+        perturbation = std::move(*parsed);
+        manifest.perturbation = options.perturbation;
+    }
+
     if (subscriber != nullptr) {
         const auto years_per_scenario =
             static_cast<std::size_t>(description.stop_time - description.start_time) + 1;
@@ -378,7 +403,18 @@ RunSummary execute(Run &run, const RunOptions &options, EventSubscriber *subscri
                              std::move(impl.baseline_modules), config.running.seed};
 
         sim::Runner runner;
-        const auto sink = [&writer](const sim::ResultRow &row) { writer.write(row); };
+
+        // The ordinary path is a straight hand-over. The copy happens only for a perturbed run, which
+        // is a test, so the cost of copying a year's results is nobody's problem.
+        const auto sink = [&writer, &perturbation](const sim::ResultRow &row) {
+            if (perturbation.empty()) {
+                writer.write(row);
+                return;
+            }
+            auto corrupted = row;
+            perturbation.apply(corrupted.result);
+            writer.write(corrupted);
+        };
 
         sim::Runner::Outcome outcome;
         if (impl.intervention_modules.has_value()) {
@@ -418,6 +454,26 @@ RunSummary execute(Run &run, const RunOptions &options, EventSubscriber *subscri
         engine::write_manifest(manifest_path, manifest);
         summary.manifest = manifest_path;
         summary.outputs.push_back(manifest_path);
+    }
+
+    // A rule that never fired is a channel the output does not have — a typo, almost always. The run
+    // happened and its files are written, but it did not do what it was asked, so it is not a success.
+    if (const auto missed = perturbation.rules_that_never_fired(); !missed.empty()) {
+        std::string names;
+        for (const auto &name : missed) {
+            if (!names.empty()) {
+                names += ", ";
+            }
+            names += name;
+        }
+        report.add(Diagnostic{
+            .severity = Severity::error,
+            .code = "config_bad_value",
+            .location = Location{.field = "perturbation"},
+            .message = fmt::format("the perturbation names channel(s) this run's output does not "
+                                   "have, so they were never perturbed: {}",
+                                   names)});
+        return summary;
     }
 
     summary.succeeded = true;

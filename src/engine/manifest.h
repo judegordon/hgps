@@ -59,6 +59,10 @@ struct Manifest {
 
     /// @brief The result files, relative to the manifest's own directory when they sit beside it.
     std::vector<std::string> results;
+
+    /// @brief Empty in every ordinary run; the perturbation specification otherwise, so a
+    ///        deliberately wrong run cannot be mistaken for a real one (ADR 0036).
+    std::string perturbation;
 };
 
 /// @brief ISO-8601 UTC "2026-09-18T04:53:12Z" for now.

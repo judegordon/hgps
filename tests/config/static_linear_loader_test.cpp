@@ -164,7 +164,7 @@ TEST(StaticLinearLoader, TheUpstreamFinchStaticModelLoads) {
 
 TEST(StaticLinearLoader, TheStaticLinearModelDoesNotConsultTheActiveScenario) {
     // The other half of the FINCH surface, and the other half of the reason a config selecting an
-    // intervention there is refused at load time (ADR 0035, deviation D-39). This model's own policy
+    // intervention there is refused at load time (ADR 0035, deviation B-25). This model's own policy
     // mechanism is `modelling.policy_start_year` and the S1 coefficients, which is a different thing
     // and does work.
     const auto config = finch_config();

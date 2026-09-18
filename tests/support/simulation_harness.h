@@ -44,6 +44,11 @@ RunOutcome run_simulation(const std::filesystem::path &config_path,
                           hgps::api::EventSubscriber *subscriber = nullptr,
                           const hgps::api::CancellationToken &cancellation = {});
 
+/// @brief `run_simulation` with a perturbation applied. See `hgps::api::RunOptions::perturbation`.
+RunOutcome run_simulation_perturbed(const std::filesystem::path &config_path,
+                                    const std::filesystem::path &output_folder,
+                                    const std::string &perturbation);
+
 /// @brief The synthetic config as JSON, for a test that needs to change something in it.
 nlohmann::json synthetic_config_document();
 

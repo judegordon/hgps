@@ -36,6 +36,13 @@ struct Options {
 
     /// @brief Print the version and exit.
     bool version{false};
+
+    /// @brief Test-only: corrupt named output channels. Empty in every ordinary run.
+    ///
+    /// It exists so the equivalence harness can check that it fails where it should
+    /// (docs/equivalence-method.md §7.2). A run that uses it records the specification in its
+    /// manifest, so its output cannot be mistaken for a real one.
+    std::string perturb;
 };
 
 /// @brief What parsing produced: options, or a message explaining what was wrong.

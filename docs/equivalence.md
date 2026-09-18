@@ -194,7 +194,7 @@ question, and it is in [docs/backlog.md](backlog.md) as one.
 **Since this run these five FINCH comparisons can no longer be produced by this build, and that is
 deliberate.** A config whose active intervention declares impacts the configured dynamic model would
 never apply is now refused at load time
-([ADR 0035](decisions/0035-refuse-an-intervention-no-model-applies.md), deviation D-39), because a
+([ADR 0035](decisions/0035-refuse-an-intervention-no-model-applies.md), deviation B-25), because a
 run that reports success and no effect is the shape of thing somebody mistakes for a result. The
 harness's FINCH overlay supplies non-empty impacts, so this build refuses exactly the five runs that
 produced the paragraphs above.

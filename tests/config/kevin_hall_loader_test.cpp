@@ -186,7 +186,7 @@ TEST(KevinHallLoader, TheUpstreamFinchDynamicModelLoads) {
 
 TEST(KevinHallLoader, TheKevinHallModelDoesNotConsultTheActiveScenario) {
     // Nothing in this model family calls `Scenario::apply`, which is why a config selecting an
-    // intervention with impacts on it is refused at load time (ADR 0035, deviation D-39). The answer
+    // intervention with impacts on it is refused at load time (ADR 0035, deviation B-25). The answer
     // lives on the model rather than in the loader so that it is the code's own statement about
     // itself; this is the test that the statement is true of this family.
     const auto config = finch_config();

@@ -20,17 +20,22 @@ are done, and with them the FINCH surface end to end. What is left is smaller an
 
 ## Do these first
 
-### 1. A CI workflow — `platform`
+### 1. Make the GCC build a required check — `platform`
 
-**Value: high. Effort: low.** `scripts/check.sh` is the whole of it: configure, build and test the
-four presets, then the equivalence harness against both stored references. What is missing is the
-workflow file, a Linux runner — everything here was developed and measured on macOS, though the
-code targets both ([ADR 0013](decisions/0013-platforms-linux-and-macos.md)) — and a decision about
-whether the disease-data fetch happens in CI or whether CI runs only against the synthetic pack.
-The synthetic pack exists precisely so that it can.
+**Value: medium-high. Effort: unknown until it is run once.** `.github/workflows/ci.yml` builds and
+tests four presets on ubuntu-latest and macos-latest, runs the harness's own tests, and runs the
+equivalence comparison against both checked-in references — so the thing this item used to ask for
+exists. What is left is the compiler.
 
-This is first because the two equivalence references are checked in and nothing runs them
-automatically. A harness nobody runs is a document.
+Every build this project has ever done is clang. The warning set is `-Werror` with `-Wconversion`,
+`-Wsign-conversion`, `-Wold-style-cast` and `-Wdouble-promotion`, and a second compiler *family* has
+never seen it. Building with a newer clang than the development one found two real defects and one
+style disagreement ([docs/build-notes.md](build-notes.md)), which is a fair guide to what GCC will
+find.
+
+So the workflow has a GCC job marked `continue-on-error`: the information appears without a red tick
+in a commit that cannot act on it. Promoting it to required means reading what it says and fixing it,
+which cannot be estimated before seeing it — hence this item rather than a guess.
 
 ### 2. Population impact fraction — `scope`
 
@@ -107,7 +112,7 @@ and `KevinHall` models never call it, so **every intervention scenario is inert 
 
 **What this run did about it.** Not implement it. A config whose active intervention declares impacts
 the configured dynamic model would never apply is now **rejected at load time**, naming both
-([ADR 0035](decisions/0035-refuse-an-intervention-no-model-applies.md), deviations D-39). An
+([ADR 0035](decisions/0035-refuse-an-intervention-no-model-applies.md), deviations B-25). An
 intervention with an empty impact list — which is what all four Kevin Hall examples ship — is
 accepted with a warning. So the silent-no-effect run is gone; the feature is not there.
 

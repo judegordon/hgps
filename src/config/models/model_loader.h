@@ -121,7 +121,7 @@ load_region_and_ethnicity(const nlohmann::json &document, const std::filesystem:
 /// on the `StaticLinear`/`KevinHall` surface every intervention scenario is inert, in both
 /// implementations, and a config selecting `food_labelling` there runs with no error and no effect
 /// ([ADR 0035](../../../docs/decisions/0035-refuse-an-intervention-no-model-applies.md), deviation
-/// D-39).
+/// B-25).
 ///
 /// An intervention that **declares impacts** the model would never apply is an error. One with an
 /// **empty** impact list is a warning: that is upstream's own way of saying "no policy here", and all

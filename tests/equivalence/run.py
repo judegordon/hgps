@@ -209,6 +209,11 @@ def absolutise(document: dict, base: Path) -> None:
     two_stage = document.get("project_requirements", {}).get("two_stage", {})
     fix(two_stage, "logistic_file")
 
+    # A URL or a ${VAR} is left alone by `fix`; a relative directory is not, and the synthetic fixture
+    # pack names one. Every shipped example names a URL, so this changes no derived config's hash and
+    # no stored reference.
+    fix(document.get("data", {}), "source")
+
 
 INTERVENTION_OVERLAYS = Path(__file__).resolve().parent / "interventions"
 
@@ -246,7 +251,8 @@ def intervention_overlay(example_name: str) -> dict:
 
 
 def derive_config(source: Path, seed: int, output_folder: Path, intervention: str | None,
-                  stop_time: int | None, is_baseline: bool, overlay: dict | None = None) -> dict:
+                  stop_time: int | None, is_baseline: bool, overlay: dict | None = None,
+                  size_fraction: float | None = None) -> dict:
     document = json.loads(source.read_text())
 
     # The baseline reads a seed array; config v2 requires a scalar.
@@ -254,6 +260,14 @@ def derive_config(source: Path, seed: int, output_folder: Path, intervention: st
 
     if stop_time is not None:
         document["running"]["stop_time"] = stop_time
+
+    # `inputs.settings.size_fraction` is the share of the real population the cohort samples, and it is
+    # the only knob that makes a country-scale example comparable in an afternoon rather than a week.
+    # It goes into BOTH implementations' configs identically, so the comparison is exactly as valid a
+    # test of the code as it is at full scale; what it is not is a test at full scale.
+    # docs/equivalence.md says so where the HLM_India result is reported.
+    if size_fraction is not None:
+        document["inputs"]["settings"]["size_fraction"] = size_fraction
 
     if intervention is not None:
         types = document["running"]["interventions"].setdefault("types", {})
@@ -756,6 +770,14 @@ def examples() -> dict[str, Example]:
             new_config=REPO / "examples" / "KevinHall_FINCH" / "config.json",
             intervention="simple",
         ),
+        "HLM_India": Example(
+            name="HLM_India",
+            baseline_config=UPSTREAM_EXAMPLES / "HLM_India" / "config.json",
+            new_config=REPO / "examples" / "HLM_India" / "config.json",
+            # Its own: unlike HLM_France, this example ships an active intervention, and its dynamic
+            # model is EBHLM, so the policy really is applied.
+            intervention="food_labelling",
+        ),
     }
 
 
@@ -895,6 +917,16 @@ def main() -> int:
                              "run is reproducible from these two numbers alone")
     parser.add_argument("--stop-time", type=int, default=None,
                         help="override running.stop_time in both, for a quicker check")
+    parser.add_argument("--size-fraction", type=float, default=None,
+                        help="override inputs.settings.size_fraction in both, which is the share of "
+                             "the real population the cohort samples. It is what makes a "
+                             "country-scale example comparable in an afternoon: HLM_India ships "
+                             "0.001, which is 1.24 million people and forty-two minutes a run. Both "
+                             "implementations get the same value, so the comparison is as valid a "
+                             "test of the code as it is at full scale — it is simply not a test at "
+                             "full scale. It is part of the derived config, so it is part of the "
+                             "hash, so a reduced-cohort run cannot be compared against a full-scale "
+                             "stored reference by accident.")
     parser.add_argument("--intervention", default=None,
                         help="override which intervention is active in both implementations. The "
                              "default is the example's own, which is `simple`. Each choice is a "
@@ -964,7 +996,8 @@ def main() -> int:
 
         def hash_of(source: Path, is_baseline: bool) -> str:
             document = derive_config(source, 0, Path("/results"), example.intervention,
-                                     arguments.stop_time, is_baseline, overlay)
+                                     arguments.stop_time, is_baseline, overlay,
+                                     arguments.size_fraction)
             document["running"].pop("seed", None)
             return sha256_of(json.dumps(document, sort_keys=True))
 
@@ -1017,7 +1050,8 @@ def main() -> int:
                 folder.mkdir(parents=True)
 
                 document = derive_config(source, seed, folder, example.intervention,
-                                         arguments.stop_time, is_baseline, overlay)
+                                         arguments.stop_time, is_baseline, overlay,
+                                         arguments.size_fraction)
                 config_path = folder.parent / f"config-seed-{seed}.json"
                 link_example_files(source.parent, config_path.parent)
                 config_path.write_text(json.dumps(document, indent=1))
@@ -1072,6 +1106,7 @@ def main() -> int:
                 "new_config_sha256": outcome.config_hashes["new"],
                 "intervention": example.intervention,
                 "stop_time_override": arguments.stop_time,
+                "size_fraction_override": arguments.size_fraction,
                 "baseline_binary": str(arguments.baseline),
                 "reduction": "count-weighted mean over age bands; counts summed; the age bands "
                              "listed in excluded_bands are left out on both sides — see "

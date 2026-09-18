@@ -4,7 +4,7 @@
 // call site in this build and one in the baseline, both in the dynamic hierarchical linear model. So
 // on the `StaticLinear`/`KevinHall` surface every intervention scenario is inert, in both
 // implementations, and until this run a config selecting `food_labelling` there ran to completion and
-// reported success ([ADR 0035], deviation D-39).
+// reported success ([ADR 0035], deviation B-25).
 //
 // Two things get tested here, and they are different in kind. The rule, with a stub model, because a
 // rule is worth testing without loading an 18 MB model file. And the four real model families'

@@ -171,7 +171,7 @@ TEST(ModelLoader, ReadsTheDynamicModelInTheFormatTheFilesUse) {
 TEST(ModelLoader, OnlyTheDynamicHierarchicalModelConsultsTheActiveScenario) {
     // `Scenario::apply` has one call site in this build, in the dynamic HLM's `update_exposure`, and
     // one in the baseline, in the same model. Every model family answers for itself whether it makes
-    // that call, and the load-time intervention check reads the answer (ADR 0035, deviation D-39).
+    // that call, and the load-time intervention check reads the answer (ADR 0035, deviation B-25).
     // Here are two of the four; the other two are in the FINCH loader tests, next to their fixtures.
     Fixture fixture;
     IssueReport report;

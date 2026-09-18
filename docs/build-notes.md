@@ -154,3 +154,52 @@ verified** during orientation: 5,366,395 bytes, SHA-256
 `a918e8525cd8c48cab6b13cceb08f51e8593cac80753a6782e4ea2a28d9e02ca`, which is exactly the checksum
 the upstream config declares. So the PIF work in this run runs against the real data pack and not
 against a synthetic stand-in. What the pack contains is in [docs/examples.md](examples.md).
+
+---
+
+## A second compiler, and the three things it found
+
+Every measurement this project has taken, over three runs, came from one compiler: Apple clang 21 on
+one machine. That is a narrow base for a tree compiled with `-Werror` and eleven extra warning
+options, and this run added CI on two operating systems, so it needed knowing before a runner said
+so.
+
+Homebrew's LLVM is installed on the development host, so the tree was configured a second time
+against **Homebrew clang 23.1.1** — same platform, same standard library family, two major versions
+newer — and built with `ninja -k 0` to collect every complaint rather than stopping at the first:
+
+```bash
+cmake -S . -B /tmp/brewclang -G Ninja -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm/bin/clang++ \
+      -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" \
+      -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBUILD_TESTING=ON
+ninja -C /tmp/brewclang -k 0
+```
+
+It found three things, and two of them are real defects that would have turned the new CI red on its
+first run.
+
+| | What | Verdict |
+|---|---|---|
+| 1 | `src/io/paths.h` declares a function taking `std::vector<std::string> &` and does not include `<vector>` | **a real bug.** Apple's libc++ supplies it transitively through `<filesystem>`; a newer one does not. Fixed by including `<vector>`. |
+| 2 | `LoadContext{…}` in `build_modules.cpp` omitted its last field | **a real warning, worth acting on.** Named explicitly, with a comment saying why `extra_factors` is empty at that point — the static model has not been loaded yet. |
+| 3 | `-Wmissing-designated-field-initializers` on 213 designated initialisers that leave an optional field to its default | **a style warning this tree disagrees with.** Turned off, once, with the reason in `cmake/warnings.cmake`. |
+
+The third is the only `-Wno-*` in the project, and it is a deliberate amendment to the rule in
+[ADR 0004](decisions/0004-toolchain-cpp20-cmake-vcpkg-googletest.md) that every warning is fixed
+rather than suppressed. clang 19 added it to `-Wextra`, and it fires on
+`IssueLocation{.file = path}` — the construct this tree uses 129 times to say "here is the part of
+the location that is known", where `field`, `line` and `column` are all optional with defaults.
+Satisfying it means writing `IssueLocation{.file = path, .field = {}, .line = {}, .column = {}}` at
+every site, which is harder to read and hides what the initialiser was saying. The flag is added only
+where the compiler recognises it, so an older clang or a gcc never sees an unknown option.
+
+After the two fixes: **clean build, and the full suite passes** — 629 tests under Homebrew clang
+against 630 under Apple clang, the difference being CTest's Python tests, which are not in the
+binary.
+
+**What this still does not cover.** GCC, and Linux. The warning set has never been through GCC, and
+`-Wconversion`, `-Wsign-conversion` and `-Wold-style-cast` under `-Werror` are where a second
+compiler family usually has opinions. `.github/workflows/ci.yml` therefore has an **informational**
+GCC job, marked `continue-on-error`, so the first GCC build's complaints are visible without a red
+tick in a commit that cannot fix them; [docs/backlog.md](backlog.md) carries promoting it to required.

@@ -1,0 +1,331 @@
+# CI: what scripts/check.sh does, decomposed across jobs so it finishes in parallel.
+#
+# check.sh runs four presets serially and then the equivalence harness — about twenty minutes on a
+# quiet laptop and considerably more on a shared runner. So the same work is split: one job per
+# (operating system, preset), and one job for the equivalence harness against the checked-in
+# references. The union of these jobs is check.sh; nothing is verified here that check.sh does not
+# verify locally, and nothing that check.sh verifies is left out.
+#
+# What is deliberately NOT here:
+#
+#   * **The upstream baseline is not built.** It needs four macOS-specific shims, an old vcpkg
+#     baseline and about fifteen minutes (docs/build-notes.md), and CI does not need it: the
+#     equivalence harness runs in `--use-reference` mode against the two baseline reductions that are
+#     checked into tests/equivalence/reference/. Refreshing a reference is a deliberate local act.
+#   * **GCC is not a required check.** Every measurement this project has ever taken is from clang,
+#     and the warning set is -Werror with -Wconversion, -Wsign-conversion and -Wold-style-cast — so
+#     the first GCC build will find warnings nobody has fixed yet. There is an informational GCC job
+#     below, marked continue-on-error, so the information exists without a red tick that nobody can
+#     act on in the same commit. docs/backlog.md carries making it required.
+#
+# Caching: the vcpkg checkout and its binary cache, keyed by the manifest and the compiler. The
+# dependency set is three libraries (fmt, nlohmann-json, gtest), so a warm cache turns a
+# five-minute dependency build into seconds.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A new push to a branch makes the previous run's answer uninteresting.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # The vcpkg commit vcpkg.json declares as its builtin-baseline. Pinned here too, so the checkout
+  # certainly contains it — resolving a baseline vcpkg has never fetched is the usual way this
+  # fails.
+  VCPKG_COMMIT: bd2b54836beed96e1efbe9aaf8ee800f5448856d
+  # The upstream example configs and their input data. The tests convert and load all six examples,
+  # and the equivalence harness reads two of them, so this is not optional.
+  EXAMPLES_REPO: imperialCHEPI/healthgps-examples
+
+jobs:
+  build:
+    name: ${{ matrix.os }} · ${{ matrix.preset }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # One preset failing should not hide what the others would have said.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        preset: [release, debug, asan-ubsan, tsan]
+
+    steps:
+      # The tests resolve the upstream examples as a sibling of the source tree, so the checkout
+      # paths are not incidental: they reproduce the layout docs/build-notes.md describes.
+      - name: Check out the implementation
+        uses: actions/checkout@v4
+        with:
+          path: hgps_new_rewrite
+
+      - name: Check out the upstream examples
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.EXAMPLES_REPO }}
+          path: hgps_main_examples
+          # 254 MB in full, 177 MB of which is one directory of stored results nothing here reads.
+          sparse-checkout: |
+            Dummy_disease_test
+            HLM_France
+            HLM_India
+            KevinHall_FINCH
+            KevinHall_India
+            KevinHall_PIF
+          sparse-checkout-cone-mode: true
+
+      - name: Install Ninja
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            sudo apt-get update
+            sudo apt-get install -y ninja-build
+          else
+            brew install ninja
+          fi
+
+      - name: Name the compiler
+        id: toolchain
+        run: |
+          # clang on both platforms: every measurement this project has taken is from clang, and the
+          # -Werror warning set has never been through GCC. The informational gcc job below is where
+          # that gets found out.
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            echo "CC=clang" >> "$GITHUB_ENV"
+            echo "CXX=clang++" >> "$GITHUB_ENV"
+            echo "id=linux-clang" >> "$GITHUB_OUTPUT"
+            clang++ --version
+          else
+            echo "id=macos-appleclang" >> "$GITHUB_OUTPUT"
+            c++ --version
+          fi
+
+      - name: Cache vcpkg
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/vcpkg
+            ~/.cache/vcpkg/archives
+          key: vcpkg-${{ steps.toolchain.outputs.id }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('hgps_new_rewrite/vcpkg.json') }}
+          restore-keys: |
+            vcpkg-${{ steps.toolchain.outputs.id }}-${{ env.VCPKG_COMMIT }}-
+
+      - name: Set up vcpkg
+        run: |
+          set -euo pipefail
+          if [ ! -x "${{ github.workspace }}/vcpkg/vcpkg" ]; then
+            # Fetching the one commit rather than cloning the history: the repository is large and
+            # the only commit that matters is the declared baseline.
+            mkdir -p "${{ github.workspace }}/vcpkg"
+            cd "${{ github.workspace }}/vcpkg"
+            git init -q
+            git remote add origin https://github.com/microsoft/vcpkg.git
+            git fetch --depth 1 -q origin "$VCPKG_COMMIT"
+            git checkout -q FETCH_HEAD
+            ./bootstrap-vcpkg.sh -disableMetrics
+          fi
+          echo "VCPKG_ROOT=${{ github.workspace }}/vcpkg" >> "$GITHUB_ENV"
+
+      - name: Configure
+        working-directory: hgps_new_rewrite
+        run: cmake --preset ${{ matrix.preset }}
+
+      - name: Build
+        working-directory: hgps_new_rewrite
+        run: cmake --build --preset ${{ matrix.preset }}
+
+      # The unit tests and the equivalence harness's own tests, which CTest runs together: the
+      # harness's Python tests are a CTest test (EquivalenceHarness.*), so this one command covers
+      # both. --output-on-failure, because a runner log is the only thing a reader will have.
+      - name: Test
+        working-directory: hgps_new_rewrite
+        run: ctest --preset ${{ matrix.preset }} --output-on-failure
+
+      - name: Upload the failing test logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctest-${{ matrix.os }}-${{ matrix.preset }}
+          path: hgps_new_rewrite/out/build/${{ matrix.preset }}/Testing/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # Informational only. The first GCC build of this tree will find warnings — the warning set is
+  # -Werror with -Wconversion, -Wsign-conversion, -Wold-style-cast and -Wdouble-promotion, and it has
+  # only ever been satisfied by clang. This job says what they are without making the tick red in a
+  # commit that cannot fix them. docs/backlog.md carries promoting it to required.
+  gcc:
+    name: ubuntu-latest · release · gcc (informational)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Check out the implementation
+        uses: actions/checkout@v4
+        with:
+          path: hgps_new_rewrite
+
+      - name: Check out the upstream examples
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.EXAMPLES_REPO }}
+          path: hgps_main_examples
+          sparse-checkout: |
+            Dummy_disease_test
+            HLM_France
+            HLM_India
+            KevinHall_FINCH
+            KevinHall_India
+            KevinHall_PIF
+          sparse-checkout-cone-mode: true
+
+      - name: Install Ninja
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+
+      - name: Cache vcpkg
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/vcpkg
+            ~/.cache/vcpkg/archives
+          key: vcpkg-linux-gcc-${{ env.VCPKG_COMMIT }}-${{ hashFiles('hgps_new_rewrite/vcpkg.json') }}
+          restore-keys: |
+            vcpkg-linux-gcc-${{ env.VCPKG_COMMIT }}-
+
+      - name: Set up vcpkg
+        run: |
+          set -euo pipefail
+          if [ ! -x "${{ github.workspace }}/vcpkg/vcpkg" ]; then
+            mkdir -p "${{ github.workspace }}/vcpkg"
+            cd "${{ github.workspace }}/vcpkg"
+            git init -q
+            git remote add origin https://github.com/microsoft/vcpkg.git
+            git fetch --depth 1 -q origin "$VCPKG_COMMIT"
+            git checkout -q FETCH_HEAD
+            ./bootstrap-vcpkg.sh -disableMetrics
+          fi
+          echo "VCPKG_ROOT=${{ github.workspace }}/vcpkg" >> "$GITHUB_ENV"
+
+      - name: Configure, build and test with gcc
+        working-directory: hgps_new_rewrite
+        env:
+          CC: gcc
+          CXX: g++
+        run: |
+          g++ --version
+          cmake --preset release
+          cmake --build --preset release
+          ctest --preset release --output-on-failure
+
+  # Statistical equivalence against the baseline, without building the baseline: the two reductions
+  # of its output are checked in, and the harness compares this build against them. That is the half
+  # of the validation a unit test cannot do, and until now nothing ran it automatically — which is
+  # what docs/backlog.md meant by "a harness nobody runs is a document".
+  equivalence:
+    name: equivalence · ${{ matrix.example }} · 20 seeds
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        example: [HLM_France, KevinHall_FINCH]
+
+    steps:
+      - name: Check out the implementation
+        uses: actions/checkout@v4
+        with:
+          path: hgps_new_rewrite
+
+      - name: Check out the upstream examples
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.EXAMPLES_REPO }}
+          path: hgps_main_examples
+          sparse-checkout: |
+            HLM_France
+            KevinHall_FINCH
+          sparse-checkout-cone-mode: true
+
+      - name: Install Ninja
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+
+      - name: Cache vcpkg
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/vcpkg
+            ~/.cache/vcpkg/archives
+          key: vcpkg-linux-clang-${{ env.VCPKG_COMMIT }}-${{ hashFiles('hgps_new_rewrite/vcpkg.json') }}
+          restore-keys: |
+            vcpkg-linux-clang-${{ env.VCPKG_COMMIT }}-
+
+      - name: Set up vcpkg
+        run: |
+          set -euo pipefail
+          if [ ! -x "${{ github.workspace }}/vcpkg/vcpkg" ]; then
+            mkdir -p "${{ github.workspace }}/vcpkg"
+            cd "${{ github.workspace }}/vcpkg"
+            git init -q
+            git remote add origin https://github.com/microsoft/vcpkg.git
+            git fetch --depth 1 -q origin "$VCPKG_COMMIT"
+            git checkout -q FETCH_HEAD
+            ./bootstrap-vcpkg.sh -disableMetrics
+          fi
+          echo "VCPKG_ROOT=${{ github.workspace }}/vcpkg" >> "$GITHUB_ENV"
+
+      # The disease data is CC BY-NC-ND and is not vendored (ADR 0011): it is fetched from a release
+      # URL and verified against the SHA-256 the config declares, then extracted into a
+      # content-addressed cache. Caching that directory is caching a verified artefact — the hash is
+      # in the key and the engine re-verifies nothing it finds already extracted, which is why the
+      # key has to be the checksum and not a date.
+      - name: Cache the extracted data pack
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/healthgps
+          key: healthgps-data-${{ hashFiles(format('hgps_new_rewrite/examples/{0}/config.json', matrix.example)) }}
+          restore-keys: |
+            healthgps-data-
+
+      - name: Build (release)
+        working-directory: hgps_new_rewrite
+        env:
+          CC: clang
+          CXX: clang++
+        run: |
+          cmake --preset release
+          cmake --build --preset release
+
+      - name: Compare against the checked-in baseline reference
+        working-directory: hgps_new_rewrite
+        run: |
+          python3 tests/equivalence/run.py \
+            --example ${{ matrix.example }} --seeds 20 --use-reference \
+            --json "out/equivalence-${{ matrix.example }}.json"
+
+      - name: The harness against itself
+        working-directory: hgps_new_rewrite
+        run: |
+          # Cheap, and it is the thing that says the comparison above means something: the same build
+          # at two disjoint seed sets must pass, and a deliberately perturbed copy of it must fail on
+          # exactly the perturbed series. Both run against the synthetic fixture pack, in seconds.
+          # docs/equivalence-method.md §7.
+          python3 tests/equivalence/self_check.py --mode seeds --example Synthetic --seeds 20
+          python3 tests/equivalence/self_check.py --mode perturbation --example Synthetic --seeds 20
+
+      - name: Upload the comparison
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: equivalence-${{ matrix.example }}
+          path: hgps_new_rewrite/out/equivalence-${{ matrix.example }}.json
+          if-no-files-found: warn
+          retention-days: 30

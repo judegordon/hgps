@@ -65,6 +65,24 @@ if(Python3_Interpreter_FOUND)
              COMMAND ${Python3_EXECUTABLE} -m unittest discover
                      -s "${CMAKE_CURRENT_SOURCE_DIR}/equivalence" -p "run_test.py" -v)
     set_tests_properties(EquivalenceHarness.Rules PROPERTIES TIMEOUT 120)
+
+    # The two questions unit tests cannot answer about a comparison: does it pass when it should, and
+    # does it fail when it should. Both run the real simulation against the synthetic fixture pack —
+    # sixty milliseconds a run, so twenty seeds of both sides is seconds — through run.py's own
+    # `compare` and `report`. docs/equivalence-method.md §7, ADR 0036.
+    add_test(NAME EquivalenceHarness.SelfConsistencyAcrossSeeds
+             COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/equivalence/self_check.py"
+                     --mode seeds --example Synthetic --seeds 20
+                     --new "$<TARGET_FILE:healthgps>"
+                     --workdir "${CMAKE_CURRENT_BINARY_DIR}/self-check/seeds")
+    add_test(NAME EquivalenceHarness.DetectsADeliberatePerturbation
+             COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/equivalence/self_check.py"
+                     --mode perturbation --example Synthetic --seeds 20
+                     --new "$<TARGET_FILE:healthgps>"
+                     --workdir "${CMAKE_CURRENT_BINARY_DIR}/self-check/perturbation")
+    set_tests_properties(EquivalenceHarness.SelfConsistencyAcrossSeeds
+                         EquivalenceHarness.DetectsADeliberatePerturbation
+                         PROPERTIES TIMEOUT 600)
 else()
     message(WARNING "No Python 3 interpreter: the equivalence harness's own tests will not run.")
 endif()

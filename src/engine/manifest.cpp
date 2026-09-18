@@ -74,6 +74,14 @@ void write_manifest(const std::filesystem::path &path, const Manifest &manifest)
 
     document["results"] = manifest.results;
 
+    // Present and null in an ordinary run rather than absent, so "was this output perturbed?" is
+    // answered by every manifest instead of by the absence of a key.
+    if (manifest.perturbation.empty()) {
+        document["perturbation"] = nullptr;
+    } else {
+        document["perturbation"] = manifest.perturbation;
+    }
+
     std::ofstream stream{path, std::ios::trunc};
     if (!stream) {
         throw std::runtime_error(
