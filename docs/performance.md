@@ -124,6 +124,46 @@ last bit and `KevinHall_FINCH` did not, because the window depends on which name
 resolve first. Nothing else would have caught it: the suite passed, and a statistical comparison over
 twenty seeds would have called a last-bit difference agreement.
 
+### Names resolved at the call site
+
+The item [docs/backlog.md](backlog.md) carried for three runs, and the half
+[ADR 0037](decisions/0037-index-keyed-risk-factor-store.md) left behind. The profile after ADR 0040
+put about **31% of the `KevinHall_FINCH` run** in names being resolved where they were used: a hash
+probe per coefficient per person per year, three string predicates on the same coefficient, and —
+worst of it — an `Identifier` *constructed* per factor per person per year from a string
+concatenation, which is what `validate_identifier` and `chars::is_alnum` at 8.3% of a profile mean.
+
+Three places, all of them "do it once when the model is built":
+
+- `LinearModelParams` carries a `ResolvedPredictor` per coefficient, in the map's own order, which is
+  the summation order. It holds the risk-factor index, the age power, and whether the name is the
+  `gender2` dummy or one of the five metadata rows. `evaluate_linear_model` reads no string at all
+  unless the missing-predictor fallback is reached.
+- `StaticLinearModel` builds its `<factor>_residual`, `_policy`, `_policy_residual`, `_trend` and
+  `_income_trend` names once instead of concatenating and validating them per person per year.
+- `KevinHallModel` resolves the food-to-nutrient and nutrient-to-energy equations to indices, and
+  `FactorValues` gains `at_index_or_insert` so the writing half of that loop needs no name either.
+
+<!--PERF-AB-->
+
+**France is unchanged and had to be.** It is the HLM family, and none of the three places above is on
+its path. A change that had moved it would have been a change doing something other than what it
+says.
+
+**And the output did not change.** Not statistically: *byte for byte*, on all three runnable
+examples, every result CSV and every income-stratified CSV.
+
+<!--PERF-INDIA-->
+
+**That check did not find the one defect this change had**, which is worth stating because this
+document has twice recorded it finding one. `resolve_predictors` used `find`, which answers `unknown`
+for a name nothing has interned *yet* as well as for one that never will — and `unknown` means "only
+the string resolver can answer this", frozen in for the life of the model. A whole `KevinHall_FINCH`
+run was byte-identical with the defect present, because something else happened to have interned
+every name that run uses before the models were built. What found it was a unit test that resolves a
+model before building the person it is evaluated against: it failed in release and passed in debug,
+because a different test had interned the name first.
+
 ### Loading
 
 `--dry-run` in both: config, both model files, the data index, the disease registry, every
@@ -307,20 +347,16 @@ attributed samples. The previous profile of the same example is below it for com
 at 13% of all samples — has left the top eighteen entirely. What replaced it at the top is integer
 work.
 
-Two things the profile now points at, both with a measurement behind them rather than a guess. They
-are [docs/backlog.md](backlog.md) items rather than this run's work, because the ruling for this run
-was the store and the store is done:
+Two things the profile pointed at, both with a measurement behind them rather than a guess. The
+second is **done this run** — *Names resolved at the call site*, above — and the first was answered
+by [ADR 0040](decisions/0040-a-bounded-search-for-the-long-vectors.md):
 
-1. **`find_index` is a linear scan, and 55 entries is where that stops being free.** It is the right
-   shape for France's 11 factors — contiguous, one or two cache lines, no mispredicted branch — and at
-   FINCH's 55 it averages 27 integer comparisons per lookup and is now the largest single item in the
-   profile. A per-person array indexed directly by factor index would make it O(1) for about the same
-   memory, at the cost of a second vector for the present-index list that iteration and `size()` need.
-2. **The remaining 31% is names being resolved at the *call site*.** The store no longer compares
-   strings; its callers still hand it an `Identifier`, which costs a hash probe, and some of them
-   *construct* one per person per year — which is what `validate_identifier` and `is_alnum` in a
-   profile mean. The fix is the same idea one level up: the linear model's coefficient list and the
-   Kevin Hall model's nutrient names hold resolved indices, and the name never reaches the hot loop.
+1. **`find_index` is a linear scan, and 55 entries is where that stops being free.** Answered: a scan
+   below sixteen entries and a bounded binary search above it, worth 1.44× on FINCH.
+2. **The remaining 31% is names being resolved at the *call site*.** Done. The section above has
+   the change and the A/B.
+
+<!--PERF-PROFILE-->
 
 ## Where the time went before the index-keyed store
 

@@ -1,277 +1,217 @@
-# Summary of the fifth build run
+# Summary of the sixth build run
 
 What was built, what is proven, and where it stops. Written at the end of the run it describes.
 Earlier runs' summaries are in the history of this file: the first covered the HLM surface, the
 second the FINCH one, the third the library split and the index-keyed store, the fourth `HLM_India`
-and the first CI workflow.
+and the first CI workflow, the fifth the local server, the frontend, and switchable deviations.
 
 ## The short version
 
 A deterministic C++20 reimplementation of the Health-GPS microsimulation, with the whole upstream
-model surface implemented, three examples compared against the baseline, and — since this run —
-**three ways to use it**: as a library, from a command line, and from a browser.
+model surface implemented, three examples compared against the baseline, and three ways to use it:
+as a library, from a command line, and from a browser.
 
-Three things happened, in the order the run found them.
+**This run added no feature.** Every one of its tasks was a way of making the existing tree harder to
+fool, and the point of it is the count at the bottom of this section: **nine defects**, every one of
+them found by something new here rather than by a person reading the code.
 
-- **CI ran for the first time and every job failed.** The previous summary said "something in it is
-  probably wrong", and it was: **five causes**, four of them defects in the tree rather than in the
-  workflow, and **three of those were portability defects invisible to the only compiler that had
-  ever built this project**. All fixed, one commit per cause. **GCC on Linux is now green**, which
-  it had never been, and neither "CI has never run" nor "GCC has never built this tree" is true any
-  more.
-- **Every deliberate deviation is now switchable**, so its effect is measured rather than argued.
-  The previous run attributed 28 out-of-tolerance comparisons to deviation B-24 by reading the shape
-  of a curve; that attribution was right, and it was an argument. It is now a measurement taken by
-  running the same binary twice on the same seeds — and it agrees.
-- **A graphical host exists**: a local JSON server over the library, and a single-page app over that.
-  It is what the library split, the event stream and the run manifest were built for, and it is the
-  first thing to test whether that API is the right shape.
+Three things did the finding.
+
+- **A second synthetic configuration**, differing from the first in every way a program might have
+  assumed it did not, with every test that runs a configuration parameterised over both. The
+  previous run found a hard-coded output file name that forty-five passing server tests had missed,
+  because all forty-five used the one fixture. This is that lesson made structural
+  ([ADR 0044](decisions/0044-two-fixture-packs-and-a-parameterised-suite.md)).
+- **A browser, driving the built frontend against a real server**, in CI. The previous run recorded
+  nine defects in its new code and none found by a test; three of those were found by a person
+  opening the page. This is that person, written down
+  ([ADR 0045](decisions/0045-end-to-end-tests-in-a-real-browser.md)).
+- **A randomised server-lifetime stress test**, under ThreadSanitizer, which is the first test of
+  that layer written without knowing what it is looking for.
 
 | | |
 |---|---:|
-| Tests, C++ | **738** in 93 suites — 741 CTest entries — passing under release, debug, ASan+UBSan and TSan |
-| Tests, the equivalence harness's own | **39** (was 30) |
-| Tests, the frontend | **48** |
-| Comparisons against the baseline this run | **185,208**, **0** out of tolerance |
-| Source | `src/` 153 files; `tests/` 67 files; 43,576 lines of C++ between them; `web/src/` 14 files, 2,357 lines |
-| Documents | 12, plus **43 ADRs** |
-| CI | **13 jobs, all green** on this commit — run 35355948882 |
+| Tests, C++ | **845** in 100 suites — 848 CTest entries — passing under release, debug, ASan+UBSan and TSan |
+| Tests, the equivalence harness's own | **48** (was 39) |
+| Tests, the frontend | **48** unit, **19** end to end in a browser |
+| Comparisons against the baseline this run | **187,754**, **0** out of tolerance |
+| Source | `src/` 153 files; `tests/` 71 files; 44,978 lines of C++ between them; `web/src/` 18 files and `web/e2e/` 6, 3,039 lines |
+| Documents | 13, plus **45 ADRs** |
+| CI | **14 jobs** — see below |
+| Defects found this run | **9**, of which 8 by the three mechanisms above and 1 by a unit test |
 
-## The seven tasks, and how each ended
+## The ten tasks, and how each ended
 
 | | Task | Outcome |
 |---:|---|---|
-| 1 | Orientation, cleanup, CI triage | **Done.** No stale processes of this project's were running. CI's five failure causes are in [docs/build-notes.md](build-notes.md), each fixed in its own commit. |
-| 2 | A compatibility flag for B-24, the harness's deviation-impact section, reruns, an ADR | **Done**, and the reruns say more than they were asked to. [ADR 0041](decisions/0041-deliberate-deviations-are-switchable.md). |
-| 3 | Review the existing exclusions against that rule | **Done.** None converted, with the reasoning written down — and the review found a hole in one of them that was worth more than a conversion. |
-| 4 | The local server: design, implementation, tests | **Done.** [docs/server-api.md](server-api.md), [ADR 0042](decisions/0042-a-local-server-in-the-same-binary.md), **45 tests** — 26 over a real socket, 3 for byte identity against the CLI, 10 for the reduction, 6 for the command line. |
-| 5 | The frontend: four screens | **Done**, all four. [ADR 0043](decisions/0043-a-plain-typescript-frontend.md). 27 kB of JavaScript, 48 tests. |
-| 6 | A CI job for the frontend | **Done**, and green. |
-| 7 | Docs, ADRs, backlog, this file | **Done.** `scripts/check.sh` exits 0: 741 CTest entries under release, debug, ASan+UBSan and TSan, then both stored-reference comparisons at zero out of tolerance. |
+| 1 | Orientation, pre-flight, the concurrency group, CI on HEAD | **Done.** No stale processes of this project's were running; the concurrency group was already in the workflow from the end of the previous run; run 35360811751 on the starting commit was 13 of 13 green. |
+| 2 | A second fixture, and parameterised tests | **Done.** [ADR 0044](decisions/0044-two-fixture-packs-and-a-parameterised-suite.md). **Three defects**, and 184 tests where there were 92. |
+| 3 | Playwright end to end, and a CI job | **Done.** [ADR 0045](decisions/0045-end-to-end-tests-in-a-real-browser.md). 19 tests in about seven seconds, **one defect**, green in CI on its first run. |
+| 4 | A server stress test under TSan | **Done.** `tests/server/stress_test.cpp`, **one defect** — a hang — on its first run. 78 seconds under TSan at six shuffles, trimmed to three. |
+| 5 | GCC required | **Done.** One line, and the reason for it had expired. |
+| 6 | The lattice detector, and the India re-score | **Done**, with no threshold moved. All four stored references re-scored; **one defect in the first version of the change**, found by that re-score. |
+| 7 | Names to indices at the call site | **Done**, byte-identical on all three runnable examples. `KevinHall_FINCH` is faster; `HLM_France` is unchanged and had to be. **Two defects**, one of them a hazard rather than a fault. |
+| 8 | A Linux timing job | **Done.** `scripts/measure.sh`, run by CI and by a person, uploading its JSON. Indicative only, and it cannot fail the build. |
+| 9 | The briefing for Imperial | **Done.** [docs/briefing.md](briefing.md). |
+| 10 | Docs, ADRs, backlog, this file | **Done.** |
 
-## What CI found, and what it says about the four clean runs before it
+## The nine defects, and what found each
 
-The workflow was written in the previous run and validated by reading, because neither `act` nor
-Docker is installed here. It then ran, and **every job failed**. Five causes:
+The point of the run, in one table. **None of these was found by reading the code**, which is the
+difference between this run and the one before it.
 
-| # | What failed | Why it was invisible locally |
+| | Defect | Found by |
 |---|---|---|
-| 1 | `std::mt19937::result_type` narrowed implicitly | it is `std::uint_fast32_t`: **32 bits on libc++, 64 on libstdc++**. An exact, value-preserving narrowing — and an implicit one, which `-Wconversion` rejects on Linux and has no reason to mention on macOS |
-| 2 | a constructor parameter shadowing a member | **GCC's `-Wshadow` covers constructor parameters and clang's does not** |
-| 3 | nineteen missing standard headers | libc++ supplies `<cstdint>` through `<source_location>` and libstdc++ does not |
-| 4 | `-Wmissing-field-initializers` on 213 designated initialisers | clang 19 has a narrow warning for this and the tree turns it off; an older clang and every GCC fold it into `-Wextra`'s broad one |
-| 5 | a stored equivalence reference could not be found | its key was the hash of the derived config taken **after** absolutising the paths, so it carried `/Users/jude/work/hpgs/…` and could match only on the machine that wrote it |
+| 1 | **An age range narrower than the population data crashed with `map::at: key not found` and no location.** The cohort is drawn from the data while several per-age tables are built over the configured range. The baseline reaches the same place inside a parallel loop | the second fixture pack, in its first run |
+| 2 | **A cancelled two-scenario run started the intervention anyway and simulated a year of it**, so the result file held a baseline stopping in one year and an intervention stopping in another — and `years_completed` was four rather than three. The comment above that code claimed the opposite | the second fixture pack, which is the first fixture with two scenarios |
+| 3 | **The CLI had no test that ran it.** Everything ran in process with the output folder overridden, so honouring a configuration's own `output.folder` and printing the files it wrote were untested | writing the second fixture's tests |
+| 4 | **A server stopped before it had served anything hung for ever.** cpp-httplib's `stop()` does nothing unless the server is already running, so a `start()` that returned as soon as its thread was spawned could lose the stop, and the join never returned | the stress test, on its first run, because one of its shuffled moments was "immediately" |
+| 5 | **Pressing Start left the previous run on screen** — its id, its `completed` state and a "See the results" button pointing at the run before — for as long as the POST took | the end-to-end tests, whose helper read that stale id |
+| 6 | **The first version of the lattice change rounded the numerator to a whole event**, which is finer than printed precision for a large total. Every calibrated mean on `HLM_India` failed: 216 comparisons, all of them two runs agreeing to every digit the baseline prints | re-scoring the stored references |
+| 7 | **`resolve_predictors` used `find`**, which answers `unknown` for a name nothing has interned *yet* as well as for one that never will — freezing a predictor into the string-resolver path for the life of the model. A whole `KevinHall_FINCH` run was byte-identical with it | a unit test that resolves a model before building the person it is evaluated against |
+| 8 | **The per-call fallback wrote to a process-wide table**, which is a race waiting for a caller even though nothing calls it from a parallel region today | reading back the change in 7 |
+| 9 | **The weight-category columns are head counts and both reductions treat them as means**, so the server's chart of `normal_weight` has a meaningless level. Not fixed: the harness's reduction has to change with it, and that invalidates every stored reference | reading the reduction while fixing the lattice detector |
 
-Three of these — 1, 2 and 3 — are one shape: **a portability defect the development compiler cannot
-see.** So each was fixed by finding every instance rather than the one CI stopped on. Cause 2 was
-scanned for with clang's `-Wshadow-all` (two sites, both the ones GCC named). Cause 3 was scanned for
-by following each file's project-local includes transitively — 245 candidates before following them,
-**19** after, every one real.
+Defect 7 is the one worth dwelling on. **The byte-for-byte comparison that this project trusts more
+than any statistical one did not find it** — a whole `KevinHall_FINCH` run was identical with the
+defect present, because something else happened to have interned every name that run uses before the
+models were built. What found it was a unit test that passed in debug and failed in release, for the
+same reason: a different test had interned the name first. A check that depends on the order tests
+run in is a check that can be right by accident, and this one was.
 
-Cause 4 took two commits, and the second is the lesson: the first added a fallback probed with
-`check_cxx_compiler_flag(-Wno-missing-designated-field-initializers …)`, and CI failed again in the
-same place, because **GCC accepts any `-Wno-<anything>` it has never heard of** and answers "yes".
-Probing the positive spelling is answered honestly by everybody.
+## The second fixture pack
 
-Cause 5 is the one worth dwelling on. **Nothing but this machine had ever run the equivalence
-harness**, so nothing had ever noticed that a checked-in reference could only be found here. Four
-runs of a document claiming the references made the comparison reproducible, and they did not.
+`gen-fixtures` writes two configurations over one data store. They differ in file layout (model files
+in subdirectories, named differently), output folder (nested three deep), output file name (carrying
+a `{TIMESTAMP}` token, so it is neither `result.csv` nor the same name twice), scenario set (an
+active intervention, so two scenarios rather than one), disease set (two, reordered, against three),
+comorbidity count, seed, horizon, cohort fraction and age range.
 
-**What this says about the four green runs before it**: a suite that passes on one compiler, one
-standard library and one operating system is evidence about that combination and no more. The
-project had 668 tests and four presets and was green on all of them while carrying three portability
-defects and a reproducibility claim that was false everywhere but here.
+**`FixturePack` deliberately carries no facts about a pack's contents.** A test that needs the
+horizon or the scenario names asks the loaded configuration. That rule is the mechanism: it is what
+stops a test asserting a constant only one pack satisfies, which is exactly what
+`tests/engine/manifest_test.cpp` was doing when it named `result_manifest.json`, and what
+`tests/sim/simulation_test.cpp` was doing when it named 2010–2014, fifty ages and three diseases.
 
-### CI, per matrix entry
+One assertion is worth quoting because it was wrong in a way nothing would have caught: a
+reproducibility test used 987654321 as "a different seed", which is the *second pack's own seed*.
+Against that pack it would have compared a run with itself and passed.
 
-Thirteen jobs, and the previous run's two sceptical bullets — "CI has never run", "GCC has never
-built this tree" — are both retired.
+**Two packs is not a proof.** A third would find things the second does not, and the real examples
+find things neither does — the previous run's server defect came from `HLM_France`, not from a
+fixture. What this buys is that the cheap, fast, always-run layer can no longer be satisfied by a
+program that assumes one particular configuration.
 
-| Job | |
-|---|---|
-| `linux · clang · release` / `debug` / `asan-ubsan` / `tsan` | green |
-| `linux · gcc · release` / `debug` | **green**, and never had been |
-| `macos · appleclang · release` / `debug` / `asan-ubsan` / `tsan` | green |
-| `equivalence · HLM_France · 20 seeds` | green — and had never reached the comparison before, because of cause 5 |
-| `equivalence · KevinHall_FINCH · 20 seeds` | green, same |
-| `web · typecheck, test, build` | green (new this run) |
+## The end-to-end tests
 
-Verified rather than assumed: run 35355948882 on this commit, all thirteen jobs `success`. The one
-worth naming is `macos · appleclang · tsan`, which takes about three quarters of an hour on a shared
-runner and had been superseded by a push before it could report on every earlier attempt — so until
-this run it was the one entry whose result nobody had ever seen.
+Nineteen tests, about seven seconds, one spec per screen plus one for the journey across them: edit a
+configuration, see a located diagnostic land on the field it names, start a run, watch it finish over
+the event stream, open the results, download the CSV, find it in the history. Chromium only, serial,
+one worker — one run at a time is the server's contract, not an accident of the configuration.
 
-The GCC entries still carry `experimental: true`, which makes them `continue-on-error`. That flag
-was there because nothing knew what GCC would say. Now something does, and removing it is a
-one-line change rather than an unknown — [docs/backlog.md](backlog.md) item 10.
+Nothing is mocked. `scripts/e2e-server.sh` lays out the two fixture packs and starts the real binary
+with the real built frontend; a run of a synthetic pack takes about a fifth of a second, which is
+what keeps this a thing that runs rather than a thing that is run.
+
+Two things the suite reported were the tests being wrong rather than the code, and both are worth
+knowing about this app: **all four screens are in the DOM at once**, hidden rather than unmounted,
+so a bare locator matches screens nobody is looking at; and **a form section is a closed `<details>`**
+until something in it is wrong, so a field has to be revealed before it can be typed into.
+
+`scripts/check.sh` now runs the frontend too — type-check, unit tests, build, then the browser.
+Until this run it verified nothing in `web/` at all, so "green at every commit" was a claim about the
+C++ only.
+
+## The lattice detector
+
+The equivalence harness compares a quantile of a lattice-valued series with an exact test of the
+counts rather than numerically, because the normal-theory allowance shrinks as 1/√n while the lattice
+step does not. Its detector was asking the question of the **rate**: a disease rate reduces to total
+cases over total head count, the cases are a small integer and the head count moves seed to seed, so
+a series that is a handful of counts in disguise presented 43 to 79 distinct rates and neither rule
+fired. Six comparisons on `HLM_India` at 60 seeds failed because of it.
+
+It now asks the question of the numerator, bucketed at the baseline's printed precision exactly as
+the reduced value was. **No threshold moved**, and that is checkable rather than asserted: if the
+head count were the same in every seed, multiplying both the values and the scale by it would leave
+every bucket where it was, so the change can only act where the denominator moves.
+
+All four stored references re-scored:
+
+| Example | Intervention | Comparisons, before | After | Out of tolerance |
+|---|---|---:|---:|---:|
+| `HLM_France` | `simple` | 31,468 | **31,546** | **0** |
+| `KevinHall_FINCH` | `simple` | 22,679 | **22,616** | **0** |
+| `HLM_India` *(reduced)* | `simple` | 67,885 | **66,787** | **0** |
+| `HLM_India` *(reduced)* | `food_labelling` | 68,041 | **66,805** | **0** |
+
+The counts move in both directions, which is the mechanism rather than noise: a series entering the
+lattice class trades three quantiles and a standard deviation for one distribution test. India loses
+1,236 comparisons — 412 series entering — and France gains 78, because France's cohort is nearly
+seed-constant and most of its buckets do not move at all.
 
 ## What a deviation is worth, measured
 
-The rule ([ADR 0041](decisions/0041-deliberate-deviations-are-switchable.md)): every deliberate
-deviation that changes outputs gets a named compatibility flag, named after its ID in
-[docs/deviations.md](deviations.md). With the flag on the engine reproduces the baseline's behaviour
-exactly. Flags are off by default, reachable from the config, the API and the CLI, and **recorded in
-every run manifest**.
-
-**The equivalence harness compares with the flags on**, so a comparison tests everything except the
-deliberate differences and an out-of-tolerance cell means something is wrong. It then runs the same
-build once more with the flags off and reports the difference as a **deviation impact** section —
-reported, never graded, because a deviation has no right size.
-
-| Example | Intervention | Comparisons | Out of tolerance | Was |
-|---|---|---:|---:|---:|
-| `HLM_France` | `simple` | 31,468 | **0** | 0 |
-| `HLM_France` | `food_labelling` | 31,552 | **0** | 1 |
-| `HLM_India` *(reduced cohort)* | `food_labelling` | 68,041 | **0** | 3 |
-| `KevinHall_FINCH` | `simple` | 22,679 | **0** | 0 |
-| `HLM_France` | `simple`, flags **off** | 31,468 | **0** | — |
-
-**185,208 comparisons this run, zero out of tolerance.** The previous run's isolated `HLM_France`
-residual and India's three are gone — they were B-24, and with the flag on B-24 is not there.
-
-The last row is the control: `--baseline-compat none` compares the *fixed* behaviour, which is what
-every run before ADR 0041 did. It gives the same 31,468 comparisons and the same zero, which is the
-evidence that the flag is not quietly making the comparison easier — on `HLM_France` with `simple`
-active no deviation reaches the run either way, and the harness's probe says so and stops.
-
-And the measurement, mean BMI of males in the intervention scenario, this build minus the
-baseline-compatible one, over 20 seeds:
+Unchanged from the previous run, and re-confirmed by the re-scores above. With
+`--baseline-compat all` the engine reproduces the baseline's deliberate deviations, so a comparison
+tests everything except them; the harness then runs once more with the flags off and reports the
+difference. Mean BMI of males in the intervention scenario, this build minus the baseline-compatible
+one, over twenty seeds:
 
 | | Largest | When | Relative |
 |---|---:|---:|---:|
 | `HLM_France` | **+0.0531** | 2037 | **+0.209%** |
 | `HLM_India` *(reduced)* | **+0.0313** | 2050 | **+0.160%** |
 
-This project has been quoting "about +0.2% of mean BMI" for B-24 for a run and a half, inferred from
-which out-of-tolerance cells looked like it. The direct measurement agrees. That is the good case,
-and the reason to build the mechanism is the case where it would not have.
-
 **The deviation reaches much further than mean BMI.** On `HLM_India`, **194 series differ** and
-12,532 agree to the printed precision — including years of life lost, disability-adjusted life
-years, head counts and the prevalence and incidence of eleven diseases. A BMI that is wrong changes
-incidence, which changes mortality, which changes the cohort. Nothing in this repository said that
-before, because nothing could.
+12,532 agree to the printed precision — years of life lost, disability-adjusted life years, head
+counts, and the prevalence and incidence of eleven diseases.
 
-## The exclusions, reviewed
+## Performance: names resolved at the call site
 
-Three things are left out of the harness's reduction, and the ruling asked whether any would be
-better expressed as a compatibility flag. **None is converted**, on one criterion stated once:
+Backlog item 2, the half [ADR 0037](decisions/0037-index-keyed-risk-factor-store.md) left behind.
+The store stopped comparing strings; its callers went on handing it a `core::Identifier`, and some of
+them *constructed* one per factor per person per year from a string concatenation. Three places, all
+of them "do it once when the model is built": the linear model's coefficient list holds each name's
+index **and** the three name-shaped questions the evaluator used to ask of the string; the static
+linear model builds its `<factor>_residual`, `_policy`, `_trend` and `_income_trend` names once; the
+Kevin Hall model's food-to-nutrient and nutrient-to-energy equations are index-keyed.
 
-> A flag is right when **both** implementations compute a meaningful number and they differ on
-> purpose — then the difference is the finding, and excluding it throws the measurement away. An
-> exclusion is right when **one side has nothing to compare**.
+<!--PERF-->
 
-The emptying age bands (B-21) are a rule this build *keeps*, so there is no behaviour to switch and
-an empty band has no mean. `std_income` (B-22) is the close call: the baseline's column is a
-placeholder, so a flag would make the comparison zero against zero, which is not a stronger test.
-The first simulated year is not a deviation at all.
+**The check that matters is byte identity**, not a statistical comparison over twenty seeds, which
+would call a last-bit difference agreement. It is also the check that did not find defect 7 above.
 
-**The review found something better than a conversion.** The `std_income` rule has two halves —
-"the baseline never fills it" and "we do" — and it checked only the first. Two identically zero
-series would have printed *the baseline does not compute it* and skipped, word for word what it
-prints when everything is fine. **A regression in the one variable the rule covers was invisible, in
-the rule written to cover it.** It is reported now, with three tests.
+## CI, per matrix entry
 
-## The graphical host
+Fourteen jobs, two of them new this run.
 
-`hgps serve` hosts the engine over HTTP on localhost, and serves the built frontend as static files,
-so the whole thing is **one binary and one folder**. [docs/server-api.md](server-api.md) is the
-contract.
+<!--CI-->
 
-Two constraints are **enforced rather than hidden**, both of them the engine's rather than this
-layer's. A second run is refused with `409` instead of queued, because two `execute` calls must not
-overlap in one process and a queue would turn a stated constraint into an unstated wait. And cancel
-returns `202`, not `200`, because the engine stops at the end of the year it is in and the response
-cannot honestly say the run has stopped.
+## The recommended next run
 
-There is **no authentication**, and `--host` refuses anything but loopback before opening the socket.
-That refusal is what makes the absence of authentication a decision rather than an omission: a
-configuration names files to read and a folder to write.
+**Answer the Kevin Hall intervention question, or decide not to** —
+[docs/briefing.md](briefing.md) states it as a question for the upstream authors, and
+[docs/backlog.md](backlog.md) item 1 is the work it would unblock. It is first because everything
+above it is done and because it is the largest thing this build refuses that a user could reasonably
+want: four of the six upstream examples can only be run with a no-op policy.
 
-There is **no database**. `GET /api/runs` reads the runs directory and parses each manifest, which is
-why the history survives a restart and why a runs directory copied from another machine lists
-correctly. That is the run manifest justifying itself — the feature that needed it did not exist when
-it was designed.
+If that answer is not available, the next run is **item 2**: the weight-category columns are head
+counts and both reductions treat them as means. It is four names in two places and a regeneration of
+every stored reference, and until it is done the server draws a chart whose level means nothing. It
+is the only correctness item this run found and did not fix.
 
-The frontend is **plain TypeScript, 27 kB**, no framework and no charting library
-([ADR 0043](decisions/0043-a-plain-typescript-frontend.md)). Preact was allowed if it earned its
-place and did not: four screens, and the only one that updates continuously has a progress bar and a
-line of text for a live region.
+Two smaller things would each remove a hedge from this document. **`HLM_India` at the cohort it
+ships** (item 5) is machine time rather than work, and it is the largest single gap in the
+validation. And **`DataSeries` keyed by channel name** (item 10) is what is left of the performance
+item: a `KevinHall_FINCH` profile taken after this run's change still has `_platform_memcmp` as its
+largest entry, and what remains of it is the analysis module looking channels up by `std::string`
+rather than anything per person per year.
 
-**Its correctness test is byte identity**: a run started over HTTP produces the same result CSV, byte
-for byte, as the same configuration run in process. If routing a run through HTTP broke that, the
-server would not be a host of this engine but a fork of it.
-
-## What the process found that reading would not have
-
-1. **Three portability defects, and a reproducibility claim that was false.** Above. The tree had
-   been green on four presets for four runs while carrying all four.
-
-2. **GCC lies about `-Wno-`.** A `check_cxx_compiler_flag` probe of a `-Wno-<anything>` flag is
-   answered "yes" by a compiler that has never heard of it. The first fix for CI cause 4 was correct
-   in every respect except that its feature test could not fail.
-
-3. **Driving the page found three more defects the tests had not.** The server **exited the moment
-   stdin closed**, so anything not started from a terminal died before serving a request. A run that
-   was accepted and then failed to *build* stayed in the list as `starting` for ever **and held the
-   one-run-at-a-time slot**, so nothing else could start. And a failed start left the Start button
-   disabled, because `starting` was cleared in a `finally` that ran after the render. No server test
-   would have caught the first; the second now has one that would.
-
-4. **Pointing the server at the real examples, rather than the fixture, found another.**
-   `GET /api/runs/{id}` reported `"manifest": null` for every one of them, and the history would
-   have lost them all on a restart: the manifest is named after `output.file_name`, which the
-   *configuration* decides, and the name the synthetic fixture happens to produce was hard-coded in
-   three places. **All 44 server tests passed**, because all 44 used the fixture. It is the same
-   shape as finding 7 below — the second time in this run that an unrepresentative fixture hid
-   something — and the more uncomfortable of the two, because there the test failed and here every
-   test passed.
-
-5. **Three more server defects came out of reading it back, not from running it.** All three are
-   lifetime or concurrency faults that no endpoint test would provoke: two clients validating the
-   *same* document picked the same scratch filename, so the first to finish deleted the file the
-   second was still loading; a server started and then simply dropped called `std::terminate`,
-   because a joinable `std::thread` member is destroyed before the `stop()` that would have joined
-   it; and stopping the server left a run thread writing while `main` returned, so Ctrl-C during a
-   run could truncate a result file. Each has a test now, and the last one needed the thread
-   ownership underneath it to be made coherent first — `finish` was detaching the run's thread from
-   inside that same thread, so a join from anywhere else returned while the run was still
-   unwinding. **The tests were written after the fixes and would not have found them**, which is
-   worth saying rather than implying otherwise.
-
-6. **A CSV row ending in a comma was silently dropped.** `std::getline(stream, field, ',')` stops at
-   the last separator, so the row's field count disagreed with the header and the whole row went. A
-   missing year in a chart, not a wrong number — which is the worse shape for a parsing bug to take.
-   Found by a test written for something else.
-
-7. **The compat flag's first end-to-end test failed, correctly.** The synthetic fixture's policy ran
-   for two years and the defect needs three: one to fail a draw in, one to pass in, and one to be
-   wrongly offered it again in. The test was wrong about the fixture, not the code — and a test that
-   had passed for the wrong reason would have been worse than a failing one.
-
-8. **`scripts/dev.sh` exited immediately, and then leaked vite.** `wait -n` is bash 4.3 and up and
-   macOS ships bash 3.2, so the script started both processes and killed them through its own trap a
-   second later. With that fixed, its trap killed the subshell running `npm run dev` rather than
-   vite, which npm spawns as a child — so vite survived holding port 5173, which is exactly the
-   stray process the trap exists to prevent. Both found by running it, neither by reading it, and
-   the script had been committed in between.
-
-9. **Having a second implementor changed what the API's gaps mean.** Two of the seven
-   [docs/api.md](api.md) lists are now *felt* rather than predicted: the summary endpoint parses a
-   CSV the engine wrote seconds earlier in the same process, and cancel is a `202` plus an event.
-   Neither is closed, deliberately — the cost is concrete now, which is a better basis for the design
-   than guessing was.
+[docs/backlog.md](backlog.md) has the rest, ranked, with what each costs.
 
 ## What a reader should still be sceptical about
 
-- **The frontend has no end-to-end test.** Its unit tests cover the four places a mistake is silent,
-  and its correctness rests on the server's byte-identity test. Three defects were found by a person
-  opening it in a browser, three more — lifetime and concurrency faults in the server — by reading
-  the code back afterwards, one by pointing the server at the real examples instead of the synthetic
-  fixture, and two in `scripts/dev.sh` by running it. **Nine defects in this run's new code, none of
-  them found by a test.** The tests that now cover them were written afterwards, and two are worth
-  naming: 45 passing server tests all used a fixture whose output happens to be named the one way
-  the code assumed, and `dev.sh` was committed as working on the strength of having been read.
 - **India was compared at a hundredth of its cohort**, 12,406 people rather than 1,240,613. Nothing
   in the India result is evidence about the example as shipped.
 - **Population impact fraction has never met the baseline.** Only the synthetic pack exercises it end
@@ -280,33 +220,17 @@ server would not be a host of this engine but a fork of it.
 - **Four of the six upstream examples can only be compared with `simple` active**, because an
   intervention on the Kevin Hall surface is a no-op upstream (B-25) and this build refuses the
   configuration rather than running it silently. Changing that needs a modelling decision this
-  repository cannot make — [docs/backlog.md](backlog.md) item 1.
+  repository cannot make — [docs/briefing.md](briefing.md) states it as a question.
 - **The comparison's floor.** The baseline writes six significant digits, so no comparison is tighter
   than about 10⁻⁵ relative.
-- **The harness decides the headline result, and it has been wrong four times** — a normal-theory
-  allowance on a point mass, the same on a lattice-valued median, a lattice detector that cannot see
-  a lattice in a numerator, and now a rule that checked half of its own justification. It has 39
+- **The harness has been wrong five times now** — a normal-theory allowance on a point mass, the same
+  on a lattice-valued median, a detector that could not see a lattice in a numerator, a rule that
+  checked half of its own justification, and this run's first attempt at the numerator fix. It has 48
   tests, which is better than nothing and is not the same as being right.
-- **macOS and Apple clang for every measurement in this repository.** Linux and GCC now *build* and
-  *test* it; no number in [docs/performance.md](performance.md) was taken there.
-- **The synthetic fixture pack is invented.** Its own `SYNTHETIC.md` says so.
-
-## The recommended next run
-
-**Answer the Kevin Hall intervention question, or decide not to** —
-[docs/backlog.md](backlog.md) item 1. It is first because everything above it is done, and because
-it is the largest thing this build refuses that a user could reasonably want: four of the six
-upstream examples can only be run with a no-op policy. It is `needs-ruling` rather than work: on
-that surface a policy shifting a nutrient has to propagate through the energy-balance model, and
-*where* it is applied changes the answer. That belongs to whoever owns the fitted model.
-
-If that answer is not available, the next run is **item 2**, resolving names to indices at the call
-site — about 31% of the FINCH profile, and the largest remaining performance item, with the check
-that matters already established: byte-for-byte comparison of the result files before and after.
-
-Two smaller things are nearly free and would remove hedges from this document: **make the GCC
-entries required** by deleting `experimental: true` (item 10), which is now a one-line change rather
-than an unknown, and **fix the lattice detector** to classify on the numerator (item 11), which
-would either explain or remove the six India residuals the previous run recorded.
-
-[docs/backlog.md](backlog.md) has the rest, ranked, with what each costs.
+- **The reduction mislabels four columns**, and both the harness and the server's charting endpoint
+  do it. It makes no comparison wrong and it makes those numbers meaningless
+  ([docs/backlog.md](backlog.md) item 2).
+- **The synthetic packs are invented.** Both of them; their `SYNTHETIC.md` says so. The second is not
+  more realistic than the first, only *different*, which is the only property claimed for it.
+- **Nineteen end-to-end tests is not coverage.** They cover each screen's principal job and the
+  hand-offs between them, in one browser.
