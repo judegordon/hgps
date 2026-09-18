@@ -141,6 +141,56 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------------------------------
+  # The graphical host: type-check, tests, build.
+  #
+  # Cheap and fast — no C++, no data pack, no vcpkg — so it is its own job and reports on its own
+  # rather than waiting behind twenty minutes of sanitizer. It does NOT run the server: the
+  # frontend's correctness test is the server's byte-identity test, which the build jobs run
+  # (docs/decisions/0043-a-plain-typescript-frontend.md).
+  #
+  # `npm ci` rather than `npm install`, so the lockfile is what decides and a run cannot silently
+  # pick up a new minor version of something.
+  frontend:
+    name: web · typecheck, test, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install exactly what the lockfile says
+        run: npm ci
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      # Last, because it is the slowest and because a type error is the more useful message.
+      - name: Build
+        run: npx vite build
+
+      # What `hgps serve --web` would host. Kept for 7 days so a failing run can be looked at
+      # without reproducing the build.
+      - name: Upload the built frontend
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------------------------
   # Statistical equivalence against the baseline, without building the baseline: the two reductions
   # of its output are checked in, and the harness compares this build against them. That is the half
   # of the validation a unit test cannot do, and until this workflow existed nothing ran it
