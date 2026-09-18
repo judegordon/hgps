@@ -162,52 +162,150 @@ void AnalysisModule::calculate_income_based_series(RuntimeContext &context,
         available.insert(core::to_lower(channel));
     }
 
-    const auto accumulate = [&series, &available](core::Gender gender, core::Income income,
-                                                  const std::string &channel, std::size_t age,
-                                                  double value) {
-        if (available.contains(core::to_lower(channel))) {
-            series.at(gender, income, channel).at(age) += value;
+    // One stratum's channels, resolved to the vectors they write.
+    //
+    // This loop is the one the previous run's backlog item 9 named: it built `"mean_" + key` per
+    // factor per person per year, lower-cased it, probed a `std::set<std::string>` and then looked
+    // the channel up again by name in a `std::map<std::string, ...>` two levels down. The same
+    // treatment as the whole-population series in series.cpp — resolve once, accumulate through
+    // the pointer.
+    //
+    // Resolved on first sighting of a (stratum, sex) rather than for every stratum the layout
+    // declares. That is not tidiness: resolving eagerly creates a channel vector per age for
+    // strata nobody is in, once per year, and it cost `HLM_France` 5.4 MiB of peak memory —
+    // 42.8 to 48.2 — which is a real regression for a change whose whole point is that it costs
+    // nothing. Created on demand, the set of vectors that exist is the set that existed before.
+    struct Stratum {
+        std::vector<double> *count{};
+        std::vector<std::vector<double> *> factor_means;
+        std::vector<double> *physical_activity{};
+        std::vector<double> *income{};
+        std::vector<std::vector<double> *> prevalence;
+        std::vector<std::vector<double> *> incidence;
+        std::vector<double> *normal_weight{};
+        std::vector<double> *over_weight{};
+        std::vector<double> *obese_weight{};
+        std::vector<double> *above_weight{};
+    };
+
+    const auto resolve = [&series, &available](core::Gender gender, core::Income income,
+                                               const std::string &channel) {
+        return available.contains(core::to_lower(channel))
+                   ? &series.at(gender, income, channel)
+                   : nullptr;
+    };
+
+    const auto add = [](std::vector<double> *values, std::size_t age, double value) {
+        if (values != nullptr) {
+            values->at(age) += value;
         }
     };
+
+    // The non-demographic factors, in mapping order, with the index their values are stored under.
+    // `find` rather than `intern`, and per year rather than per run, for the reason series.cpp's
+    // `resolve_factors` gives.
+    struct Factor {
+        std::uint32_t index{FactorIndex::unknown};
+        std::string channel;
+    };
+    std::vector<Factor> factors;
+    for (const auto &factor : context.mapping().entries()) {
+        const auto &key = factor.key().to_string();
+        if (is_demographic_factor(key)) {
+            continue;
+        }
+        factors.push_back(Factor{.index = factor_index().find(factor.key()),
+                                 .channel = "mean_" + key});
+    }
+
+    const auto income_index = factor_index().find(kIncome);
+    const auto activity_index = factor_index().find(kPhysicalActivity);
+
+    const std::set<core::Income> declared{layout.strata.begin(), layout.strata.end()};
+    std::map<core::Income, std::map<core::Gender, Stratum>> strata;
+
+    const auto stratum_for = [&](core::Income income, core::Gender gender) -> const Stratum * {
+        // A category outside the project's layout contributes nothing, which is what happened
+        // before as well: the accumulation created a stratum for it and no file is ever written
+        // for a stratum the layout does not name. `calculate_income_based_statistics` above skips
+        // the same people for the same reason, and says so.
+        if (!declared.contains(income)) {
+            return nullptr;
+        }
+
+        auto &by_gender = strata[income];
+        const auto found = by_gender.find(gender);
+        if (found != by_gender.end()) {
+            return &found->second;
+        }
+
+        Stratum stratum;
+        stratum.count = resolve(gender, income, "count");
+        for (const auto &factor : factors) {
+            stratum.factor_means.push_back(resolve(gender, income, factor.channel));
+        }
+        stratum.physical_activity = resolve(gender, income, "mean_physical_activity");
+        stratum.income = resolve(gender, income, "mean_income");
+        for (const auto &disease : context.diseases()) {
+            const auto &code = disease.code.to_string();
+            stratum.prevalence.push_back(resolve(gender, income, "prevalence_" + code));
+            stratum.incidence.push_back(resolve(gender, income, "incidence_" + code));
+        }
+        stratum.normal_weight = resolve(gender, income, "normal_weight");
+        stratum.over_weight = resolve(gender, income, "over_weight");
+        stratum.obese_weight = resolve(gender, income, "obese_weight");
+        stratum.above_weight = resolve(gender, income, "above_weight");
+        return &by_gender.emplace(gender, std::move(stratum)).first->second;
+    };
+
+    // Which disease is which column, for the person loop: a person carries only the diseases they
+    // have, so the two lists cannot be walked in step.
+    std::map<core::Identifier, std::size_t> disease_position;
+    for (std::size_t position = 0; position < context.diseases().size(); ++position) {
+        disease_position.emplace(context.diseases()[position].code, position);
+    }
 
     for (const auto &person : context.population()) {
         if (!person.is_active() || person.income == core::Income::unknown) {
             continue;
         }
 
+        const auto *resolved = stratum_for(person.income, person.gender);
+        if (resolved == nullptr) {
+            continue;
+        }
+        const auto &stratum = *resolved;
+
         const auto age = static_cast<std::size_t>(person.age);
-        const auto gender = person.gender;
-        const auto income = person.income;
 
-        accumulate(gender, income, "count", age, 1.0);
+        add(stratum.count, age, 1.0);
 
-        for (const auto &factor : context.mapping().entries()) {
-            const auto key = factor.key().to_string();
-            if (is_demographic_factor(key)) {
-                continue;
-            }
-            const auto value = person.risk_factors.find(factor.key());
-            if (value != person.risk_factors.end()) {
-                accumulate(gender, income, "mean_" + key, age, value->second);
+        for (std::size_t position = 0; position < factors.size(); ++position) {
+            if (const auto *value = person.risk_factors.find_index(factors[position].index);
+                value != nullptr) {
+                add(stratum.factor_means[position], age, *value);
             }
         }
 
-        if (const auto activity = person.risk_factors.find(kPhysicalActivity);
-            activity != person.risk_factors.end()) {
-            accumulate(gender, income, "mean_physical_activity", age, activity->second);
+        if (const auto *activity = person.risk_factors.find_index(activity_index);
+            activity != nullptr) {
+            add(stratum.physical_activity, age, *activity);
         }
-        if (const auto value = person.risk_factors.find(kIncome);
-            value != person.risk_factors.end()) {
-            accumulate(gender, income, "mean_income", age, value->second);
+        if (const auto *value = person.risk_factors.find_index(income_index); value != nullptr) {
+            add(stratum.income, age, *value);
         }
 
         for (const auto &[disease, state] : person.diseases) {
             if (state.status != DiseaseStatus::active) {
                 continue;
             }
-            accumulate(gender, income, "prevalence_" + disease.to_string(), age, 1.0);
+            const auto position = disease_position.find(disease);
+            if (position == disease_position.end()) {
+                continue;
+            }
+            add(stratum.prevalence[position->second], age, 1.0);
             if (state.start_time == context.time_now()) {
-                accumulate(gender, income, "incidence_" + disease.to_string(), age, 1.0);
+                add(stratum.incidence[position->second], age, 1.0);
             }
         }
 
@@ -221,25 +319,25 @@ void AnalysisModule::calculate_income_based_series(RuntimeContext &context,
         // docs/backlog.md item 2 has the other 45 and the measurement behind them.
         switch (classifier_.classify_weight(person)) {
         case WeightCategory::normal:
-            accumulate(gender, income, "normal_weight", age, 1.0);
+            add(stratum.normal_weight, age, 1.0);
             break;
         case WeightCategory::overweight:
-            accumulate(gender, income, "over_weight", age, 1.0);
-            accumulate(gender, income, "above_weight", age, 1.0);
+            add(stratum.over_weight, age, 1.0);
+            add(stratum.above_weight, age, 1.0);
             break;
         case WeightCategory::obese:
-            accumulate(gender, income, "obese_weight", age, 1.0);
-            accumulate(gender, income, "above_weight", age, 1.0);
+            add(stratum.obese_weight, age, 1.0);
+            add(stratum.above_weight, age, 1.0);
             break;
         }
     }
 
-    // Sums become means, per income category.
-    const auto divide = [&series, &available](core::Gender gender, core::Income income,
-                                              const std::string &channel, std::size_t age,
-                                              double count) {
-        if (count > 0.0 && available.contains(core::to_lower(channel))) {
-            series.at(gender, income, channel).at(age) /= count;
+    // Sums become means, per income category — through the same resolved channels the sums went
+    // into. The weight categories are head counts and are not here, in either reduction that reads
+    // them (docs/equivalence-method.md §2).
+    const auto divide = [](std::vector<double> *values, std::size_t age, double count) {
+        if (values != nullptr && count > 0.0) {
+            values->at(age) /= count;
         }
     };
 
@@ -249,22 +347,32 @@ void AnalysisModule::calculate_income_based_series(RuntimeContext &context,
             const auto age = static_cast<std::size_t>(age_value);
 
             for (const auto gender : {core::Gender::male, core::Gender::female}) {
+                // `count` is asked for by name here, for every stratum the layout declares and
+                // whether or not anybody is in it, because that is what the old loop did and it is
+                // what creates the channel: `has_income_channels()` — and so whether the stratum
+                // files carry rows at all — depends on it.
                 const double count = series.at(gender, income, "count").at(age);
 
-                for (const auto &factor : context.mapping().entries()) {
-                    const auto key = factor.key().to_string();
-                    if (is_demographic_factor(key)) {
-                        continue;
-                    }
-                    divide(gender, income, "mean_" + key, age, count);
+                const auto by_income = strata.find(income);
+                if (by_income == strata.end()) {
+                    continue;
+                }
+                const auto found = by_income->second.find(gender);
+                if (found == by_income->second.end()) {
+                    continue;
+                }
+                const auto &stratum = found->second;
+
+                for (auto *values : stratum.factor_means) {
+                    divide(values, age, count);
                 }
 
-                divide(gender, income, "mean_physical_activity", age, count);
-                divide(gender, income, "mean_income", age, count);
+                divide(stratum.physical_activity, age, count);
+                divide(stratum.income, age, count);
 
-                for (const auto &disease : context.diseases()) {
-                    divide(gender, income, "prevalence_" + disease.code.to_string(), age, count);
-                    divide(gender, income, "incidence_" + disease.code.to_string(), age, count);
+                for (std::size_t position = 0; position < stratum.prevalence.size(); ++position) {
+                    divide(stratum.prevalence[position], age, count);
+                    divide(stratum.incidence[position], age, count);
                 }
             }
         }

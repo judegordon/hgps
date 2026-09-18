@@ -107,7 +107,6 @@ class AnalysisModule final : public UpdatableModule {
     // --- series.cpp
     void calculate_population_statistics(RuntimeContext &context, DataSeries &series) const;
     void calculate_standard_deviation(RuntimeContext &context, DataSeries &series) const;
-    void classify_weight(DataSeries &series, const Person &person) const;
 
     // --- income_strata.cpp
     void calculate_income_based_statistics(RuntimeContext &context, ModelResult &result) const;
