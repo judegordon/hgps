@@ -303,7 +303,40 @@ baseline does not. What they do not do is exercise the five policies' own rules 
 Whether an intervention scenario *should* reach the Kevin Hall surface is an upstream design
 question, and it is in [docs/backlog.md](backlog.md) as one.
 
-<!-- INTERVENTION-RESULTS -->
+### The results
+
+On `HLM_France` each policy produces a genuinely different future, which is the precondition for
+the comparison meaning anything and is checked rather than assumed. Against the same seed, the
+intervention scenario's reduced series differ from `simple`'s in:
+
+| Policy | Series that differ, of 3,854 |
+|---|---:|
+| `marketing` | 2,102 |
+| `food_labelling` | 2,180 |
+| `physical_activity` | 2,171 |
+| `fiscal` | 2,108 |
+
+And every one of those futures agrees with the baseline's:
+
+| Example | Policy | Comparisons | Out of tolerance |
+|---|---|---:|---:|
+| HLM_France | `simple` | 31,468 | **0** |
+| HLM_France | `marketing` | 31,468 | **0** |
+| HLM_France | `dynamic_marketing` | 31,468 | **0** |
+| HLM_France | `food_labelling` | 31,552 | **0** |
+| HLM_France | `physical_activity` | 31,552 | **0** |
+| HLM_France | `fiscal` | 31,363 | **0** |
+| KevinHall_FINCH | `simple` | 22,679 | **0** |
+| KevinHall_FINCH | `marketing` | 22,679 | **0** |
+| KevinHall_FINCH | `dynamic_marketing` | 22,679 | **0** |
+| KevinHall_FINCH | `food_labelling` | 22,679 | **0** |
+| KevinHall_FINCH | `physical_activity` | 22,679 | **0** |
+| KevinHall_FINCH | `fiscal` | 22,679 | **0** |
+
+The comparison counts differ a little between policies on HLM_France because a different policy
+empties a slightly different set of age bands, and the excluded set is derived from the runs. They
+are identical across the FINCH rows for the reason the next section gives.
+
 
 ## What the residuals turned out to be
 
