@@ -290,34 +290,66 @@ def derive_config(source: Path, seed: int, output_folder: Path, intervention: st
     return document
 
 
-def link_example_files(source: Path, into: Path) -> None:
-    """Symlinks an upstream example's files next to the derived config.
+def stage_example_files(source_config: Path, into: Path) -> None:
+    """Puts an upstream example's files next to a derived config, safely.
 
     The derived config names its model files by absolute path, but a *model* file names its own
     CSVs by a path relative to the config's directory — that is how the baseline resolves them, and
     it is right when the config sits in the example folder, which upstream it does. The derived
-    config does not, so the files it needs are linked in beside it: links rather than copies
-    because the upstream examples are read-only and some of them are tens of megabytes.
+    config does not, so the files it needs are put beside it.
 
-    This changes nothing about the derived config, and so nothing about its hash or the stored
-    reference keyed by it.
+    **The source config is copied; everything else is symlinked.** That distinction is the whole
+    point of this function. The upstream examples and this repository's converted ones are inputs,
+    not scratch, and a symlink is a two-way door: writing `<into>/config.json` in a directory where
+    `config.json` is a link does not create a file, it rewrites the example. So
 
-    **A caller must not name its derived config after a file in the example directory.** Every file
-    there is linked, `config.json` included, so writing a derived config to `<into>/config.json`
-    writes *through the link* and overwrites the checked-in example. The callers here use
-    `config-seed-<n>.json` for that reason. This is written down because it happened: an ad-hoc
-    measurement script named its config `config.json` and silently rewrote two of the examples, and
-    the runs then still worked — the mangled data source still ended in `.zip`, so the engine found
-    the already-extracted pack in its content-addressed cache and never looked at the path.
+      * the **config is a copy**, because it is the file a caller derives from and the obvious name
+        for a derived config is the name of the one it came from;
+      * the **data and model inputs are links** — CSVs, model JSONs, ZIPs — because they are read
+        and never written, and `HLM_India`'s would be 42 MB a copy.
+
+    `write_derived_config` is the other half, and it is load-bearing rather than belt-and-braces:
+    `KevinHall_FINCH` ships *two* configs and the harness derives from `new_config.json`, so
+    `config.json` — the name the original accident used — is still a link here. Copying the source
+    config alone would not have stopped it on that example; refusing to write through a link does.
+
+    This is a rule in the code rather than a warning in a docstring because the warning was not
+    enough. An ad-hoc measurement script named its derived config `config.json`, wrote it into a
+    directory staged the old way, and silently rewrote two of the converted examples; the runs then
+    still worked, because the mangled `data.source` still ended in `.zip` and the engine found the
+    already-extracted pack in its content-addressed cache without looking at the path.
+    See docs/decisions/0039-scratch-directories-copy-what-they-may-write.md.
+
+    Nothing here changes the derived config, and so nothing changes its hash or the stored reference
+    keyed by it.
     """
     into.mkdir(parents=True, exist_ok=True)
-    for entry in sorted(source.iterdir()):
+    for entry in sorted(source_config.parent.iterdir()):
         if not entry.is_file():
             continue
-        link = into / entry.name
-        if link.is_symlink() or link.exists():
+        staged = into / entry.name
+        if staged.is_symlink() or staged.exists():
             continue
-        link.symlink_to(entry.resolve())
+        if entry.resolve() == source_config.resolve():
+            shutil.copyfile(entry, staged)
+        else:
+            staged.symlink_to(entry.resolve())
+
+
+def write_derived_config(path: Path, document: dict) -> None:
+    """Writes a derived config, and never through a symlink.
+
+    Every derived config in this harness goes through here. A symlink at `path` would mean writing
+    into whatever it points at — which, in a directory staged by `stage_example_files`, is an
+    upstream example file. `stage_example_files` already makes that impossible for a config by
+    copying it rather than linking it; this makes it impossible for anything else too, and loudly
+    rather than silently.
+    """
+    if path.is_symlink():
+        raise RuntimeError(
+            f"refusing to write the derived config {path} through a symlink to "
+            f"{os.readlink(path)}: that would rewrite an input file rather than create a new one")
+    path.write_text(json.dumps(document, indent=1))
 
 
 def find_result_csv(folder: Path) -> Path:
@@ -1067,8 +1099,8 @@ def main() -> int:
                                          arguments.stop_time, is_baseline, overlay,
                                          arguments.size_fraction)
                 config_path = folder.parent / f"config-seed-{seed}.json"
-                link_example_files(source.parent, config_path.parent)
-                config_path.write_text(json.dumps(document, indent=1))
+                stage_example_files(source, config_path.parent)
+                write_derived_config(config_path, document)
 
                 extra = ["-T", "1"] if label == "baseline" else ["--threads", "1"]
                 elapsed = run(binary, config_path, extra,

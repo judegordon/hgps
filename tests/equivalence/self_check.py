@@ -124,8 +124,8 @@ def measure(binary: Path, config: Path, seeds: list[int], workdir: Path, label: 
         document = harness.derive_config(config, seed, folder, intervention, stop_time,
                                          is_baseline=False, overlay={})
         config_path = folder.parent / f"config-seed-{seed}.json"
-        harness.link_example_files(config.parent, config_path.parent)
-        config_path.write_text(json.dumps(document, indent=1))
+        harness.stage_example_files(config, config_path.parent)
+        harness.write_derived_config(config_path, document)
 
         extra = ["--threads", "1"]
         if perturbation:

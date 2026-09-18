@@ -20,7 +20,9 @@ this file as the test `EquivalenceHarness`.
 from __future__ import annotations
 
 import csv
+import hashlib
 import importlib.util
+import json
 import math
 import sys
 import tempfile
@@ -234,6 +236,78 @@ class ResultFileChoiceTest(unittest.TestCase):
             (directory / name).write_text("source\n")
         self.assertEqual("result_2026-01-01_10-00-00.csv",
                          eqrun.find_result_csv(directory).name)
+
+
+class StagingAnExampleTest(unittest.TestCase):
+    """That a working directory cannot write back into the example it was staged from.
+
+    This is the only test here that exists because of an accident rather than a rule: an ad-hoc
+    script named its derived config `config.json`, wrote it into a staged directory where every file
+    including `config.json` was a symlink, and rewrote two of the converted examples in place. The
+    fix is that the config is copied and the rest is linked
+    (docs/decisions/0039-scratch-directories-copy-what-they-may-write.md); these assert it, because
+    the property is invisible while it holds.
+    """
+
+    def setUp(self):
+        self.example = Path(tempfile.mkdtemp()) / "example"
+        self.example.mkdir()
+        self.config = self.example / "config.json"
+        self.config.write_text(json.dumps({"running": {"seed": 1}}, indent=1) + "\n")
+        self.data = self.example / "Country.DataFile.csv"
+        self.data.write_text("Age,Male,Female\n0,1,1\n")
+        self.model = self.example / "static_model.json"
+        self.model.write_text(json.dumps({"RiskFactorModels": {}}) + "\n")
+        self.into = Path(tempfile.mkdtemp()) / "work"
+
+    @staticmethod
+    def _sha256(path: Path) -> str:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
+    def test_writing_the_derived_config_does_not_touch_the_source_example(self):
+        # The exact accident: a derived config named after the one it came from.
+        before = self._sha256(self.config)
+        eqrun.stage_example_files(self.config, self.into)
+        eqrun.write_derived_config(self.into / "config.json",
+                                   {"running": {"seed": 99}, "derived": True})
+
+        self.assertEqual(before, self._sha256(self.config))
+        self.assertEqual({"running": {"seed": 1}},
+                         json.loads(self.config.read_text()))
+        self.assertTrue(json.loads((self.into / "config.json").read_text())["derived"])
+
+    def test_the_config_is_a_copy_and_the_inputs_are_links(self):
+        eqrun.stage_example_files(self.config, self.into)
+
+        self.assertFalse((self.into / "config.json").is_symlink())
+        # The data and the model file are read, never written, and one of them is 42 MB on the
+        # India example — so those stay links.
+        self.assertTrue((self.into / "Country.DataFile.csv").is_symlink())
+        self.assertTrue((self.into / "static_model.json").is_symlink())
+        self.assertEqual(self.data.read_text(),
+                         (self.into / "Country.DataFile.csv").read_text())
+
+    def test_writing_through_a_symlink_is_refused(self):
+        # The general case, for a name this staging did not anticipate: refuse, rather than write
+        # into whatever the link points at.
+        eqrun.stage_example_files(self.config, self.into)
+        before = self._sha256(self.model)
+
+        with self.assertRaises(RuntimeError) as raised:
+            eqrun.write_derived_config(self.into / "static_model.json", {"derived": True})
+
+        self.assertIn("symlink", str(raised.exception))
+        self.assertEqual(before, self._sha256(self.model))
+
+    def test_staging_twice_leaves_the_first_staging_alone(self):
+        # The harness stages once per (example, side) and then writes one config per seed, so this
+        # runs on every seed after the first.
+        eqrun.stage_example_files(self.config, self.into)
+        eqrun.write_derived_config(self.into / "config.json", {"derived": True})
+        eqrun.stage_example_files(self.config, self.into)
+
+        self.assertTrue(json.loads((self.into / "config.json").read_text())["derived"])
+        self.assertEqual({"running": {"seed": 1}}, json.loads(self.config.read_text()))
 
 
 if __name__ == "__main__":
