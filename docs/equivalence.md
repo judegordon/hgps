@@ -505,6 +505,36 @@ out: France's cohort is nearly seed-constant, so for most of its series the nume
 the rate's buckets exactly, and the ones that move are the later years where deaths and migration
 have made the head count vary.
 
+### What became of the six residuals
+
+The question the fix was made to answer, and the answer is *three of the four series, not all four*.
+
+The previous run profiled the four series whose 95th percentiles failed at 60 seeds. Re-measured now,
+with the case count taken from the stored 60-seed reference at (baseline, 2019, female) — the cell
+`incidence_gout` failed in both runs:
+
+| Series | Distinct *rates* | Distinct **case counts** | Modal share | Lattice now? |
+|---|---:|---:|---:|:-:|
+| `prevalence_pancreascancer` | 22 | **4** | 0.50 | **yes** |
+| `incidence_arthritis` | 39 | **5** | 0.30 | **yes** |
+| `prevalence_livercancer` | 20 | **5** | 0.52 | **yes** |
+| `incidence_gout` | 50 | **9** | 0.28 | no |
+
+Three of them are a handful of counts wearing dozens of rates, which is exactly what the detector was
+missing; they are lattice-valued now and have no quantile comparison left to fail. **`incidence_gout`
+is not**, and it is not meant to be: nine distinct case counts is above the six-value rule and a
+modal share of 0.28 is below the half-share one, so it is a rare-event series with enough distinct
+values for a quantile to carry information, and it is compared numerically as it should be.
+
+So the 60-seed `HLM_India` run with `simple` active goes from three failures to **two**, both of them
+`incidence_gout` p95, worst at **1.08×** its allowance at (baseline, 2019, female).
+
+**The threshold is not moving from six to nine.** That would be changing a rule after seeing which
+comparisons it excludes, which is what this document refused for the one `HLM_France` residual and
+for the original version of this same rule. What is left is reported, with the measurement above
+attached, and it is a smaller and better-understood residual than the one this run started with: two
+comparisons in 67,894, on one variable, in one year, at 1.08× of a 4.5σ allowance.
+
 **And the first version of the change was wrong, in a way only this re-score could have caught.** It
 rounded the numerator to the nearest whole event — which is the right bucket for a case count and a
 *finer* one than printed precision for anything large. A calibrated band mean of 25.541647 over 3,146

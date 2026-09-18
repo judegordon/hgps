@@ -153,6 +153,19 @@ lattice class trades three quantiles and a standard deviation for one distributi
 1,236 comparisons — 412 series entering — and France gains 78, because France's cohort is nearly
 seed-constant and most of its buckets do not move at all.
 
+**And the six residuals the fix was made for: three of the four series, not all four.** Measured on
+the stored 60-seed reference at the cell that failed in both runs, `prevalence_pancreascancer`,
+`incidence_arthritis` and `prevalence_livercancer` have **4, 5 and 5** distinct case counts behind
+22, 39 and 20 distinct rates — a handful of counts wearing dozens of rates, which is the thing the
+detector was missing. They are lattice-valued now. `incidence_gout` has **nine** distinct case counts
+and a modal share of 0.28, so it is above one rule and below the other, and it is compared
+numerically as a series with nine distinct values should be. The 60-seed `simple` run goes from three
+failures to **two**, both `incidence_gout` p95, worst at 1.08× of its allowance.
+
+**The threshold is not moving from six to nine**, which would be changing a rule after seeing which
+comparisons it excludes — the thing this project has twice refused. What is left is reported and is
+smaller and better understood than what the run started with.
+
 ## What a deviation is worth, measured
 
 Unchanged from the previous run, and re-confirmed by the re-scores above. With
