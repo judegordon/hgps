@@ -226,6 +226,25 @@ rather than anything per person per year.
 
 [docs/backlog.md](backlog.md) has the rest, ranked, with what each costs.
 
+## What the second fixture pack cost
+
+Worth its own section, because it is the largest consequence of this run and it is not a number
+anybody would have guessed.
+
+Doubling every test that runs a configuration doubled the *simulations* the suite runs, and under
+ThreadSanitizer a simulation is seconds rather than a fifth of one. Of **2,272 seconds** of local
+TSan test time, **2,219 are the 184 `Packs/` tests** — every other test in the suite rounds to zero
+at CTest's one-second resolution. The `macos · appleclang · tsan` CI job went from **48m28s** before
+this run to about **seventy minutes** after it.
+
+**It is not the stress test.** That one had an explicit two-minute budget and comes to **53 seconds,
+2.3% of TSan's test time.** The growth belongs to the fixture pack, which is the thing that found
+three of the nine findings, so it is a cost worth having and worth naming.
+
+The mitigation is `ctest -j` on the sanitizer presets — these tests are almost all single-threaded
+and run serially today. It is not done here because changing how CI runs its tests at the end of a
+run leaves no time to find out what it breaks; it is [docs/backlog.md](backlog.md) item 10.
+
 ## What a reader should still be sceptical about
 
 - **India was compared at a hundredth of its cohort**, 12,406 people rather than 1,240,613. Nothing

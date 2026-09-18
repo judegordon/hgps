@@ -101,9 +101,23 @@ itself. Each is now derived from the configuration under test.
 ## Consequences
 
 - **The suite is 845 tests rather than 741** — 184 of them in fourteen `Packs/` suites, which is 92
-  distinct tests run twice — and the release preset takes about 35 seconds rather than 23. The cost
-  is real and it is paid on every preset, including ThreadSanitizer, where the suite is the better
-  part of an hour.
+  distinct tests run twice — and the release preset takes about 35 seconds rather than 23.
+
+- **The cost lands hardest on ThreadSanitizer, and it is the largest single consequence of this
+  decision.** Of 2,272 seconds of local TSan test time, **2,219 are the 184 `Packs/` tests**; every
+  other test in the suite rounds to zero at CTest's one-second resolution. About half of that is the
+  second pack, and the `macos · appleclang · tsan` job went from **48m28s before this run to about
+  seventy minutes after it**. That job was already the workflow's long pole and the one whose result
+  nobody had seen until the previous run.
+
+  Worth being precise about where it came from: the randomised server stress test added in the same
+  run, which had an explicit budget of two minutes, is **53 seconds — 2.3% of TSan's test time**. The
+  growth is this ADR's, not that one's.
+
+  The obvious mitigation is `ctest -j` on the sanitizer presets: these tests are almost all
+  single-threaded and run serially today. It is not done here because changing how CI runs its tests
+  at the end of a run leaves no time to find out what it breaks — [docs/backlog.md](../backlog.md)
+  carries it.
 - **A test that passes on one pack and not the other is a finding about the code**, not a reason to
   narrow the test. All three above were resolved that way.
 - **The second pack is not more realistic than the first.** Both are invented; the pack's own

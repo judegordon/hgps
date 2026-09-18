@@ -151,9 +151,11 @@ its path. A change that had moved it would have been a change doing something ot
 says.
 
 **And the output did not change.** Not statistically: *byte for byte*, on all three runnable
-examples, every result CSV and every income-stratified CSV.
-
-<!--PERF-INDIA-->
+examples, every result CSV and every income-stratified CSV — nine files on `HLM_France` and
+`KevinHall_FINCH`, and four more on `HLM_India` **at the cohort it ships**, 1,240,613 people over
+2010–2050, 16,564 rows and 29 MiB of CSV. That last one is half an hour a side and is the reason to
+do it: India is where a constant factor is paid 1.24 million times a year, so it is the example most
+likely to expose a change that reordered an accumulation.
 
 **That check did not find the one defect this change had**, which is worth stating because this
 document has twice recorded it finding one. `resolve_predictors` used `find`, which answers `unknown`

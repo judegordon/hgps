@@ -191,7 +191,23 @@ Still only worth doing if someone needs it.
 
 ## Smaller things
 
-### 10. `DataSeries` is still keyed by channel name — `cleanup`
+### 10. Run the sanitizer presets' tests in parallel — `platform`
+
+**Value: medium. Effort: low, and the risk is what makes it an item rather than a one-liner.** The
+second fixture pack doubled every test that runs a configuration, and the cost lands almost entirely
+on ThreadSanitizer: of 2,272 seconds of local TSan test time, 2,219 are the 184 `Packs/` tests, and
+the `macos · appleclang · tsan` CI job went from **48m28s to about seventy minutes**. That job is the
+workflow's long pole, it is the one every push supersedes, and it is now most of the reason a full CI
+run takes over an hour.
+
+`ctest -j` is the obvious answer: these tests are almost all single-threaded and run serially today,
+on runners with several cores. What makes it an item rather than a one-liner is that some of them are
+*about* threads — the byte-identity-at-N-threads tests spawn workers, the server tests bind sockets,
+and the stress test runs several clients — so the right degree of parallelism has to be found rather
+than assumed, and under a sanitizer the memory cost multiplies too. Doing it at the end of a run
+leaves no time to find out what it breaks.
+
+### 11. `DataSeries` is still keyed by channel name — `cleanup`
 
 **Value: low-medium. Effort: low-medium.** The other half of the old item 2, and the half that item
 always called smaller. A `KevinHall_FINCH` profile taken after this run's change still has
@@ -201,7 +217,7 @@ const std::string &)` and `Map2d<Gender, Identifier, …>::contains` — rather 
 per year. The same treatment applies: resolve the channel name to a column index when the series is
 built.
 
-### 11. A schema for the model definition files — `docs`
+### 12. A schema for the model definition files — `docs`
 
 **Value: medium. Effort: low.** `schemas/v2/` covers the config. The static and dynamic model
 files have no published schema, which is why their member names were wrong for a week in the
@@ -210,14 +226,14 @@ and its R row-index columns. The shapes are documented only in `src/config/model
 the three loader test files. Write them, and extend `schema_agreement_test.cpp` to cover them the
 way it covers the config.
 
-### 12. Sector, and `demographic_models` — `scope`
+### 13. Sector, and `demographic_models` — `scope`
 
 **Value: low. Effort: low.** `person.sector` (urban/rural) is assigned nowhere; the channel
 appears if the mapping declares the factor. `modelling.demographic_models` is carried through as
 opaque JSON, deliberately — its shape belongs to the model family that reads it — and no model
 family reads it yet.
 
-### 13. The fixture pack's top-age artefact — `validation`
+### 14. The fixture pack's top-age artefact — `validation`
 
 **Value: low. Effort: low.** The synthetic pack's population table stops at the same age as the
 config's `age_range`, so anyone reaching the top age leaves the cohort and the pack's simulated
@@ -225,7 +241,7 @@ death rate runs above what its mortality table implies. Recorded in the pack's o
 Extending the pack's age range by a few years above the configured one would remove the artefact;
 nothing depends on it, because no test reads the pack's death rates as a check on anything.
 
-### 14. Report four things upstream — `docs`
+### 15. Report four things upstream — `docs`
 
 **Value: low here, high upstream. Effort: low.** Four findings belong to the people who own the
 data and the baseline, and telling them is not done:
@@ -256,7 +272,7 @@ them by number.
 
 | Was | | |
 |---|---|---|
-| **2** | Resolve names to indices at the call site | done; [docs/performance.md](performance.md) has the A/B, byte-identical on all three runnable examples. What is left of it is item 10 above |
+| **2** | Resolve names to indices at the call site | done; [docs/performance.md](performance.md) has the A/B, byte-identical on all three runnable examples. What is left of it is item 11 above |
 | **10** | Make the GCC entries required | done; `experimental: true` is gone from both entries |
 | **11** | The lattice detector should classify on the numerator | done, with no threshold moved; all four stored references re-scored and within tolerance ([docs/equivalence.md](equivalence.md)) |
 

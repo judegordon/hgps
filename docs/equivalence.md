@@ -526,8 +526,17 @@ is not**, and it is not meant to be: nine distinct case counts is above the six-
 modal share of 0.28 is below the half-share one, so it is a rare-event series with enough distinct
 values for a quantile to carry information, and it is compared numerically as it should be.
 
-So the 60-seed `HLM_India` run with `simple` active goes from three failures to **two**, both of them
-`incidence_gout` p95, worst at **1.08×** its allowance at (baseline, 2019, female).
+**Measured as a pair**, because the previous run's counts came from a different code state and
+comparing against them would be comparing two things at once: the same 60 seeds, the same stored
+reference, the same binary, and one line of the detector different.
+
+<!--PAIRED-->
+
+`prevalence_stomachcancer` was not one of the four the previous run profiled. Re-measured the same
+way, it has **8 to 10** distinct case counts across the four (scenario, sex) cells that carry it, with
+modal shares of 0.22 to 0.33 — the same shape as `incidence_gout`'s 9 and 13. Both are rare-event
+series with enough distinct counts for a quantile to carry information, and both are compared
+numerically because that is what the rule says to do with them.
 
 **The threshold is not moving from six to nine.** That would be changing a rule after seeing which
 comparisons it excludes, which is what this document refused for the one `HLM_France` residual and
