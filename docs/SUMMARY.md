@@ -12,10 +12,10 @@ scenarios against the baseline and produce results that agree with it. Three of 
 examples now run end to end, and a fourth loads completely and then stops on a contradiction in its
 own data pack — which the baseline also stops on, in the same place.
 
-- **554 tests**, plus 26 for the equivalence harness itself, all passing under every preset — release, debug, **AddressSanitizer +
-  UndefinedBehaviorSanitizer** and **ThreadSanitizer**. The baseline's 471 were gone through one by
-  one, and **the 35 the baseline skips now run**: [docs/test-port-map.md](test-port-map.md) says
-  where each went.
+- **554 tests, plus 26 for the equivalence harness itself**, all passing under every preset —
+  release, debug, **AddressSanitizer + UndefinedBehaviorSanitizer** and **ThreadSanitizer**. The
+  baseline's 471 were gone through one by one, and **the 35 the baseline skips now run**:
+  [docs/test-port-map.md](test-port-map.md) says where each went.
 - **Two statistical equivalence comparisons against the baseline, both at zero failures.**
   31,468 comparisons on `HLM_France` and 22,679 on `KevinHall_FINCH`, each at 20 seeds and again at
   60, plus one run per intervention for each of the other five policies on each example. There is
@@ -47,21 +47,21 @@ For comparison, the baseline is 41,400 lines of C++ for the whole model surface.
 | | Task | Outcome |
 |---:|---|---|
 | 1 | Orientation | **Done.** |
-| 2 | Residual investigation — close the 54 with evidence, not a budget | **Done.** Measured, attributed to the baseline as B-21, and excluded from the reduction by a rule derived from the data. The seven that survived that turned out to be a defect in the *test*. 54 → 0. |
+| 2 | Residual investigation — close the 54 with evidence, not a budget | **Done.** Measured, attributed to the baseline as B-21, and excluded from the reduction by a rule derived from the data. The seven that survived that turned out to be a defect in the *test*, as did eighteen more found later at 60 seeds. 54 → 0, and the budget is gone. |
 | 3 | Derived-predictor resolver with load-time validation | **Done.** |
 | 4 | FINCH data loading and manifest validation | **Done.** |
 | 5 | `StaticLinear`, split into units, with tests | **Done.** 2,615 baseline lines become seven translation units; 22 + 11 new tests. |
 | 6 | `KevinHall` and the 35 skipped baseline tests | **Done.** The 30 that test behaviour run and pass; the five that assert the contents of a printed summary box this build does not print are recorded as not ported. |
 | 7 | The other five interventions, and determinism for each | **Done.** One `BandedInterventionScenario` and one virtual function per policy; 32 tests; every intervention byte-identical at one thread and at four, twice each. |
-| 8 | Converter policy-scenario option, and every example converted and loaded | **Done.** `--policy-scenario S1..S7` resolves audit D-02 without editing the upstream example. Four of six examples run; the two that do not stop at a named missing feature. |
-| 9 | Equivalence and performance for FINCH | **Done.** See below. |
+| 8 | Converter policy-scenario option, and every example converted and loaded | **Done.** `--policy-scenario S1..S7` resolves audit D-02 without editing the upstream example. All six convert and load their configs; three run end to end, and the three that do not each stop at a named cause. |
+| 9 | Equivalence and performance for FINCH | **Done**, and it found more than the FINCH surface: two calibration defects here, and two defects in the comparison itself. See below. |
 | 10 | Test port completion and every preset | **Done.** 554 tests and the harness's own 26, four presets. |
 | 11 | Docs, ADRs, README, backlog, this file | **Done.** |
 
 ## What the validation actually shows
 
-**Component level.** 554 tests, of which 229 are in files the baseline has no counterpart for. The strongest are the ones that carry the
-baseline's expected numbers over unchanged and still pass: the univariate-summary moment
+**Component level.** 554 tests, of which 229 are in files the baseline has no counterpart for. The
+strongest are the ones that carry the baseline's expected numbers over unchanged and still pass: the univariate-summary moment
 recurrence, the SHA-256 digests, the weight-model LMS classification, and
 `TestRelativeRiskLookup.ReferenceDataLookup`, 44 expected relative risks interpolated from a real
 7×5 table.
@@ -90,10 +90,12 @@ six interventions** — asserted by `tests/sim/reproducibility_test.cpp`, not ju
 (365 s) and under ThreadSanitizer (836 s), which is where audit finding B-02 — a data race in the
 baseline's lazily-populated repository — was confirmed in the first place. Six of those 836 seconds
 per test are the six interventions' byte-identical-at-1-and-4-threads checks, at about 85 s each —
-which is why they are six tests rather than the one that exceeded CTest's timeout. Across every run this project has
-made — several hundred, over two examples, six interventions and both seed counts — this build has
-not once exited on a signal. The baseline has, on `KevinHall_FINCH`, in 4 of 180 measured runs —
-three `SIGTRAP` and one `SIGABRT`, each succeeding when re-run unchanged.
+which is why they are six tests rather than the one that exceeded CTest's timeout.
+
+Across every run this project has made — several hundred, over two examples, six interventions and
+both seed counts — this build has not once exited on a signal. The baseline has, on
+`KevinHall_FINCH`, in 4 of 180 measured runs: three `SIGTRAP` and one `SIGABRT`, each succeeding
+when re-run unchanged with the same binary, config and seed.
 
 **Performance.** [docs/performance.md](performance.md):
 
