@@ -35,7 +35,7 @@ Three things happened, in the order the run found them.
 | Comparisons against the baseline this run | **185,208**, **0** out of tolerance |
 | Source | `src/` 153 files; `tests/` 67 files; 43,576 lines of C++ between them; `web/src/` 14 files, 2,357 lines |
 | Documents | 12, plus **43 ADRs** |
-| CI | **13 jobs**, green on every matrix entry |
+| CI | **13 jobs, all green** on this commit — run 35355948882 |
 
 ## The seven tasks, and how each ended
 
@@ -96,9 +96,14 @@ built this tree" — are both retired.
 | `equivalence · KevinHall_FINCH · 20 seeds` | green, same |
 | `web · typecheck, test, build` | green (new this run) |
 
+Verified rather than assumed: run 35355948882 on this commit, all thirteen jobs `success`. The one
+worth naming is `macos · appleclang · tsan`, which takes about three quarters of an hour on a shared
+runner and had been superseded by a push before it could report on every earlier attempt — so until
+this run it was the one entry whose result nobody had ever seen.
+
 The GCC entries still carry `experimental: true`, which makes them `continue-on-error`. That flag
 was there because nothing knew what GCC would say. Now something does, and removing it is a
-one-line change rather than an unknown — [docs/backlog.md](backlog.md).
+one-line change rather than an unknown — [docs/backlog.md](backlog.md) item 10.
 
 ## What a deviation is worth, measured
 
