@@ -36,7 +36,7 @@ own data pack — which the baseline also stops on, in the same place.
 | | |
 |---|---|
 | `src/` | 128 files, 22,600 lines — core, diagnostics, RNG, I/O, config, data, model, sim, output, app |
-| `tests/` | 48 files, 12,000 lines — 554 tests in 63 suites, plus 26 for the harness |
+| `tests/` | 47 C++ files, 11,600 lines — 554 tests in 63 suites — plus `equivalence/run_test.py`, 26 tests of the harness itself |
 | `tools/` | `convert-config` (v1→v2, with `--policy-scenario`) and `gen-fixtures` (the synthetic data pack) |
 | `schemas/v2/` | the published config contract, kept in step with the loader by a test |
 | `docs/` | 9 documents and 31 ADRs |
