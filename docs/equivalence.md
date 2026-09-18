@@ -474,6 +474,47 @@ the detector should classify on the **numerator** rather than on the rate, which
 carry the count alongside the reduced value — and it is in [docs/backlog.md](backlog.md) with this
 measurement attached.
 
+### The fix, and what it did to the stored references
+
+Done this run, and no threshold moved: both rules are now applied to `value × count` for the same
+(scenario, year, sex) and seed, bucketed at the baseline's printed precision exactly as the reduced
+value was. The count was never thrown away — it is a summed variable of the reduction — so nothing
+new had to be stored and no reference had to be refreshed.
+[docs/equivalence-method.md](equivalence-method.md) §5.1 has the rule.
+
+**It is a change of the quantity asked about and not of the threshold, and that is checkable rather
+than asserted**: if the head count were the same in every seed, multiplying both the values and the
+scale by it would leave every bucket exactly where it was. The change can only act where the
+denominator moves, which is the whole of the defect.
+
+All four stored references were re-scored against it:
+
+| Example | Intervention | Comparisons, before | After | Out of tolerance |
+|---|---|---:|---:|---:|
+| `HLM_France` | `simple` | 31,468 | **31,546** | **0** |
+| `KevinHall_FINCH` | `simple` | 22,679 | **22,616** | **0** |
+| `HLM_India` *(reduced)* | `simple` | 67,885 | **66,787** | **0** |
+| `HLM_India` *(reduced)* | `food_labelling` | 68,041 | **66,805** | **0** |
+
+The comparison counts move in both directions, and that is the mechanism rather than noise: a series
+that becomes lattice-valued loses its three quantiles and its standard deviation and gains one
+distribution test, so it goes from five comparisons to two; a series that stops being one goes the
+other way. India loses 1,236 comparisons, which is 412 series moving *into* the lattice class —
+overwhelmingly the rare-disease rates this was about. France gains 78, which is 26 series moving
+out: France's cohort is nearly seed-constant, so for most of its series the numerator's buckets are
+the rate's buckets exactly, and the ones that move are the later years where deaths and migration
+have made the head count vary.
+
+**And the first version of the change was wrong, in a way only this re-score could have caught.** It
+rounded the numerator to the nearest whole event — which is the right bucket for a case count and a
+*finer* one than printed precision for anything large. A calibrated band mean of 25.541647 over 3,146
+people is a numerator of 80,354, and one unit in that is 1.2×10⁻⁵ relative, just above the 10⁻⁵ floor.
+Every calibrated mean on `HLM_India` failed: 216 comparisons out of tolerance in `mean_energy`,
+`mean_pa`, `mean_bmi` and `mean_fat`, each a distribution test at p = 2.9×10⁻¹¹, all of them two runs
+agreeing to every digit the baseline prints. The unit tests passed throughout, because none of them
+had a numerator large enough for the difference between "a whole event" and "a printed digit" to
+matter. `run_test.py` has one now.
+
 ### What the India comparison adds, and what it does not
 
 **Adds:** a third example, a second dynamic model family (`EBHLM`), 35 diseases against 6 and 15, a

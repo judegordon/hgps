@@ -11,7 +11,7 @@ Everything here is enforced in one script and tested by two others:
 | | |
 |---|---|
 | `tests/equivalence/run.py` | the comparison. Runs both implementations, reduces, compares, reports. |
-| `tests/equivalence/run_test.py` | 39 tests of the rules below, of the staging rule in ADR 0039 and of the deviation-impact measurement in ADR 0041, in milliseconds. Run by CTest. |
+| `tests/equivalence/run_test.py` | 46 tests of the rules below, of the staging rule in ADR 0039 and of the deviation-impact measurement in ADR 0041, in milliseconds. Run by CTest. |
 | `tests/equivalence/self_check.py` | the comparison pointed at itself: does it pass when it should, and fail when it should. Run by CTest. |
 
 ---
@@ -44,6 +44,14 @@ value per **(scenario, year, sex, variable)**:
 - `count`, `deaths` and `emigrations` are counts, so they are **summed** over the age bands;
 - everything else is a mean or a proportion within a band, so it is the **count-weighted mean** over
   the bands — which is the figure the variable reports for the population.
+
+**The second bullet is not true of four columns, and they are reduced by it anyway.**
+`normal_weight`, `over_weight`, `obese_weight` and `above_weight` are head counts — the analysis
+module increments one per person — so their population figure is a sum and they are getting a
+weighted mean. It does not make any comparison wrong, because both implementations are reduced
+identically; it makes the *number* meaningless, here and in the server's charting endpoint, which
+applies the same rule. [docs/backlog.md](backlog.md) item 11a has the fix and what it costs, which is
+a regeneration of every stored reference.
 
 A band with no people in it contributes nothing to a weighted mean and nothing to a sum.
 
@@ -222,16 +230,38 @@ distributions Fisher's exact test cannot tell apart (p = 0.27 on the worst).
 
 A series is **lattice-valued** when either:
 
-1. the two samples **pooled** take at most **six distinct values at the baseline's printed
-   precision** — a continuous quantity gives one distinct value per seed, so this cannot catch one,
-   and six is a quarter of the smallest seed count the harness accepts; **or**
+1. the two samples **pooled** take at most **six distinct values** — a continuous quantity gives one
+   distinct value per seed, so this cannot catch one, and six is a quarter of the smallest seed count
+   the harness accepts; **or**
 2. one value covers **more than half** of either sample — a series can have many distinct values and
    still be a point mass with rare jumps, and when one value covers more than half the seeds, the
    median *is* that value, so it is a step function too.
 
-**Bucketing at printed precision is part of the rule, not a detail.** `0.00029274` and `0.000292741`
-are one value the baseline cannot print apart, and counting them as two was enough to hide a lattice
-series from an earlier version of this rule.
+**Both rules are applied to the numerator, not to the reduced value.** That is the correction this
+run made, and it is the whole of it: neither threshold moved.
+
+§2 reduces a per-band figure to one population figure per (scenario, year, sex). Counts are summed;
+everything else is the count-weighted mean over the bands. So a disease rate comes out as *total
+cases over total head count* — and the cases are a small integer while the head count differs from
+seed to seed. Dividing one by the other smears the lattice. A series that is a handful of case counts
+in disguise presents dozens of distinct **rates**, and both rules above, asked of the rate, miss it
+completely.
+
+The correction is to ask them of the count. Nothing new has to be stored: the reduction already
+carries `count` as a summed variable, so for a count-weighted variable the numerator is
+`value × count` for the same (scenario, year, sex) and seed, rounded to the nearest whole event.
+`reduce_result` checks the identity that rests on — that the weight it divided by is the head count
+it summed — and refuses rather than classifying from a wrong number.
+
+A mean's numerator is a total rather than a count, so it stays continuous and is not mistaken for a
+lattice; a band mean that calibration pins takes one value in every seed and its numerator does too,
+because the cohort size is the same in every seed, so it stays a point mass. `run_test.py` pins both
+of those as well as the case it fixes.
+
+**Bucketing at printed precision is what the fallback does** — for a summed variable, whose reduced
+value *is* its numerator, and for a series with no head count beside it. `0.00029274` and
+`0.000292741` are one value the baseline cannot print apart, and counting them as two was enough to
+hide a lattice series from an earlier version of this rule.
 
 ### 5.2 What replaces the quantiles
 

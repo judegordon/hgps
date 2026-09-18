@@ -162,6 +162,37 @@ PRINTED_PRECISION_FLOOR = 1e-5
 # does shrink correctly — and the standard deviation and the three quantiles, all of which are
 # functions of the same counts, are replaced by one exact test of those counts.
 
+# **The detector looks at the numerator, not at the reduced value.** That is the correction this
+# run made, and it is worth stating why rather than only what.
+#
+# The reduction turns a per-band figure into one population figure per (scenario, year, sex): counts
+# are summed, and everything else is the count-weighted mean over the bands. So a disease rate comes
+# out as `total cases / total head count`. The cases are a small integer; the head count differs
+# from seed to seed. Dividing one by the other smears the lattice — a series that is a handful of
+# case counts in disguise presents dozens of distinct *rates*, and both rules below, applied to the
+# rate, miss it.
+#
+# That is not hypothetical either. The `HLM_India` comparison at 60 seeds produced four such series
+# with 43 to 79 distinct values and a modal share of 0.12 to 0.40 — under both rules — while a third
+# of their seeds were exactly zero. Six comparisons failed at 1.02x to 1.09x of their allowance, in
+# both the `simple` and the `food_labelling` runs, which is what says they belong to the comparison
+# and not to either implementation. docs/equivalence.md has the table.
+#
+# The numerator is recoverable without storing anything new: the reduction already carries `count`
+# as a summed variable, and for a count-weighted variable the numerator is `value * count` for the
+# same (scenario, year, sex) and seed. `numerator_series` does that, and `reduce_result` checks the
+# identity it rests on, so a file where it did not hold would fail rather than be classified from a
+# wrong number.
+#
+# **The bucketing is unchanged**: the numerator is bucketed at the baseline's printed precision, the
+# same rule the reduced value got. Note what that means — if the head count were the same in every
+# seed, multiplying both the values and the scale by it would leave every bucket exactly where it
+# was, so this change does nothing at all except where the denominator moves. Which is the whole of
+# the defect it fixes.
+
+# The variables the reduction sums rather than count-weights. Their reduced value IS the numerator.
+SUMMED_VARIABLES = {"count", "deaths", "emigrations"}
+
 # (1) At most this many distinct values, at the baseline's printed precision, in the two
 #     implementations' samples pooled. A continuous quantity gives one distinct value per seed, so
 #     this cannot catch one: six is a quarter of the smallest seed count the harness accepts.
@@ -513,7 +544,7 @@ def reduce_result(path: Path, excluded: set[Band] | None = None
     with path.open(newline="") as stream:
         reader = csv.DictReader(stream)
         variables = [name for name in reader.fieldnames or [] if name not in KEY_COLUMNS]
-        summed = {"count", "deaths", "emigrations"}
+        summed = SUMMED_VARIABLES
 
         for row in reader:
             source = row["source"].lower()
@@ -543,7 +574,27 @@ def reduce_result(path: Path, excluded: set[Band] | None = None
                 totals[key] = totals.get(key, 0.0) + count * float(text)
                 weights[key] = weights.get(key, 0.0) + count
 
-    return {key: totals[key] / weights[key] for key in totals}
+    reduced = {key: totals[key] / weights[key] for key in totals}
+
+    # The lattice detector reconstructs a count-weighted variable's numerator as `value * count`
+    # (see LATTICE_MAX_DISTINCT_VALUES above). That is only right if the weight this function
+    # divided by is the same head count it summed into `count`, which holds when every band with
+    # people in it reports every variable. Checked rather than assumed: a file where it did not
+    # hold would give the detector a wrong number and nothing would say so.
+    for key, weight in weights.items():
+        scenario, year, sex, variable = key
+        if variable in summed:
+            continue
+        head_count = totals.get((scenario, year, sex, "count"))
+        if head_count is None:
+            continue
+        if abs(weight - head_count) > 1e-6 * max(abs(head_count), 1.0):
+            raise SystemExit(
+                f"{path}: {key} was weighted by {weight} but the head count for that "
+                f"(scenario, year, sex) is {head_count}. The reduction's numerator cannot be "
+                f"reconstructed, so the lattice detector would classify on a wrong number.")
+
+    return reduced
 
 
 def reduced_to_rows(reduced: dict[tuple[str, int, str, str], float], seed: int) -> list[list]:
@@ -671,6 +722,25 @@ def lattice_keys(values: list[float], scale: float) -> list[int]:
     """
     step = PRINTED_PRECISION_FLOOR * max(scale, 1e-12)
     return [round(value / step) for value in values]
+
+
+def numerator_series(values: list[float], counts: list[float]) -> list[float]:
+    """The numerator a count-weighted series was reduced from, per seed.
+
+    `value` is `sum over bands of count_b * value_b` divided by `sum over bands of count_b`, so
+    multiplying it back by the head count recovers the numerator. For a disease rate that numerator
+    is a case count, which is the quantity the lattice rule is about; for a mean it is a total,
+    which is continuous and will not be mistaken for a lattice.
+
+    It is returned unbucketed on purpose. The caller buckets it with `lattice_keys` at the *same*
+    printed-precision rule the reduced value gets, which is what makes this a change of the quantity
+    asked about and not a change of the threshold. Rounding to a whole event instead — which the
+    first version of this did — is a finer bucket than printed precision as soon as the numerator is
+    large: a calibrated mean's numerator is a total of 80,354, and one unit in that is 1.2e-5
+    relative, just above the 1e-5 floor. It made every calibrated mean on `HLM_India` fail. The
+    re-score of the stored references is what found it.
+    """
+    return [value * count for value, count in zip(values, counts)]
 
 
 def modal_share(keys: list[int]) -> float:
@@ -805,13 +875,28 @@ def compare(baseline: dict[int, dict], new: dict[int, dict], seeds: list[int],
         scale = max(abs(base.mean), abs(mine.mean), base.sd, mine.sd, 1e-12)
         floor = PRINTED_PRECISION_FLOOR * scale
 
-        # Is this series lattice-valued? See LATTICE_MAX_DISTINCT_VALUES above for what that means
-        # and why no quantile of such a series can be compared numerically. Both implementations'
-        # samples are bucketed on one common scale, so that "distinct value" means the same thing
-        # on both sides.
-        common_scale = max(abs(value) for value in base_values + new_values) or 1.0
-        base_keys = lattice_keys(base_values, common_scale)
-        new_keys = lattice_keys(new_values, common_scale)
+        # Is this series lattice-valued? See LATTICE_MAX_DISTINCT_VALUES above for what that means,
+        # why no quantile of such a series can be compared numerically, and why the question is
+        # asked of the numerator rather than of the reduced value.
+        base_counts = [baseline[seed].get((scenario, year, sex, "count")) for seed in seeds]
+        new_counts = [new[seed].get((scenario, year, sex, "count")) for seed in seeds]
+        on_numerator = (
+            variable not in SUMMED_VARIABLES
+            and all(count is not None and count > 0.0 for count in base_counts + new_counts))
+
+        if on_numerator:
+            base_numerators = numerator_series(base_values, base_counts)
+            new_numerators = numerator_series(new_values, new_counts)
+            numerator_scale = max(abs(value) for value in base_numerators + new_numerators) or 1.0
+            base_keys = lattice_keys(base_numerators, numerator_scale)
+            new_keys = lattice_keys(new_numerators, numerator_scale)
+        else:
+            # A summed variable's reduced value is its own numerator, and a head count of zero
+            # leaves nothing to reconstruct. Both implementations' samples are bucketed on one
+            # common scale, so that "distinct value" means the same thing on both sides.
+            common_scale = max(abs(value) for value in base_values + new_values) or 1.0
+            base_keys = lattice_keys(base_values, common_scale)
+            new_keys = lattice_keys(new_values, common_scale)
         lattice = (len(set(base_keys) | set(new_keys)) <= LATTICE_MAX_DISTINCT_VALUES or
                    max(modal_share(base_keys), modal_share(new_keys)) > DEGENERATE_MODAL_SHARE)
 

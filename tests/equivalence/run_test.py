@@ -186,6 +186,150 @@ class WhichStatisticsAreComparedTest(unittest.TestCase):
         self.assertFalse(all(c.passed for c in outcome.comparisons))
 
 
+def _rate_series(case_counts, head_counts):
+    """{seed: {rate key, count key}} for a rate whose numerator and denominator are both given.
+
+    This is the shape the reduction actually produces for a disease rate: the value is
+    `cases / head count` and the head count is beside it as its own variable.
+    """
+    # `prevalence_`, not `incidence_`: an incidence is undefined in the run's first year and these
+    # samples are all one year, so the comparison would be skipped before the detector saw it.
+    rate_key = ("baseline", 2020, "male", "prevalence_gout")
+    count_key = ("baseline", 2020, "male", "count")
+    return {seed: {rate_key: cases / head, count_key: float(head)}
+            for seed, (cases, head) in enumerate(zip(case_counts, head_counts), start=1)}
+
+
+def _compare_rates(base_cases, base_heads, new_cases, new_heads):
+    seeds = list(range(1, len(base_cases) + 1))
+    outcome = eqrun.Outcome(example="test", seeds=seeds)
+    eqrun.compare(_rate_series(base_cases, base_heads), _rate_series(new_cases, new_heads),
+                  seeds, outcome)
+    return outcome
+
+
+def _of(outcome, variable):
+    """The comparisons of one variable — the head count is beside it and is compared too."""
+    return [c for c in outcome.comparisons if c.key[3] == variable]
+
+
+class LatticeOnTheNumeratorTest(unittest.TestCase):
+    """The detector asks its question of the case count, not of the rate (docs/backlog.md item 11).
+
+    The four `HLM_India` series this fixes had 43 to 79 distinct *rates* and a third of their seeds
+    exactly zero: a handful of case counts divided by a head count that moves seed to seed.
+    """
+
+    # A head count that differs in every seed, which is what smears the lattice.
+    HEADS = [12406 + i for i in range(60)]
+
+    def test_a_rate_whose_numerator_is_a_small_count_is_a_lattice(self):
+        # Twenty of sixty seeds have no cases, the rest have one or two — and because the
+        # denominator moves, the *rate* takes a different value in almost every seed.
+        cases = ([0] * 20 + [1] * 30 + [2] * 10)
+        rates = {c / h for c, h in zip(cases, self.HEADS)}
+        self.assertGreater(len(rates), eqrun.LATTICE_MAX_DISTINCT_VALUES,
+                           "the rate must look continuous, or this tests nothing")
+
+        outcome = _compare_rates(cases, self.HEADS, cases, self.HEADS)
+        self.assertEqual({"mean", "distribution"},
+                         {c.statistic for c in _of(outcome, "prevalence_gout")})
+
+    def test_the_same_series_read_as_a_rate_is_not_one(self):
+        # The old behaviour, kept as a test so that what changed is written down: with no head
+        # count beside it the detector can only look at the rate, and it sees a continuous series.
+        cases = ([0] * 20 + [1] * 30 + [2] * 10)
+        rates = [c / h for c, h in zip(cases, self.HEADS)]
+        statistics = {c.statistic for c in _compare(rates, rates).comparisons}
+        self.assertEqual({"mean", "sd", "p5", "p50", "p95"}, statistics)
+
+    def test_the_six_india_residuals_are_the_shape_this_fixes(self):
+        # `incidence_gout` at (baseline, 2019, female) failed in both 60-seed runs at 1.02x to
+        # 1.09x of its allowance, on the 95th percentile. Written here as a prevalence for the
+        # reason above; the shape of the numbers is what the test is about. With the classification taken from the
+        # numerator there is no percentile comparison to fail, and the distribution test — which
+        # does hold at these counts — passes.
+        base_cases = [0] * 7 + [1] * 33 + [2] * 15 + [3] * 5
+        new_cases = [0] * 5 + [1] * 35 + [2] * 14 + [3] * 6
+        new_heads = [12400 + 2 * i for i in range(60)]
+
+        outcome = _compare_rates(base_cases, self.HEADS, new_cases, new_heads)
+        compared = _of(outcome, "prevalence_gout")
+        self.assertEqual({"mean", "distribution"}, {c.statistic for c in compared})
+        self.assertTrue(all(c.passed for c in compared),
+                        [f"{c.statistic}: {c.baseline} vs {c.new}"
+                         for c in compared if not c.passed])
+
+    def test_a_real_difference_in_the_counts_still_fails(self):
+        # The rule must not be a waiver: the same denominators, a case count that really differs.
+        base_cases = [0] * 60
+        new_cases = [0] * 15 + [1] * 45
+        outcome = _compare_rates(base_cases, self.HEADS, new_cases, self.HEADS)
+        self.assertFalse(all(c.passed for c in _of(outcome, "prevalence_gout")))
+
+    def test_a_continuous_mean_is_not_turned_into_a_lattice_by_its_numerator(self):
+        # A mean's numerator is a total rather than a count, so multiplying it back by the head
+        # count leaves it continuous. It must still get all five statistics.
+        heads = [3146 + i for i in range(20)]
+        values = [25.0 + 0.037 * i for i in range(20)]
+        key = ("baseline", 2020, "male", "mean_bmi")
+        count_key = ("baseline", 2020, "male", "count")
+        seeds = list(range(1, 21))
+        side = {seed: {key: values[seed - 1], count_key: float(heads[seed - 1])} for seed in seeds}
+        outcome = eqrun.Outcome(example="test", seeds=seeds)
+        eqrun.compare(side, side, seeds, outcome)
+        self.assertEqual({"mean", "sd", "p5", "p50", "p95"},
+                         {c.statistic for c in _of(outcome, "mean_bmi")})
+
+    def test_a_calibrated_mean_that_is_the_same_in_every_seed_is_still_a_point_mass(self):
+        # The other direction: a band mean calibration pins takes one value in every seed, and the
+        # cohort size is the same in every seed too, so its numerator is one value as well. It has
+        # to stay on the exact-distribution path — the synthetic self-check's detection of a 1%
+        # shift in `mean_bmi` runs through it (docs/equivalence-method.md 7.2).
+        key = ("baseline", 2020, "male", "mean_bmi")
+        count_key = ("baseline", 2020, "male", "count")
+        seeds = list(range(1, 21))
+        side = {seed: {key: 25.541647, count_key: 3146.0} for seed in seeds}
+        outcome = eqrun.Outcome(example="test", seeds=seeds)
+        eqrun.compare(side, side, seeds, outcome)
+        self.assertEqual({"mean", "distribution"},
+                         {c.statistic for c in _of(outcome, "mean_bmi")})
+
+    def test_the_numerator_is_the_value_times_the_head_count(self):
+        # Unbucketed: the caller buckets it at the baseline's printed precision, the same rule the
+        # reduced value gets. The baseline prints six significant digits, so a rate read back and
+        # multiplied by the head count is a few parts per million away from the count it came from,
+        # and that bucketing is what absorbs the difference.
+        numerators = eqrun.numerator_series([0.000967274, 0.00096728, 0.001047],
+                                            [12406.0, 12406.0, 12406.0])
+        self.assertEqual([12, 12, 13], [round(value) for value in numerators])
+
+    def test_a_constant_head_count_leaves_every_bucket_where_it_was(self):
+        # The property that says this is a change of the quantity asked about and not of the
+        # threshold: multiplying the values and the scale by the same number moves nothing.
+        rates = [0.000967274, 0.00096728, 0.001047, 0.0]
+        heads = [12406.0] * 4
+        on_rates = eqrun.lattice_keys(rates, max(rates))
+        numerators = eqrun.numerator_series(rates, heads)
+        on_numerators = eqrun.lattice_keys(numerators, max(numerators))
+        self.assertEqual(on_rates, on_numerators)
+
+    def test_a_calibrated_mean_is_not_split_by_its_own_size(self):
+        # The first version of this rounded the numerator to a whole event, which is a finer bucket
+        # than printed precision once the numerator is large. A band mean of 25.541647 over 3,146
+        # people is a numerator of 80,354, and one unit in that is 1.2e-5 relative — just above the
+        # 1e-5 floor — so two runs agreeing to the precision the baseline prints were split apart.
+        # Every calibrated mean on `HLM_India` failed. This pins the fix.
+        base = [25.541647043865236] * 20
+        new = [25.541647043865240] * 20
+        heads = [3146.0] * 20
+        base_keys = eqrun.lattice_keys(eqrun.numerator_series(base, heads),
+                                       max(eqrun.numerator_series(base, heads)))
+        new_keys = eqrun.lattice_keys(eqrun.numerator_series(new, heads),
+                                      max(eqrun.numerator_series(new, heads)))
+        self.assertEqual(set(base_keys), set(new_keys))
+
+
 class ReductionTest(unittest.TestCase):
     """The count-weighted reduction over age bands, and what it leaves out."""
 

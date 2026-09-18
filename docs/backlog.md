@@ -190,6 +190,36 @@ Still only worth doing if someone needs it.
 Done this run. `experimental: true` is gone from both GCC entries, so a GCC regression fails the
 build instead of being reported quietly.
 
+### 11a. The weight-category columns are counts and both reductions treat them as means — `correctness`
+
+**Value: medium-high. Effort: low for the code, a reference regeneration for the consequences.**
+Found this run while reading the reduction for item 11.
+
+`normal_weight`, `over_weight`, `obese_weight` and `above_weight` are **head counts** in the result
+CSV — the analysis module increments one per person per band, and
+`tests/sim/simulation_test.cpp` pins `normal + over + obese == count` for every row. Both reductions
+that exist treat them as per-band means:
+
+- the equivalence harness sums `count`, `deaths` and `emigrations` and takes the count-weighted mean
+  of everything else, on the stated premise that "everything else is a mean or a proportion within a
+  band" — which is false for these four;
+- `GET /api/runs/{id}/summary` applies the same rule, and it is what the results screen charts.
+
+So the reduced figure for `normal_weight` on `HLM_France` at (baseline, 2030, male) is **15.3** where
+the population figure is about 1,550: the count-weighted average of a per-band count, which is a
+number with no meaning. The *shape* of the series still follows the underlying quantity, which is why
+nothing looked obviously wrong.
+
+**It does not make any comparison wrong.** Both implementations are reduced identically, so the
+equivalence result stands; what is wrong is the label on the number and the chart the server draws.
+
+The fix is four names in two places. What makes it more than that is the consequence: the stored
+equivalence references hold *reduced* values, so changing the reduction invalidates all four of them
+and they have to be regenerated against the baseline binary — about an hour and a half of machine
+time for `HLM_France`, `KevinHall_FINCH` and `HLM_India`'s two. Fixing only the server would make
+the two reductions disagree, which is the one thing [docs/server-api.md](server-api.md) says the
+shared rule exists to prevent, so the two halves go together.
+
 ### 11. The lattice detector should classify on the numerator — `validation`
 
 **Value: medium-high. Effort: low-medium, and the measurement is already taken.** The equivalence
