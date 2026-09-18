@@ -52,6 +52,23 @@ This document has been quoting "about +0.2% of mean BMI" for B-24, inferred from
 out-of-tolerance cells looked like it. **The direct measurement agrees.** That is the good case,
 and the reason to build the mechanism is the case where it would not have.
 
+### The pass, run on all three runnable examples
+
+Every reference regenerated this run was regenerated with the deviation-impact pass enabled, so
+there is a current answer for each of the three examples rather than for the one that happens to
+show something:
+
+| Example | Active intervention | What the pass says |
+|---|---|---|
+| `HLM_France` | `simple` | **no difference anywhere** — all 7,708 series agree to the baseline's printed precision. The pass stops after the first seed, because that seed's two runs are byte-identical |
+| `KevinHall_FINCH` | `simple` | **no difference anywhere** — all 5,060 series agree, and the pass stops after the first seed for the same reason |
+| `HLM_India` *(reduced)* | `food_labelling` | **194 series differ**, 12,533 agree; the pass runs all 20 seeds and takes 194 s |
+
+The two "no difference anywhere" rows are not a null result: they are the statement that **no
+recorded deviation reaches those runs at all**, which is what makes their comparison a test of the
+code rather than of the deviations. B-24 is the only recorded deviation with a measurable effect on
+a runnable example, and the only example that activates the policy it lives in is `HLM_India`.
+
 **It reaches further than mean BMI.** On `HLM_India`, **194 series differ** and 12,533 agree to the
 printed precision — years of life lost, disability-adjusted life years, head counts, and the
 prevalence and incidence of eleven diseases. A BMI that is wrong changes incidence, which changes
