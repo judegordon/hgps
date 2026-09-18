@@ -62,11 +62,52 @@ in the machine falls on both equally:
 | `HLM_France` | 2.75 → 2.41 s, **1.14×** | 57.1 → 52.4 MiB, **−8%** |
 | `KevinHall_FINCH` | 11.93 → 7.78 s, **1.54×** | 195.5 → 77.5 MiB, **−60%** |
 
-The difference between the two examples is the point rather than a curiosity: France's people carry 11
-risk factors and FINCH's carry 55 — 34 declared plus the 21 food groups the static model generates —
-so FINCH did five times as many lookups per person per year and had five times as many red-black tree
-nodes to allocate. A store that replaces a tree of string comparisons with a flat vector of integers
-therefore pays five times over.
+The difference between the two examples is the point rather than a curiosity: a FINCH person carries
+many times the risk factors a France person does, so FINCH did many times as many lookups per person
+per year and had many times as many red-black tree nodes to allocate. A store that replaces a tree of
+string comparisons with a flat vector of integers therefore pays over and over on FINCH and once on
+France.
+
+**How many times over was stated wrongly here, and the correction matters.** This section used to say
+"France's people carry 11 risk factors and FINCH's carry 55", which are the counts the two configs
+*declare*. Instrumenting the store for one whole run of each says what a person actually holds:
+
+| | Longest vector a person holds |
+|---|---:|
+| `HLM_France` | **6** |
+| `KevinHall_FINCH` | **121** |
+
+A fifth of the declared count on one and more than double it on the other. The ratio between the two
+examples is therefore about twenty, not five, which is both why FINCH gained 1.54× where France gained
+1.14× and why the scan those vectors were searched with had to be reconsidered — see
+*A bounded search for the long vectors* below.
+
+### A bounded search for the long vectors
+
+The profile taken after the index-keyed store put `FactorValues::position_of` at **18.0% of all
+samples** on `KevinHall_FINCH`, the largest single item in it. At 121 entries a linear scan averages
+sixty integer comparisons, once per factor per person per year.
+
+[ADR 0040](decisions/0040-a-bounded-search-for-the-long-vectors.md) scans a vector of sixteen entries
+or fewer and binary-searches a longer one over the bounded prefix `[0, index]`. Five runs of each
+binary, **alternating run by run** so that drift falls on both equally:
+
+| | CPU, best of 5 | Median of 5 | Peak memory |
+|---|---|---|---|
+| `HLM_France` | 3.13 → 3.37 s | 3.48 → 3.63 s | 52.7 → 53.2 MiB |
+| `KevinHall_FINCH` | 10.65 → **7.38 s, 1.44×** | 11.04 → 8.39 s | 78.2 → 78.1 MiB |
+
+**These figures were taken on a machine that was not idle**, and the absolute numbers are worse than
+the table at the top of this file for that reason: Android Studio was using 346% of CPU and Spotlight
+was indexing, which is the same effect this document already records as worth 20%. The *relative*
+figure survives it, because the two binaries were interleaved and met the same load.
+
+France's apparent 7% regression is measurement noise, and it is worth saying why that is a fact rather
+than a hope: France's longest vector is 6, which is below the sixteen-entry threshold, so after this
+change France executes **character-for-character the scan it executed before**. There is no mechanism
+by which it can have got slower. `HLM_India` carries the same 11 declared factors as France and is the
+example where a constant factor is paid 1.24 million times a year, which is why the threshold exists
+at all rather than binary-searching everything.
 
 **And the output did not change.** Not statistically: *byte for byte*. The result CSV and every
 income-stratified CSV of both examples are identical before and after, because the one place that

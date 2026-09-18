@@ -42,17 +42,43 @@ FactorIndex &factor_index() {
     return index;
 }
 
+// Below this many entries a linear scan of 32-bit integers beats a binary search, and above it the
+// search wins. Measured rather than assumed, on the two examples that have profiles
+// (docs/decisions/0040-a-bounded-search-for-the-long-vectors.md): a person carries at most **6**
+// entries on `HLM_France` and up to **121** on `KevinHall_FINCH`, so the two sit two orders of
+// magnitude apart and any threshold between them divides them the same way. Sixteen is a round
+// number in that gap, chosen so that France's lookup stays exactly the scan it was.
+constexpr std::size_t kScanLimit = 16;
+
 std::size_t FactorValues::position_of(std::uint32_t index) const noexcept {
-    // A linear scan, on purpose. These vectors hold eleven entries on HLM_France and fifty-five on
-    // FINCH, they are contiguous, and the comparison is a 32-bit integer — so the whole scan is one
-    // or two cache lines with no branch misprediction worth the name. A binary search wins at
-    // hundreds of entries, which no configuration has.
-    for (std::size_t position = 0; position < entries_.size(); ++position) {
-        if (entries_[position].index == index) {
-            return position;
+    const auto count = entries_.size();
+
+    // A short vector: scan it. Contiguous, an integer comparison, one or two cache lines, and no
+    // mispredicted branch worth the name — which is what ADR 0037 said about the scan and is still
+    // true at this size.
+    if (count <= kScanLimit) {
+        for (std::size_t position = 0; position < count; ++position) {
+            if (entries_[position].index == index) {
+                return position;
+            }
         }
+        return count;
     }
-    return entries_.size();
+
+    // A long one: binary search, over a prefix rather than the whole vector. `entries_` is sorted by
+    // index with distinct indices, so entry *k* has an index of at least *k*; a position *p* holding
+    // `index` therefore needs *p* <= `index`, and nothing above that can hold it.
+    const auto last = std::min(static_cast<std::size_t>(index) + 1, count);
+    const auto first = entries_.begin();
+    const auto end = first + static_cast<std::ptrdiff_t>(last);
+    const auto found = std::lower_bound(first, end, index,
+                                        [](const Entry &entry, std::uint32_t value) {
+                                            return entry.index < value;
+                                        });
+    if (found != end && found->index == index) {
+        return static_cast<std::size_t>(found - first);
+    }
+    return count;
 }
 
 double &FactorValues::operator[](const core::Identifier &name) {

@@ -174,3 +174,73 @@ TEST(FactorValues, AnUnknownNameIsNotContainedAndDoesNotGrowTheIndex) {
     EXPECT_EQ(before, hgps::model::factor_index().size())
         << "a read of an unknown name must not intern it";
 }
+
+TEST(FactorValues, FindsAnEntryWhoseIndexIsNotItsPosition) {
+    // A person holds a *sparse* subset of the process-wide index table, so an entry is almost never
+    // at the position its index would suggest: measured over a whole run, `KevinHall_FINCH` finds it
+    // there 0.0% of the time and `HLM_France` 22% (ADR 0040). This is therefore the ordinary case
+    // rather than an exotic one, and it is the case the long-vector branch has to get right — the
+    // binary search is bounded by `index` precisely because the entry can be anywhere below it.
+    //
+    // Ninety interned names with every third one held gives thirty entries, which is over the
+    // sixteen-entry scan threshold, so this goes down the bounded-search branch — and leaves no entry
+    // except the first at its own index. The companion below holds nine, which stays on the scan.
+    auto &table = hgps::model::factor_index();
+    std::vector<hgps::core::Identifier> names;
+    std::vector<std::uint32_t> indices;
+    for (int n = 0; n < 90; ++n) {
+        names.emplace_back("sparse_factor_" + std::to_string(n));
+        indices.push_back(table.intern(names.back()));
+    }
+
+    // Every third one, so past the first entry no index equals the position it sits at.
+    FactorValues values;
+    std::vector<std::uint32_t> held;
+    for (std::size_t n = 0; n < names.size(); n += 3) {
+        held.push_back(indices[n]);
+        values[names[n]] = static_cast<double>(n);
+    }
+
+    ASSERT_EQ(held.size(), values.size());
+    for (std::size_t n = 0; n < held.size(); ++n) {
+        ASSERT_NE(nullptr, values.find_index(held[n])) << "index " << held[n] << " at position " << n;
+        EXPECT_DOUBLE_EQ(static_cast<double>(n * 3), *values.find_index(held[n]));
+        EXPECT_DOUBLE_EQ(static_cast<double>(n * 3), values.at_index(held[n]));
+    }
+
+    // And the ones it does not hold are absent rather than found at a neighbouring position.
+    for (std::size_t n = 0; n < names.size(); ++n) {
+        if (n % 3 != 0) {
+            EXPECT_EQ(nullptr, values.find_index(indices[n]))
+                << "index " << indices[n] << " is not held and must not be found";
+        }
+    }
+}
+
+TEST(FactorValues, FindsASparseEntryInAShortVectorToo) {
+    // The other side of the threshold: the same sparse shape, small enough to be scanned. Both
+    // branches have to give the same answers, and only one of them is exercised by any given example
+    // (ADR 0040), so both are pinned here.
+    auto &table = hgps::model::factor_index();
+    std::vector<hgps::core::Identifier> names;
+    std::vector<std::uint32_t> indices;
+    for (int n = 0; n < 30; ++n) {
+        names.emplace_back("short_sparse_factor_" + std::to_string(n));
+        indices.push_back(table.intern(names.back()));
+    }
+
+    FactorValues values;
+    for (std::size_t n = 0; n < names.size(); n += 3) {
+        values[names[n]] = static_cast<double>(n);
+    }
+    ASSERT_EQ(10U, values.size());
+
+    for (std::size_t n = 0; n < names.size(); ++n) {
+        if (n % 3 == 0) {
+            ASSERT_NE(nullptr, values.find_index(indices[n]));
+            EXPECT_DOUBLE_EQ(static_cast<double>(n), *values.find_index(indices[n]));
+        } else {
+            EXPECT_EQ(nullptr, values.find_index(indices[n]));
+        }
+    }
+}

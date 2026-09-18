@@ -175,7 +175,7 @@ void DataIndex::validate_registry_against_tree(diag::IssueReport &report) const 
     // hypothetical: the published PIF pack ships `diseases/COPD/` containing nothing but population
     // impact fractions for a disease its own registry calls `pulmonary`. Refusing the whole store over
     // that would make an upstream example unloadable for a directory no run reads
-    // (docs/examples.md, deviation B-28).
+    // (docs/examples.md, deviation D-04).
     //
     // So an unregistered directory *with* measures is an error — that is the `pulmonar`/`pulmonary`
     // case (audit D-01), where a config naming it would get plausible numbers from the wrong place —
