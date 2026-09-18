@@ -223,15 +223,23 @@ Starts a run. Returns at once, with an id; the run happens on the server's own t
 ```json
 {
   "example": "HLM_France",
-  "output_name": "an optional label for this run",
   "threads": 1,
   "baseline_compat": ["B-24"],
   "write_manifest": true
 }
 ```
 
-Either `example` (an id from `/api/examples`) or `document` (an inline configuration, validated
-first) — not both. `threads` defaults to 1 and changes no result.
+`example` is an id from `/api/examples`, and is required. `threads` defaults to 1 and changes no
+result. `baseline_compat` is a list of flag names from `/api/version`, and an unrecognised one is a
+`400` before anything runs.
+
+**There is no way to run an inline document.** `POST /api/configs/validate` takes one, because
+validating is quick and the scratch file it needs lives for a few milliseconds; a *run* takes
+minutes to an hour, and the same trick would leave a scratch configuration in a configs directory
+for the whole of it. A host that wants to run what is on screen saves it first — which needs config
+*writing*, which the engine does not offer
+([docs/api.md](api.md#what-is-not-here-yet), gap 5). That gap is the reason, and it is worth being
+explicit that this endpoint is the poorer for it.
 
 ```json
 {
