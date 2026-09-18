@@ -335,7 +335,8 @@ And every one of those futures agrees with the baseline's:
 
 The comparison counts differ a little between policies on HLM_France because a different policy
 empties a slightly different set of age bands, and the excluded set is derived from the runs. They
-are identical across the FINCH rows for the reason the next section gives.
+are identical across every FINCH row for the reason given just above: on that surface the policy
+changes nothing, so every one of those runs is the same pair of futures.
 
 
 ## What the residuals turned out to be
