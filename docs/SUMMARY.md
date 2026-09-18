@@ -199,12 +199,12 @@ server would not be a host of this engine but a fork of it.
    answered "yes" by a compiler that has never heard of it. The first fix for CI cause 4 was correct
    in every respect except that its feature test could not fail.
 
-3. **Driving the page found three more defects the tests had not.** The server **exited the moment stdin
-   closed**, so anything not started from a terminal died before serving a request. A run that was
-   accepted and then failed to *build* stayed in the list as `starting` for ever **and held the
+3. **Driving the page found three more defects the tests had not.** The server **exited the moment
+   stdin closed**, so anything not started from a terminal died before serving a request. A run that
+   was accepted and then failed to *build* stayed in the list as `starting` for ever **and held the
    one-run-at-a-time slot**, so nothing else could start. And a failed start left the Start button
-   disabled, because `starting` was cleared in a `finally` that ran after the render. None of the 44
-   server tests would have caught the first; the second now has a test that would.
+   disabled, because `starting` was cleared in a `finally` that ran after the render. No server test
+   would have caught the first; the second now has one that would.
 
 4. **Pointing the server at the real examples, rather than the fixture, found another.**
    `GET /api/runs/{id}` reported `"manifest": null` for every one of them, and the history would
