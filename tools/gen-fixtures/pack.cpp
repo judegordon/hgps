@@ -129,6 +129,32 @@ std::string disease_measures_csv(const FixturePackSpec &spec, std::size_t diseas
     return out;
 }
 
+/// One population impact fraction table: every (sex, age, year-since-intervention) cell, present
+/// exactly once, which is what the loader requires and what the published pack supplies.
+///
+/// The values rise with the years since the intervention and are larger in middle age, which is the
+/// shape a real one has — a policy takes time to work and bites where the risk factor is prevalent.
+/// The magnitudes are invented, like everything else in this pack, but they are large enough that a
+/// test can see the effect: `Scenario1` reaches 0.25 and `Scenario2` twice that, so a test can also
+/// check that choosing a scenario chooses a different table.
+std::string population_impact_fraction_csv(const FixturePackSpec &spec, double peak,
+                                           int years) {
+    std::string csv = "Gender,Age,YearPostInt,IF_Mean\n";
+    for (int year = 0; year < years; ++year) {
+        // 0 is male and 1 is female, which is what the data and the baseline's loader say — its own
+        // schema says the opposite and is wrong (docs/deviations.md B-27).
+        for (int sex = 0; sex <= 1; ++sex) {
+            for (int age = 0; age <= static_cast<int>(spec.max_age); ++age) {
+                const auto ramp = static_cast<double>(year + 1) / static_cast<double>(years);
+                const auto mid = 1.0 - std::abs(static_cast<double>(age) - 45.0) / 60.0;
+                const auto value = peak * ramp * std::max(0.0, mid) * (sex == 0 ? 1.0 : 0.8);
+                csv += fmt::format("{},{},{},{:.8f}\n", sex, age, year, value);
+            }
+        }
+    }
+    return csv;
+}
+
 std::string relative_risk_to_disease_csv(const FixturePackSpec &spec, std::size_t pair_index) {
     std::string out = "Age,Male,Female\n";
     for (int age = 0; age <= spec.max_age; ++age) {
@@ -293,6 +319,11 @@ std::string index_json(const FixturePackSpec &spec) {
           "file_name": "{{GENDER}}_{{DISEASE_TYPE}}_{{RISK_FACTOR}}.csv"
         }}
       }},
+      "population_impact_fraction": {{
+        "description": "Population impact fraction tables, by risk factor and policy scenario.",
+        "path": "PIF/{{RISK_FACTOR}}/{{SCENARIO}}",
+        "file_name": "IF{{COUNTRY_CODE}}.csv"
+      }},
       "parameters": {{
         "path": "P{{COUNTRY_CODE}}",
         "files": {{
@@ -420,6 +451,17 @@ std::size_t write_fixture_pack(const std::filesystem::path &output,
                                  disease.code, factor),
                      relative_risk_to_factor_csv(spec, factor));
             }
+        }
+
+        // Population impact fractions for one risk factor and two scenarios, so a test can check
+        // both that the mechanism works and that the scenario name selects a different table
+        // (ADR 0038). Only `Smoking` exists, so a config naming anything else exercises the
+        // "the store does not have that" error, which is the case upstream reports as a silent
+        // warning and then runs with no policy at all.
+        for (const auto &[scenario, peak] :
+             {std::pair{"Scenario1", 0.25}, std::pair{"Scenario2", 0.5}}) {
+            emit(fmt::format("{}/PIF/Smoking/{}/IF{}.csv", directory, scenario, spec.country_code),
+                 population_impact_fraction_csv(spec, peak, 8));
         }
 
         if (disease.group == "cancer") {

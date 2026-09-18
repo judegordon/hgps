@@ -274,7 +274,10 @@ const std::vector<ExampleExpectation> kExamples = {
     {"HLM_India", true, std::nullopt},
     {"KevinHall_FINCH", true, std::nullopt},
     {"KevinHall_India", true, std::nullopt},
-    {"KevinHall_PIF", false, hgps::diag::IssueCode::feature_not_implemented},
+    // Since ADR 0038 this one loads too, so **every** converted example's config now loads. What
+    // stops two of them from *running* is their data, not their config, and that is
+    // docs/examples.md's table rather than this one.
+    {"KevinHall_PIF", true, std::nullopt},
 };
 
 } // namespace

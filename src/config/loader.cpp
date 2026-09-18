@@ -1006,14 +1006,47 @@ std::optional<Config> load_from_json(const nlohmann::json &document,
     detail::load_running(root, config, report);
     detail::load_output(root, options, config, report);
 
-    // Reserved so that a PIF config fails with a sentence instead of being silently ignored
-    // (ADR 0021).
+    // Population impact fraction (ADR 0038). Implemented since this run; the tables themselves are
+    // read from the data store, so all that happens here is validating what the config asks for.
     if (const auto pif = root.optional_object("population_impact_fraction")) {
-        if (pif->boolean_or_default("enabled", false)) {
-            pif->error("enabled", IssueCode::feature_not_implemented,
-                       "population impact fraction is not implemented in this build; see "
-                       "docs/backlog.md");
+        pif->reject_unknown_members({"enabled", "data_root_path", "risk_factor", "scenario"});
+
+        PopulationImpactFraction result;
+        result.enabled = pif->boolean_or_default("enabled", false);
+
+        if (result.enabled) {
+            result.risk_factor = pif->string("risk_factor").value_or("");
+            result.scenario = pif->string("scenario").value_or("");
+
+            // Both become directory names under the data store, so both have to be usable as one. A
+            // path separator here would let a config reach outside the store it declared.
+            for (const auto &[field, value] : {std::pair{"risk_factor", &result.risk_factor},
+                                                std::pair{"scenario", &result.scenario}}) {
+                if (value->empty()) {
+                    pif->error(field, IssueCode::config_missing_required,
+                               "required when population impact fraction is enabled");
+                } else if (value->find('/') != std::string::npos ||
+                           value->find('\\') != std::string::npos || *value == "." ||
+                           *value == "..") {
+                    pif->error(field, IssueCode::config_bad_value,
+                               "names a directory inside the data store, so it must not contain a "
+                               "path separator");
+                }
+            }
+
+            // Dead upstream and dead here, and saying so is the point: the field is required by
+            // upstream's schema and has its ${VAR}s expanded, and is then overwritten with the data
+            // store's own root before it is used (repository.cpp:118). A config that points it
+            // somewhere else has been misled about what it does.
+            if (pif->has("data_root_path")) {
+                pif->warning("data_root_path", IssueCode::config_default_applied,
+                             "ignored: the population impact fraction tables are read from the data "
+                             "store that `data.source` names, which is what upstream does too — it "
+                             "overwrites this field with the store's root before using it. Remove it");
+            }
         }
+
+        config.population_impact_fraction = result;
     }
 
     if (report.error_count() != before) {

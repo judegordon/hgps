@@ -113,6 +113,22 @@ struct RelativeRiskEntity {
     bool empty() const noexcept { return rows.empty(); }
 };
 
+/// @brief One row of a population impact fraction table.
+///
+/// The share of a disease's incidence attributable to a risk factor that a policy removes, for one
+/// sex, one age and one number of years since the intervention started
+/// (docs/decisions/0038-population-impact-fraction.md).
+struct PifDataRow {
+    Gender gender{};
+    int age{};
+
+    /// @brief Years since the intervention started; 0 is the intervention year itself.
+    int years_since_intervention{};
+
+    /// @brief The fraction, in [0, 1].
+    double value{};
+};
+
 /// @brief The extra per-country parameters a cancer model needs.
 struct CancerParameterEntity {
     int at_time{};

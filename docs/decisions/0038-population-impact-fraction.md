@@ -24,20 +24,35 @@ in the **intervention** scenario only, with `year_post_intervention = time_now �
 third policy mechanism, alongside the age-banded `interventions` block and the `StaticLinear` model's
 `policy_start_year` coefficients, and like the latter it bypasses `Scenario::apply` entirely.
 
-**The data.** `pif-data-v5.zip` from the `healthgps-data` releases, 5.4 MB, whose SHA-256 matches the
-checksum `KevinHall_PIF/new_config.json` declares. It is a complete data store — countries,
-demographics, diseases, analysis — plus, under 21 of its disease directories,
-`PIF/<risk factor>/<scenario>/IF356.csv`. 69 tables in all: 23 (disease, risk factor) pairs across
-`Alcohol` and `Smoking`, three scenarios each, one country (356, India). Every one of the 69 has the
-same shape — 6,660 rows = 2 sexes × 111 ages × 30 years — and every value is in [0, 0.159].
+**The data — and there are two releases, which the example is not consistent about.**
+
+`KevinHall_PIF/new_config.json`, the primary, names **`pif-data-v5.zip`** (5.4 MB), whose SHA-256
+matches the checksum it declares. It is a complete data store — countries, demographics, diseases,
+analysis — plus, under 21 of its disease directories, `PIF/<risk factor>/<scenario>/IF356.csv`: 69
+tables, 23 (disease, risk factor) pairs across `Alcohol` and `Smoking`, three scenarios each, one
+country (356, India). Every one of the 69 has the same shape, 6,660 rows = 2 sexes × 111 ages × 30
+years, and every value is in [0, 0.159].
+
+All **twelve** of the example's alternative configs name **`pif-data-v7.zip`** instead, which is a
+different store: 50 disease directories, 20 with fractions, and **three** risk factors — `Alcohol` on
+11, `Smoking` on 11 and **`Joint` on all 20**. So `config_jointS1..S3` are not broken, as a first look
+at v5 suggests: they name the release that has the tables they need. What is inconsistent is the
+example, which ships a primary config pointing at one release and twelve alternatives pointing at
+another.
+
+This matters for what can be verified. The v5 store is what the primary config is checksummed against,
+so it is the one a reproduction of the primary run uses; the `Joint` scenarios exist only in v7. Both
+were fetched and verified here.
 
 Four things about upstream's loader shaped this decision.
 
 1. **A missing table is a warning, and the warning is silent.** `get_pif_data` returns nullopt and
    calls `notify_warning`, which prints nothing when verbosity is `none` — the default. So a config
-   enabling PIF with a risk factor the pack does not contain produces a run with **no policy applied
-   and an exit code of zero**. Three of the example's own alternative configs do exactly that: they
-   name `risk_factor: "Joint"`, and the pack has no `Joint` directory.
+   enabling PIF for a disease the pack has no table for produces a run with **no policy applied to
+   that disease and an exit code of zero**. The example's own legacy `config.json` does exactly that:
+   it selects fifteen diseases and `risk_factor: "Smoking"`, and of those fifteen, three have `Alcohol`
+   and `Joint` tables but no `Smoking` one and a fourth has no fractions at all. Upstream applies the
+   policy to eleven of them and says nothing about the other four.
 2. **`data_root_path` is dead config.** It is required by upstream's schema and has its `${VAR}`s
    expanded, and then `repository.cpp:118` overwrites it with the data store's own root before use.
    A config that points it anywhere else has been misled.
@@ -79,10 +94,11 @@ somebody will compare it against the baseline and find no difference and conclud
 names the disease, the risk factor, the scenario and the directory it looked in, and lists what the
 store does have under that disease.
 
-The cost is real and is paid: `KevinHall_PIF`'s three `config_joint*.json` variants name a risk factor
-the pack does not contain, so **this build refuses them and upstream runs them with no policy**. That
-is recorded in [docs/examples.md](../examples.md) and in [docs/deviations.md](../deviations.md), and it
-is the right way round.
+The cost is real and is paid: the example's legacy `config.json` selects four diseases that the release
+it names has no `Smoking` fractions for, so **this build refuses it with four located errors and
+upstream runs it with the policy applied to the other eleven and nothing said**. That is recorded in
+[docs/examples.md](../examples.md) and in [docs/deviations.md](../deviations.md), and it is the right
+way round.
 
 ### A table must be complete over its own range
 
@@ -112,9 +128,14 @@ field that has never done anything.
 ### Sex is 0 = male, 1 = female
 
 Finding (4). The code and the data agree; the schema is wrong.
-`PopulationImpactFractionData.TheSexEncodingIsTheDataAndNotTheSchema` reads the real `cervicalcancer`
-table and asserts the female-only disease's non-zero rows are the female ones — so the encoding is
-pinned by the evidence that settled it rather than by a comment.
+
+The evidence that settles it is in the real pack, which is 5.4 MB fetched from a release URL and not
+vendored ([ADR 0011](0011-data-fetched-not-vendored.md)), so it is **recorded rather than tested**:
+[docs/deviations.md](../deviations.md) B-27 carries the `cervicalcancer` measurement and the one
+command that reproduces it. A test that needed that download would either fail in CI or skip, and
+skipping is what audit finding B-11 is about. What is tested is that the reader implements the encoding
+the data has, against the synthetic pack, whose generator writes different values for the two sexes so
+that the mapping is visible from them.
 
 ## Alternatives
 
@@ -128,11 +149,13 @@ pinned by the evidence that settled it rather than by a comment.
   loop. Everything is loaded before any worker thread exists, as everything else here is.
 - **Follow the schema's sex encoding.** Would silently apply a female policy to men. The schema is a
   document; the data and the loader are the system.
-- **Treat a `Joint` risk factor as a request for the flat `PIF-joint_*.csv` files in the pack's
-  `diseases/` root.** Those files exist, they are what `ProcessImpactFractionEstimates.R` produces, and
-  they are not in the per-disease `PIF/` tree the loader reads. Guessing that one is meant to satisfy a
-  request for the other would be inventing a data layout on somebody else's behalf. The error names
-  what is there instead.
+- **Fall back to another risk factor, or to the flat `PIF-joint_*.csv` files in the pack's `diseases/`
+  root, when the named one is missing.** Those flat files exist — they are what
+  `ProcessImpactFractionEstimates.R` produces — and they are not in the per-disease `PIF/` tree the
+  loader reads. Guessing that one is meant to satisfy a request for the other would be inventing a data
+  layout on somebody else's behalf, and silently substituting a different risk factor's fractions is
+  worse than refusing. The error names what the store does have for that disease, which in practice
+  answers the question: "the risk factors it does have for that disease are: Alcohol, Joint".
 - **Store the table sparsely, keyed by (sex, age, year).** A map lookup per person per disease per
   year, on the hottest loop in the program, for a table whose dense form is 6,660 doubles.
 

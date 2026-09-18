@@ -35,7 +35,7 @@ Totals are at the bottom. Verified against `hgps_tests --gtest_list_tests` and t
 | Baseline suite | Tests | Here | Notes |
 |---|---:|---|---|
 | `ConfigParsing` (10) + `ConfigParsingFixture` (22) + `ConfigSchemaExpanded` (47) + `ConfigLegacyFields` (3) | 82 | `tests/config/config_loader_test.cpp` (26), `tests/io/json_test.cpp` (10), `tests/config/schema_agreement_test.cpp` (5) | intent. The baseline's `get`/`get_to`/`rebase_valid_path_to` helper tests become `io::JsonCursor` tests, because accumulated diagnostics replace throw-per-problem; its section loaders (`load_input_info`, `load_modelling_info`, `load_running_info`, `load_output_info`, `load_interventions`, `check_version`) each have a counterpart. One loader test carries many baseline cases, which is why 82 maps onto 41. **fixed**: `seed` is required and scalar (B-06); `output.file_name` is used exactly as configured (B-08); an undefined `${VAR}` is an error (N-17); `project_requirements` is required (D-03); `sync_timeout_ms` is rejected (ADR 0009). |
-| `ConfigurationPIF` | 2 | `tests/config/config_loader_test.cpp` | intent — PIF config is reserved and rejected at load in this build (ADR 0021), so the two struct tests become one reservation test. |
+| `ConfigurationPIF` | 2 | `tests/config/config_loader_test.cpp` | intent. The two tests checked that the struct held what was put into it and compared equal to itself; what is worth checking is the validation, so they become five tests of it (ADR 0038). |
 | `JsonParser` | 29 | `tests/config/config_loader_test.cpp`, `tests/config/model_loader_test.cpp` (13), `tests/core/interval_test.cpp` | intent. Twenty-six of the baseline's 29 are `to_json`/`from_json` round-trips of its poco structs; nothing here writes a config, so a round-trip has no counterpart and the *reading* half is what was ported. `CoefficientInfo`, `LinearModelInfo`, `VariableInfo`, `FactorDynamicEquationInfo` and `Array2Info` become the model-loader tests; `Interval` and `DoubleInterval` the interval tests; `SettingsInfo`, `SESInfo`, `PolicyPeriodInfo`, `PolicyImpactInfo`, `PolicyAdjustmentInfo`, `PolicyScenarioInfo`, `OutputInfo` and `IndividualIdTrackingConfig` the config-loader tests. `FileInfoToJson` has no counterpart: nothing writes that structure. |
 | — | — | `tests/config/convert_config_test.cpp` (15, counted in *Added here* below) | Added: the v1→v2 converter, the six converted examples as acceptance tests (ADR 0010), and the contradictions the upstream packs carry. |
 | `ModelParserFinch` | 3 | `tests/config/static_linear_loader_test.cpp` (`StaticLinearLoader` 11) | intent, and **all three of these skip upstream** (B-11). `LoadsStaticLinearDefinitionFromFinchData` becomes `TheUpstreamFinchStaticModelLoads`, which also checks the factor order is the correlation matrix's; `PolicyEnergyIntakeRowNormalizedToLogEnergyIntake` becomes `ThePolicyEnergyIntakeRowIsCanonicalisedToADerivedPredictorName`; `RegisterModelsPrintsStaticLinearSummaryBox` is **not ported** — this build prints no summary box — and its subject, the region and ethnicity prevalence the registration step loads, is tested directly instead. Plus eight added, each a defect this loader had: the misspelled coefficient name, the headerless regression files, the stratum without a column for every factor, a trend with no equations. |
@@ -48,7 +48,7 @@ Totals are at the bottom. Verified against `hgps_tests --gtest_list_tests` and t
 | `DatastoreTest` | 20 | `tests/data/store_test.cpp` (23) | value where the numbers are the store's own, intent where a `HgpsException` becomes a located issue. Plus the registry-vs-tree validation the baseline has no equivalent for. |
 | — | — | `DataRegistryValidation` (8), `DataSourceTest` (9), `DataIndexTokens` (2) | Added: D-01 registry validation, the checksum requirement and the content-addressed cache (ADR 0011), and index token resolution. |
 | `RepositoryTest` | 3 | — | **not ported by design**: `CachedRepository`'s lazy, lock-after-read caching is the mechanism behind audit B-02. Everything a run needs is loaded before any worker thread exists, so there is no cache to test. |
-| `DataManagerPIF` (3) + `PIFData` (3) + `PIFDataItem` (2) + `PIFTable` (3) + `RepositoryPIF` (2) + `DiseaseModelPIF` (3) + `PIFIntegration` (2) | 18 | — | **not ported**: population impact fraction is out of scope for this run and rejected at load with a named error (ADR 0021). |
+| `DataManagerPIF` (3) + `PIFData` (3) + `PIFDataItem` (2) + `PIFTable` (3) + `RepositoryPIF` (2) + `DiseaseModelPIF` (3) + `PIFIntegration` (2) | 18 | `tests/model/pif_test.cpp` (10), `tests/data/pif_data_test.cpp` (8) | intent, and **one expectation deliberately reversed**. Most of the 18 assert that a container holds what was put into it; `PIFData`/`PIFDataItem` test a scenario map and a four-field struct this build does not have as separate types at all. What they do not do is read a real table or notice a table with holes in it, which is where the 18 tests here spend their effort instead. `PIFTable.GetPIFValues` builds a table from three items and **asserts that the cells nobody mentioned read as 0.0**; that is the gap-reads-as-zero behaviour, it is deviation B-26, and `PifTable.AHoleInsideTheRangeIsAnErrorRatherThanAZero` asserts the opposite and names the finding. |
 
 ## Model components
 
@@ -114,23 +114,27 @@ Counted two ways, because the two questions are different ones.
 
 | | Tests |
 |---|---:|
-| Ported, or with a counterpart here | 408 |
-| **not ported** — out of scope (population impact fraction) | 18 |
+| Ported, or with a counterpart here | **426** (408 before this run, plus population impact fraction's 18) |
 | **not ported by design** — the thing tested does not exist here (`SyncChannel` 9, event bus 15, `CachedRepository` 3, printed summary boxes 7) | 34 |
 | the `to_json` half of a `to_json`/`from_json` pair, where nothing here writes that structure | 11 |
 | **Baseline** | **471** |
 
-**Of this implementation's 554, where did each come from?**
+**Of this implementation's 663, where did each come from?**
 
 | | Tests |
 |---|---:|
-| in a test file with no baseline counterpart at all — the *Added here* table above, summed | 229 |
+| in a test file with no baseline counterpart at all | 338 |
 | in a file that descends from a baseline suite | 325 |
-| **This implementation** | **554** |
+| **This implementation** | **663** |
 
 The second row is not all ported: several of those suites carry added cases, each noted in the
 section tables above as "plus N added" with what it checks. What the row does say is that no test
 here was written without knowing whether the baseline had one.
+
+The first row grew by 109 over this run: the public API and its event stream, the run manifest,
+the CLI's argument parser, the index-keyed factor store, the intervention-reach check, the perturbation
+knob and the population impact fraction tables. None of those has a baseline counterpart, because none
+of those things exists there.
 
 Outside both tables, and outside the C++ suite: `tests/equivalence/run_test.py` holds **26 tests
 for the equivalence harness itself**, which CTest runs as the single entry
@@ -143,9 +147,12 @@ this port: `KevinHallHeight`, `KevinHallWeightQuantiles`, `KevinHallWeightValida
 path they derive from `__FILE__` does not exist in either upstream data repository (audit B-11).
 Running them for the first time is how four of this run's defects were found.
 
-The only remaining **not ported** group is population impact fraction, which stays out of scope
-([ADR 0021](decisions/0021-scope-finch-and-hlm-france.md)) and is rejected at load with a named
-error. [docs/backlog.md](backlog.md) ranks it.
+Population impact fraction is no longer in this group. It is implemented
+([ADR 0038](decisions/0038-population-impact-fraction.md)) and its 18 tests are ported, one of them
+with its expectation deliberately reversed and the finding named — so **nothing in the baseline's suite
+is now unported for want of a feature**. What remains unported is the event bus, the sync channel, the
+lazy repository and the printed summary boxes, each of which tests a thing this implementation does not
+have by design, and each of which is listed above with the ADR that says why.
 
 Counts verified with `hgps_tests --gtest_list_tests` and the baseline's
 `HealthGPS.Tests --gtest_list_tests`, not counted by hand.

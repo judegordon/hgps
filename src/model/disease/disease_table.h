@@ -7,8 +7,10 @@
 #include "core/identifier.h"
 #include "core/types.h"
 #include "model/containers.h"
+#include "pif_table.h"
 
 #include <map>
+#include <optional>
 #include <string>
 
 namespace hgps::model {
@@ -166,11 +168,20 @@ class DiseaseDefinition final {
     }
     const DiseaseParameter &parameters() const noexcept { return parameters_; }
 
+    /// @brief The population impact fraction table, when the run applies one to this disease.
+    ///
+    /// Optional because a PIF is a property of the *run*, not of the disease: the same definition is
+    /// used with and without one ([ADR 0038](../../../docs/decisions/0038-population-impact-fraction.md)).
+    const std::optional<PifTable> &population_impact_fraction() const noexcept { return pif_; }
+    bool has_population_impact_fraction() const noexcept { return pif_.has_value(); }
+    void set_population_impact_fraction(PifTable table) { pif_ = std::move(table); }
+
   private:
     DiseaseTable measures_;
     RelativeRiskTableMap relative_risk_diseases_;
     RelativeRiskLookupMap relative_risk_factors_;
     DiseaseParameter parameters_;
+    std::optional<PifTable> pif_;
 };
 
 } // namespace hgps::model

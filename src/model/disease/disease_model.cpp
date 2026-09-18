@@ -171,6 +171,19 @@ void DiseaseModelBase::update_incidence_cases(RuntimeContext &context) {
     const auto &table = definition_.table();
     const auto disease_code = disease_type();
 
+    // The population impact fraction: the share of this disease's incidence attributable to a risk
+    // factor the policy removes. Applied in the **intervention** scenario only, which is what makes it
+    // a policy rather than a correction, and resolved here rather than per person because neither the
+    // table nor the year changes inside the loop
+    // (ADR 0038; upstream is default_disease_model.cpp:283 and default_cancer_model.cpp:295).
+    const PifTable *pif = nullptr;
+    int years_since_intervention = 0;
+    if (context.scenario().type() == sim::ScenarioType::intervention &&
+        definition_.has_population_impact_fraction()) {
+        pif = &*definition_.population_impact_fraction();
+        years_since_intervention = context.time_now() - context.start_time();
+    }
+
     // Serial, in slot order, because it draws (determinism clause D3).
     for (auto &person : context.population()) {
         if (!person.is_active()) {
@@ -200,7 +213,10 @@ void DiseaseModelBase::update_incidence_cases(RuntimeContext &context) {
         const double incidence =
             table(static_cast<int>(person.age), person.gender).at(incidence_id);
 
-        const double probability = incidence * relative_risk / average;
+        double probability = incidence * relative_risk / average;
+        if (pif != nullptr) {
+            probability *= 1.0 - pif->at(person.age, person.gender, years_since_intervention);
+        }
         if (context.random().next_double() < probability) {
             person.diseases[disease_code] = make_incident_case(context);
         }

@@ -63,8 +63,12 @@ Measured, not predicted: each row is the result of `healthgps --config examples/
 | **HLM_India** | `config.json` | yes | yes | **yes** | — |
 | **KevinHall_FINCH** | `new_config.json` | yes | yes | **yes** | — |
 | KevinHall_India | `new_config.json` | yes | yes | no | a newborn's weight from the quantile curve falls below the configured minimum — **and the baseline fails on it in the same place**, see below |
+| KevinHall_PIF | `new_config.json` | **yes** | **yes** | no | the same weight defect, from the same data files: this example shares `KevinHall_India`'s `India.DataFile.csv` and both weight-quantile files **byte for byte**. See below |
 | Dummy_disease_test | `config.json` | yes | no | no | model family `dummy`, which is a test double rather than a model |
-| KevinHall_PIF | `new_config.json` | no | no | no | `population_impact_fraction.enabled` is true |
+
+**Every one of the six now loads its config and, bar the `dummy` test double, its models.** Two of them
+do not run, and in both cases what stops them is a contradiction inside their own data pack rather than
+a missing feature here.
 
 **Three of the six run end to end**, against one at the end of the previous run:
 
@@ -175,9 +179,70 @@ which is the whole point of validating the registry against the tree at load tim
 ([ADR 0012](decisions/0012-disease-naming-pulmonary.md), deviation D-01). The baseline finds out
 part-way through configuration, with `Disease code: 'pulmonar' not found.`
 
-### KevinHall_India, which neither implementation can run
+## Does not run — upstream data defect
 
-Two separate problems, both in the pack.
+Two of the six examples cannot be run **by either implementation**, and it is the same defect in
+both cases, because it is the same data. This section is the record of it: the exact mechanism, what
+a user sees in each implementation, and what upstream would have to change. Nothing here is a
+missing feature and nothing here is fixable from this repository.
+
+**The mechanism.** `KevinHall_India` and `KevinHall_PIF` both configure a lower bound on `Weight` of
+**3.319358 kg** in `modelling.risk_factors`. Both give a newborn a weight by multiplying an expected
+birth weight by a quantile drawn from `weight_quantiles_NCDRisk_{male,female}.csv` — 9,995
+multipliers each, ranging 0.668034 to 1.916892 for males and 0.655385 to 1.902204 for females. The
+Kevin Hall model then validates the weight it has just produced against the configured range, and
+stops when it is outside it.
+
+It is outside it, in the **first** simulated year, in **every** run measured here — four of them,
+two examples in two implementations:
+
+| Example | Implementation | Who failed | Weight | Floor |
+|---|---|---|---:|---:|
+| `KevinHall_India` | this build | person 1, male, age 0 | 3.159 kg | 3.319358 kg |
+| `KevinHall_India` | baseline | (not named) | 3.1084 kg | 3.319358 kg |
+| `KevinHall_PIF` | this build | person 5, male, age 0 | 2.544 kg | 3.319358 kg |
+| `KevinHall_PIF` | baseline | (not named) | 3.1084 kg | 3.319358 kg |
+
+The person named is the **first or fifth of the cohort**, so a newborn lighter than the floor is a
+routine draw from this curve and not a tail event: no seed, no cohort size and no horizon avoids it.
+
+**The two examples are not two instances of the defect; they are one.** `India.DataFile.csv`,
+`weight_quantiles_NCDRisk_male.csv` and `weight_quantiles_NCDRisk_female.csv` are **byte-for-byte
+identical** between the two example directories, and both configs carry the same bound:
+
+```bash
+$ cd ../hgps_main_examples
+$ for f in India.DataFile.csv weight_quantiles_NCDRisk_male.csv weight_quantiles_NCDRisk_female.csv; do
+    shasum -a 256 KevinHall_India/$f KevinHall_PIF/$f | awk '{print $1}' | uniq | wc -l
+  done
+1
+1
+1
+```
+
+**What upstream would need to change.** One of two numbers, and only upstream can say which:
+
+1. **the bound** — `modelling.risk_factors.Weight.range[0]`, 3.319358 kg, in both
+   `KevinHall_India/new_config.json` and `KevinHall_PIF/new_config.json`; or
+2. **the curve** — the low multipliers in `weight_quantiles_NCDRisk_{male,female}.csv`, which take a
+   newborn down to about 2.5 kg.
+
+A 2.5 kg newborn is an ordinary low-birthweight baby, and the same configured range has 92.56 kg at
+its other end — which is an adult's weight. A single range covering ages 0 to 100 has to admit both,
+and this one admits neither the light newborn nor much of infancy. So from outside the study the
+*bound* is what looks wrong. But it is a fitted input to somebody else's model, and this project
+will not choose for them: changing either number here would put an invented value into a
+published data pack, which is the one thing a reimplementation must not do. **The located error is
+kept instead**, and both examples stay in `examples/` so the failure is reproducible rather than
+absent.
+
+`KevinHall_PIF` is the only example that uses population impact fraction, so this also means **there
+is no runnable PIF comparison against the baseline** — see [docs/equivalence.md](equivalence.md) and
+the PIF section below.
+
+### KevinHall_India, the first of the two
+
+Two separate problems, both in the pack, and the first one is not the weight defect.
 
 **Its `new_config.json` contradicts itself, and its own baseline refuses it.** The root says
 `"trend_type": "UPFTrend"` while `project_requirements.trend.type` says `"income_trend"`. Running
@@ -224,6 +289,89 @@ writes its metadata file, and exits cleanly with a failure code
 
 `KevinHall_India` therefore stays out of the equivalence comparison for a better reason than scope:
 there is nothing to compare.
+
+### KevinHall_PIF, the second, which loads completely and stops in the same place
+
+Population impact fraction is implemented ([ADR 0038](decisions/0038-population-impact-fraction.md)),
+and this example — the only one that uses it — now loads everything: its config, both model files, the
+data index, the disease registry, 69 fraction tables across 11 diseases, and both scenarios' modules.
+`--dry-run` reports `11 diseases, 17 risk factors, cohort of 141717 people, 2022–2025`.
+
+**It then stops in its first simulated year, on `KevinHall_India`'s defect, because it is the same
+data.** `India.DataFile.csv`, `weight_quantiles_NCDRisk_male.csv` and
+`weight_quantiles_NCDRisk_female.csv` are byte-for-byte identical between the two examples, and both
+configs put `Weight`'s lower bound at the same 3.319358 kg:
+
+```
+this build:   healthgps: person 5 (male, age 0) weighs 2.544 kg after the weight quantile curve,
+              below the configured minimum of 3.319 kg for 'Weight'. …
+
+the baseline: libc++abi: terminating due to uncaught exception of type hgps::core::HgpsException:
+              kevin_hall_model.cpp:1196: Weight (3.108400 kg) is below minimum configured range
+              [3.319358, 92.563910] kg during phase 'initialise_weight'.
+```
+
+Getting the baseline that far needed the root `trend_type` stripped from its own `new_config.json`
+first, because its validator refuses that field alongside `project_requirements` — the same second
+defect `KevinHall_India` has.
+
+So **no PIF equivalence comparison is possible**, and the reason has nothing to do with PIF: neither
+implementation can run the only example that uses it. What stands in for it is
+`tests/data/pif_data_test.cpp`, which runs the whole mechanism end to end against the synthetic fixture
+pack and asserts that incidence falls in the intervention scenario, that the **baseline** scenario is
+untouched to the last bit, and that a PIF run is as reproducible as any other.
+
+### The PIF example's own twelve alternatives, and the two data releases
+
+The directory holds fifteen JSON files: two model definitions, the primary `new_config.json`, and
+twelve alternative configs. All twelve are converted, into `examples/KevinHall_PIF/variants/`, and
+loading each one is where the rest of this section comes from.
+
+**The primary and the alternatives name different data releases.** `new_config.json` names
+`pif-data-v5.zip`; all twelve alternatives name `pif-data-v7.zip`. They are different stores:
+
+| | Disease directories | With fractions | Risk factors |
+|---|---:|---:|---|
+| `pif-data-v5` | 51 | 21 | `Alcohol` (11), `Smoking` (11) |
+| `pif-data-v7` | 50 | 20 | `Alcohol` (11), `Smoking` (11), **`Joint` (20)** |
+
+Both were fetched and verified against the checksums their configs declare. This matters for reading
+the example: `config_jointS1..S3` look broken against v5, which has no `Joint` tables at all, and are
+perfectly consistent with v7, which they actually name. What is inconsistent is the example shipping a
+primary config pointed at one release and twelve alternatives pointed at another.
+
+**Eleven of the twelve load. The one that does not is the legacy `config.json`**, and it fails for a
+reason worth having:
+
+```
+error [data_missing_file] …/diseases/intracerebralhemorrhage/PIF/Smoking/Scenario1  no population
+      impact fraction tables for Intracerebral Hemorrhage under risk factor 'Smoking' and scenario
+      'Scenario1'; the risk factors it does have for that disease are: Alcohol, Joint
+error … ischemicstroke …                the risk factors it does have for that disease are: Alcohol, Joint
+error … subarachnoidhemorrhage …        the risk factors it does have for that disease are: Alcohol, Joint
+error … chronickidneydisease …          this data store has no population impact fractions for that
+                                        disease at all
+```
+
+It selects fifteen diseases and `risk_factor: "Smoking"`; three of them have `Alcohol` and `Joint`
+tables but no `Smoking` one, and a fourth has no fractions at all. **Upstream applies the policy to the
+other eleven and says nothing** — its warning prints only when the run is verbose, which it is not by
+default. That is deviation **B-26**, and it is the clearest example of why a missing table is an error
+here: a run that was asked for a policy and applied it to eleven of fifteen diseases produces numbers
+nobody can tell apart from a correct run.
+
+**None of the twelve can run either**, for the same weight-bound reason as the primary — they share the
+same India data files. Two of them would also be impractical if they could: the `S1`–`S3` variants set
+`size_fraction` to 0.01, which is a cohort of **14,254,232 people** against the primary's 141,717 and
+`HLM_France`'s 6,244.
+
+**One more thing the PIF pack contains.** `pif-data-v5` ships `diseases/COPD/` holding *nothing but* a
+`PIF/` subtree — no disease measures — for a disease its own registry calls `pulmonary`. The two are
+not copies: their Smoking tables differ considerably, maxima of 0.00014 and 0.032 with 150 non-zero
+cells against 2,880. Only `pulmonary` is reachable, because that is what the registry lists, so nothing
+reads the `COPD` one. Finding it is what loosened the registry check from an error to a warning for a
+directory that holds no disease measures (deviation **D-04**) — refusing the whole store over a
+directory no run reads was the wrong trade.
 
 ### What KevinHall_India does exercise
 

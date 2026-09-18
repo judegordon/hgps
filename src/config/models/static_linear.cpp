@@ -948,15 +948,6 @@ std::unique_ptr<model::RiskFactorModel> load_static_linear(const nlohmann::json 
         parameters->physical_activity.type = type;
 
         const auto models = root.optional_object("PhysicalActivityModels");
-        if (!models.has_value() || !models->has(type)) {
-            report.error(IssueCode::model_missing_key,
-                         IssueLocation{.file = path.string(),
-                                       .field = fmt::format("/PhysicalActivityModels/{}", type)},
-                         fmt::format("project_requirements.physical_activity.type is \"{}\" but "
-                                     "this model has no PhysicalActivityModels.{} entry",
-                                     type, type));
-            return nullptr;
-        }
 
         // Some packs carry a top-level PhysicalActivityStdDev of `null`, meaning "the model
         // block has it". Read as an optional rather than as a required number, so a null there is
@@ -967,7 +958,38 @@ std::unique_ptr<model::RiskFactorModel> load_static_linear(const nlohmann::json 
                 ? root.node()["PhysicalActivityStdDev"].get<double>()
                 : 0.0;
 
-        if (type == "continuous") {
+        // The block is **optional**, and the type check applies only when it is there. That is the
+        // baseline's own rule — `pa_req.enabled && opt.contains("PhysicalActivityModels")`,
+        // model_parser.cpp:1716, falling through to the root standard deviation otherwise — and the
+        // published PIF pack is the model that needs it: `KevinHall_PIF/static_model.json` declares
+        // `physical_activity.type: "simple"`, carries a root `PhysicalActivityStdDev` and has no
+        // `PhysicalActivityModels` block at all. Requiring the block made that example unloadable for
+        // a wrapper whose only contents would have been the number already present.
+        //
+        // A "simple" model needs nothing but a standard deviation, so there is nothing for the wrapper
+        // to add. A "continuous" one needs a fitted regression, so for that one the block is required
+        // and its absence is the error below.
+        if (!models.has_value()) {
+            if (type == "continuous") {
+                report.error(IssueCode::model_missing_key,
+                             IssueLocation{.file = path.string(),
+                                           .field = "/PhysicalActivityModels/continuous"},
+                             "project_requirements.physical_activity.type is \"continuous\", which "
+                             "needs a fitted regression, but this model has no "
+                             "PhysicalActivityModels block");
+                return nullptr;
+            }
+            parameters->physical_activity.stddev = root_stddev;
+        } else if (!models->has(type)) {
+            report.error(IssueCode::model_missing_key,
+                         IssueLocation{.file = path.string(),
+                                       .field = fmt::format("/PhysicalActivityModels/{}", type)},
+                         fmt::format("project_requirements.physical_activity.type is \"{}\" and this "
+                                     "model has a PhysicalActivityModels block, but no {} entry in "
+                                     "it",
+                                     type, type));
+            return nullptr;
+        } else if (type == "continuous") {
             const auto file = read_file_block(*models, type, root_path, "csv_file");
             if (!file.has_value()) {
                 return nullptr;

@@ -37,14 +37,21 @@ So the workflow has a GCC job marked `continue-on-error`: the information appear
 in a commit that cannot act on it. Promoting it to required means reading what it says and fixing it,
 which cannot be estimated before seeing it — hence this item rather than a guess.
 
-### 2. Population impact fraction — `scope`
+### 2. A runnable Kevin Hall example, which needs upstream — `needs-ruling`
 
-**Value: medium-high. Effort: medium.** 18 baseline tests across seven suites, and the last model
-feature of the upstream surface that is refused rather than implemented. The config block is
-carried through the converter and rejected at load with a named error, so the shape is known
-(`src/config/loader.cpp:1001`). It needs the PIF data tables and the disease-model hook.
+**Value: high. Effort: none here.** Population impact fraction is implemented
+([ADR 0038](decisions/0038-population-impact-fraction.md)) and `KevinHall_PIF` loads completely: config,
+both model files, the registry, 69 fraction tables, both scenarios' modules. It then stops in its first
+simulated year, on `KevinHall_India`'s defect, because it is the same data — `India.DataFile.csv` and
+both weight-quantile files are byte-for-byte identical between the two examples, and both put `Weight`'s
+lower bound at 3.319358 kg, above what the curve produces for the lightest newborns. **The baseline dies
+in the same place.**
 
-Unblocks `KevinHall_PIF`, the one converted example that does not load.
+So the whole Kevin Hall + India data family — `KevinHall_India`, `KevinHall_PIF` and all twelve of the
+latter's alternatives — cannot be run by either implementation, and no code change here can fix it:
+raising the curve or lowering the bound would both be inventing a number for somebody else's fitted
+model. This is item 6's question asked again from a second direction, and answering it would unblock
+two examples rather than one, plus the only PIF equivalence comparison there could be.
 
 ### 3. Finish what the index-keyed store started — `cleanup`
 

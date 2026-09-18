@@ -877,25 +877,107 @@ TEST(ConfigParsing, IndividualIdTrackingDefaultsAndValidation) {
     }
 }
 
-TEST(ConfigParsing, PopulationImpactFractionIsReservedAndRejectedWhenEnabled) {
+TEST(ConfigParsing, LoadsThePopulationImpactFractionBlock) {
+    // Ports the baseline's `ConfigurationPIF` suite (2 tests), which checked that the struct held what
+    // was put into it and compared equal to itself. What is worth checking here is the validation
+    // (ADR 0038).
     const ConfigFixture fixture{"config_pif"};
+
+    {
+        // Absent entirely: disabled, no diagnostics.
+        auto [config, report] = load(fixture, fixture.document());
+        ASSERT_TRUE(config.has_value()) << report.to_string();
+        EXPECT_FALSE(config->population_impact_fraction.enabled);
+    }
 
     {
         auto document = fixture.document();
         document["population_impact_fraction"] = nlohmann::json::parse(R"({"enabled": false})");
         auto [config, report] = load(fixture, document);
-        EXPECT_TRUE(config.has_value()) << report.to_string();
+        ASSERT_TRUE(config.has_value()) << report.to_string();
+        EXPECT_FALSE(config->population_impact_fraction.enabled);
     }
 
     {
         auto document = fixture.document();
         document["population_impact_fraction"] = nlohmann::json::parse(
-            R"({"enabled": true, "data_root_path": "/d", "risk_factor": "Smoking",
-                "scenario": "Scenario1"})");
+            R"({"enabled": true, "risk_factor": "Smoking", "scenario": "Scenario1"})");
         auto [config, report] = load(fixture, document);
-        EXPECT_FALSE(config.has_value());
-        EXPECT_TRUE(report.contains(IssueCode::feature_not_implemented));
+        ASSERT_TRUE(config.has_value()) << report.to_string();
+        EXPECT_FALSE(report.has_errors());
+
+        // The spelling and case are the data tree's, not an identifier's: these become directory
+        // names, and `Smoking` is a directory.
+        EXPECT_TRUE(config->population_impact_fraction.enabled);
+        EXPECT_EQ("Smoking", config->population_impact_fraction.risk_factor);
+        EXPECT_EQ("Scenario1", config->population_impact_fraction.scenario);
     }
+}
+
+TEST(ConfigParsing, PopulationImpactFractionNeedsARiskFactorAndAScenarioWhenEnabled) {
+    const ConfigFixture fixture{"config_pif_required"};
+
+    for (const char *json : {R"({"enabled": true})",
+                             R"({"enabled": true, "risk_factor": "Smoking"})",
+                             R"({"enabled": true, "scenario": "Scenario1"})",
+                             R"({"enabled": true, "risk_factor": "", "scenario": "Scenario1"})"}) {
+        auto document = fixture.document();
+        document["population_impact_fraction"] = nlohmann::json::parse(json);
+        auto [config, report] = load(fixture, document);
+        EXPECT_FALSE(config.has_value()) << json;
+        EXPECT_TRUE(report.contains(IssueCode::config_missing_required)) << json;
+    }
+}
+
+TEST(ConfigParsing, APopulationImpactFractionNameIsADirectoryAndMustLookLikeOne) {
+    // Both names become path components under the data store. A separator would let a config reach
+    // outside the store it declared, which is not a thing a scenario name should be able to do.
+    const ConfigFixture fixture{"config_pif_path"};
+
+    for (const char *bad : {"../secrets", "Smoking/extra", ".", ".."}) {
+        auto document = fixture.document();
+        document["population_impact_fraction"] = {
+            {"enabled", true}, {"risk_factor", bad}, {"scenario", "Scenario1"}};
+        auto [config, report] = load(fixture, document);
+        EXPECT_FALSE(config.has_value()) << bad;
+        EXPECT_NE(std::string::npos, report.to_string().find("path separator")) << bad;
+    }
+}
+
+TEST(ConfigParsing, TheDeadPopulationImpactFractionRootPathIsAcceptedAndSaidToBeIgnored) {
+    // `data_root_path` is required by upstream's schema, has its ${VAR}s expanded, and is then
+    // overwritten with the data store's own root before it is used (repository.cpp:118). Every
+    // upstream PIF config sets it, so rejecting it would make them all unloadable; accepting it
+    // silently would leave somebody believing it does something (ADR 0038).
+    const ConfigFixture fixture{"config_pif_root"};
+
+    auto document = fixture.document();
+    document["population_impact_fraction"] =
+        nlohmann::json::parse(R"({"enabled": true, "data_root_path": "${PIF_DATA_ROOT}/data",
+                                  "risk_factor": "Smoking", "scenario": "Scenario1"})");
+    auto [config, report] = load(fixture, document);
+
+    ASSERT_TRUE(config.has_value()) << report.to_string();
+    EXPECT_FALSE(report.has_errors());
+    EXPECT_TRUE(report.contains(IssueCode::config_default_applied));
+
+    const auto text = report.to_string();
+    EXPECT_NE(std::string::npos, text.find("ignored"));
+    EXPECT_NE(std::string::npos, text.find("data.source"));
+
+    // And it is not carried anywhere: there is no field for it, because nothing reads it.
+    EXPECT_TRUE(config->population_impact_fraction.enabled);
+}
+
+TEST(ConfigParsing, RejectsAnUnknownMemberOfThePopulationImpactFractionBlock) {
+    const ConfigFixture fixture{"config_pif_unknown"};
+    auto document = fixture.document();
+    document["population_impact_fraction"] =
+        nlohmann::json::parse(R"({"enabled": true, "risk_factor": "Smoking",
+                                  "scenario": "Scenario1", "sceanrio": "Scenario2"})");
+    auto [config, report] = load(fixture, document);
+    EXPECT_FALSE(config.has_value());
+    EXPECT_TRUE(report.contains(IssueCode::config_unknown_property));
 }
 
 TEST(ConfigParsing, TheOutputFileNameIsUsedExactlyAsConfigured) {

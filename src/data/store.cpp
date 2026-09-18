@@ -9,6 +9,7 @@
 #include <utility>
 
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 
 namespace hgps::data {
 namespace {
@@ -751,6 +752,147 @@ Store::lms_parameters(diag::IssueReport &report) const {
     }
 
     return result;
+}
+
+namespace {
+
+/// @brief What the store actually has under a disease's PIF directory, for an error message.
+///
+/// A message that says only "not found" leaves the reader to go and look; one that says what is there
+/// usually answers the question in the same breath — most of the time the risk factor is misspelled or
+/// the pack simply has no fractions for that disease.
+std::string describe_available_pif(const std::filesystem::path &pif_root) {
+    if (!std::filesystem::is_directory(pif_root)) {
+        return "this data store has no population impact fractions for that disease at all";
+    }
+
+    std::vector<std::string> available;
+    for (const auto &entry : std::filesystem::directory_iterator{pif_root}) {
+        if (entry.is_directory()) {
+            available.push_back(entry.path().filename().string());
+        }
+    }
+    if (available.empty()) {
+        return fmt::format("{} is empty", pif_root.string());
+    }
+
+    // Sorted, so the message is the same on every file system.
+    std::sort(available.begin(), available.end());
+    return fmt::format("the risk factors it does have for that disease are: {}",
+                       fmt::join(available, ", "));
+}
+
+} // namespace
+
+std::optional<std::vector<core::PifDataRow>>
+Store::population_impact_fraction(const core::DiseaseInfo &info, const core::Country &country,
+                                  const std::string &risk_factor, const std::string &scenario,
+                                  diag::IssueReport &report) const {
+    const auto &node = index_.node()["diseases"];
+    const auto &disease_node = node["disease"];
+    const auto index_path = index_.root() / "index.json";
+
+    // The index declares the file name pattern, and the published PIF pack does declare it. A pack
+    // without the node cannot serve a PIF at all, and saying which node is missing is more use than
+    // "file not found" against a path the reader would have to reverse-engineer.
+    if (!disease_node.contains("population_impact_fraction")) {
+        report.error(IssueCode::data_index_invalid,
+                     IssueLocation{.file = index_path.string(),
+                                   .field = "/diseases/disease/population_impact_fraction"},
+                     "this data store declares no population impact fraction tables, so a config "
+                     "that enables them cannot be run against it. The published pack that carries "
+                     "them is the PIF release of healthgps-data");
+        return std::nullopt;
+    }
+
+    const auto &pif_node = disease_node["population_impact_fraction"];
+
+    const auto disease_folder = DataIndex::substitute_named(
+        disease_node.value("path", std::string{"{DISEASE_TYPE}"}),
+        {{"DISEASE_TYPE", info.code.to_string()}}, index_path, report);
+
+    // The path pattern is not in the published index, so it defaults to what upstream hard-codes in
+    // `construct_pif_path`: PIF/<risk factor>/<scenario> under the disease's directory. Reading it
+    // from the index when it is there means a later pack can move the tables without a code change.
+    const auto pif_folder = DataIndex::substitute_named(
+        pif_node.value("path", std::string{"PIF/{RISK_FACTOR}/{SCENARIO}"}),
+        {{"RISK_FACTOR", risk_factor}, {"SCENARIO", scenario}}, index_path, report);
+
+    const auto file_name = DataIndex::substitute_named(
+        pif_node.value("file_name", std::string{"IF{COUNTRY_CODE}.csv"}),
+        {{"COUNTRY_CODE", std::to_string(country.code)}}, index_path, report);
+
+    const auto directory =
+        index_.root() / node.value("path", std::string{}) / disease_folder / pif_folder;
+
+    if (!std::filesystem::is_directory(directory)) {
+        // Upstream warns here and returns nothing, and its warning is silent unless the run is
+        // verbose — so a config naming a risk factor the pack does not have produces a run with no
+        // policy and an exit code of zero. That is the defect this error exists to remove.
+        report.error(IssueCode::data_missing_file, IssueLocation{.file = directory.string()},
+                     fmt::format("no population impact fraction tables for {} under risk factor "
+                                 "'{}' and scenario '{}'; {}",
+                                 info.name, risk_factor, scenario,
+                                 describe_available_pif(index_.root() / node.value("path", std::string{}) /
+                                                        disease_folder / "PIF")));
+        return std::nullopt;
+    }
+
+    const auto path = directory / file_name;
+    const auto document = io::read_csv(path, {}, report);
+    if (!document.has_value()) {
+        return std::nullopt;
+    }
+
+    const auto columns = map_columns(*document, {"Gender", "Age", "YearPostInt", "IF_Mean"}, report);
+    if (!columns.complete) {
+        return std::nullopt;
+    }
+
+    std::vector<core::PifDataRow> rows;
+    rows.reserve(document->num_rows());
+    bool bad_gender = false;
+
+    for (std::size_t row = 0; row < document->num_rows(); ++row) {
+        const auto gender_code = document->field_as_int(row, columns.at("Gender"), report);
+        if (!gender_code.has_value()) {
+            continue;
+        }
+
+        // 0 is male and 1 is female. The data says so and upstream's loader agrees
+        // (`datamanager.cpp:766`); upstream's own *schema* says the opposite, and it is wrong. The
+        // decisive case is cervicalcancer, a female-only disease, whose table is non-zero only at
+        // Gender=1 and identically zero at Gender=0 (docs/deviations.md D-40).
+        if (*gender_code != 0 && *gender_code != 1) {
+            report.error(IssueCode::csv_bad_value,
+                         IssueLocation{.file = path.string(), .field = "Gender", .line = row + 2},
+                         fmt::format("a sex code of {}; the column holds 0 for male and 1 for "
+                                     "female",
+                                     *gender_code));
+            bad_gender = true;
+            continue;
+        }
+
+        const auto age = document->field_as_int(row, columns.at("Age"), report);
+        const auto year = document->field_as_int(row, columns.at("YearPostInt"), report);
+        const auto value = document->field_as_double(row, columns.at("IF_Mean"), report);
+        if (!age.has_value() || !year.has_value() || !value.has_value()) {
+            continue;
+        }
+
+        rows.push_back(core::PifDataRow{
+            .gender = *gender_code == 0 ? core::Gender::male : core::Gender::female,
+            .age = *age,
+            .years_since_intervention = *year,
+            .value = *value,
+        });
+    }
+
+    if (bad_gender || rows.size() != document->num_rows()) {
+        return std::nullopt;
+    }
+
+    return rows;
 }
 
 } // namespace hgps::data

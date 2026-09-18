@@ -391,9 +391,48 @@ std::optional<LoadedInputs> load_inputs(const config::Config &config, const data
             parameter = to_disease_parameter(*cancer);
         }
 
-        loaded.diseases.emplace(
-            info.code, model::DiseaseDefinition{to_disease_table(*entity), std::move(to_diseases),
-                                                std::move(to_factors), std::move(parameter)});
+        model::DiseaseDefinition definition{to_disease_table(*entity), std::move(to_diseases),
+                                            std::move(to_factors), std::move(parameter)};
+
+        // The population impact fraction, when the run asks for one. Loaded here, for every selected
+        // disease, before any worker thread exists — as everything else is, and unlike upstream, whose
+        // PIF arrives through the lazily populated repository that is audit finding B-02
+        // (ADR 0038).
+        //
+        // A disease the pack has no fractions for is an error and not a shrug: a run that was asked
+        // for a policy and applied none, and then reported success, is indistinguishable from a run of
+        // the baseline. The store's message names what it does have.
+        if (config.population_impact_fraction.enabled) {
+            const auto rows = store.population_impact_fraction(
+                info, *country, config.population_impact_fraction.risk_factor,
+                config.population_impact_fraction.scenario, report);
+            if (!rows.has_value()) {
+                continue;
+            }
+
+            const auto path = fmt::format("{} population impact fractions for {}/{}",
+                                          info.code.to_string(),
+                                          config.population_impact_fraction.risk_factor,
+                                          config.population_impact_fraction.scenario);
+            auto pif = model::PifTable::build(*rows, path, report);
+            if (!pif.has_value()) {
+                continue;
+            }
+
+            // A table of nothing but zeros is a policy that does nothing, which is a legitimate
+            // scenario and also a plausible mistake, so it is said out loud rather than run silently.
+            if (pif->largest() == 0.0) {
+                report.warning(IssueCode::data_index_invalid,
+                               IssueLocation{.file = path},
+                               fmt::format("every population impact fraction for {} is zero, so the "
+                                           "policy has no effect on this disease",
+                                           info.code.to_string()));
+            }
+
+            definition.set_population_impact_fraction(std::move(*pif));
+        }
+
+        loaded.diseases.emplace(info.code, std::move(definition));
     }
 
     // 8. The FactorsMean tables and the model definitions.

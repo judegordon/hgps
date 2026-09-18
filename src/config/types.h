@@ -259,6 +259,27 @@ struct ProjectRequirements {
     auto operator<=>(const ProjectRequirements &) const = default;
 };
 
+/// @brief `population_impact_fraction`: which PIF tables a run applies, if any.
+///
+/// A PIF multiplies the intervention scenario's disease incidence by (1 − fraction). It is a third
+/// policy mechanism, alongside the age-banded `running.interventions` block and the static linear
+/// model's `policy_start_year` coefficients, and like the latter it does not go through
+/// `Scenario::apply` ([ADR 0038](../../docs/decisions/0038-population-impact-fraction.md)).
+struct PopulationImpactFraction {
+    bool enabled{false};
+
+    /// @brief The risk factor the fractions were estimated for, as the data tree names it —
+    ///        `Smoking`, `Alcohol`. A directory name, so its spelling and case are the tree's and not
+    ///        an identifier's.
+    std::string risk_factor;
+
+    /// @brief Which modelled policy scenario to read: `Scenario1`, `Scenario2` or `Scenario3` in the
+    ///        published pack. Also a directory name.
+    std::string scenario;
+
+    auto operator<=>(const PopulationImpactFraction &) const = default;
+};
+
 /// @brief A whole config v2 document, validated.
 struct Config {
     /// @brief The directory the config was loaded from; relative paths resolve against it.
@@ -279,6 +300,7 @@ struct Config {
     Modelling modelling;
     Running running;
     Output output;
+    PopulationImpactFraction population_impact_fraction;
 
     core::VerboseMode verbosity{core::VerboseMode::none};
     int job_id{0};

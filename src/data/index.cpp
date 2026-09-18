@@ -8,6 +8,7 @@
 #include <utility>
 
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 
 namespace hgps::data {
 namespace {
@@ -169,25 +170,74 @@ void DataIndex::validate_registry_against_tree(diag::IssueReport &report) const 
         registered.insert(entry.code.to_string());
     }
 
-    std::vector<std::string> unregistered;
+    // A directory is claiming to be a disease when it holds disease *measures* — a `D<country>.csv`.
+    // One that holds only, say, a `PIF/` subtree is not making that claim, and the distinction is not
+    // hypothetical: the published PIF pack ships `diseases/COPD/` containing nothing but population
+    // impact fractions for a disease its own registry calls `pulmonary`. Refusing the whole store over
+    // that would make an upstream example unloadable for a directory no run reads
+    // (docs/examples.md, deviation B-28).
+    //
+    // So an unregistered directory *with* measures is an error — that is the `pulmonar`/`pulmonary`
+    // case (audit D-01), where a config naming it would get plausible numbers from the wrong place —
+    // and one without measures is a warning naming what it does contain.
+    const auto holds_disease_measures = [](const std::filesystem::path &directory) {
+        for (const auto &item : std::filesystem::directory_iterator{directory}) {
+            const auto name = item.path().filename().string();
+            if (item.is_regular_file() && name.size() > 1 && name.front() == 'D' &&
+                item.path().extension() == ".csv") {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    const auto describe_contents = [](const std::filesystem::path &directory) {
+        std::vector<std::string> names;
+        for (const auto &item : std::filesystem::directory_iterator{directory}) {
+            names.push_back(item.path().filename().string());
+        }
+        std::sort(names.begin(), names.end());
+        if (names.size() > 6) {
+            names.resize(6);
+            names.emplace_back("…");
+        }
+        return fmt::format("{}", fmt::join(names, ", "));
+    };
+
+    std::vector<std::string> unregistered_with_measures;
+    std::vector<std::string> unregistered_without_measures;
     for (const auto &item : std::filesystem::directory_iterator{diseases_root}) {
         if (!item.is_directory()) {
             continue;
         }
         const auto name = core::to_lower(item.path().filename().string());
-        if (!registered.contains(name)) {
-            unregistered.push_back(name);
+        if (registered.contains(name)) {
+            continue;
         }
+        (holds_disease_measures(item.path()) ? unregistered_with_measures
+                                             : unregistered_without_measures)
+            .push_back(name);
     }
 
     // Sorted, so the report reads the same on every file system.
-    std::sort(unregistered.begin(), unregistered.end());
-    for (const auto &name : unregistered) {
+    std::sort(unregistered_with_measures.begin(), unregistered_with_measures.end());
+    std::sort(unregistered_without_measures.begin(), unregistered_without_measures.end());
+
+    for (const auto &name : unregistered_with_measures) {
         report.error(IssueCode::data_disease_not_in_registry,
                      IssueLocation{.file = (diseases_root / name).string()},
-                     fmt::format("the data store has a directory for disease '{}' that the "
-                                 "registry in index.json does not list",
+                     fmt::format("the data store has a directory of disease measures for '{}' that "
+                                 "the registry in index.json does not list, so no config can select "
+                                 "it and anything that reads it reads it by accident",
                                  name));
+    }
+    for (const auto &name : unregistered_without_measures) {
+        report.warning(IssueCode::data_disease_not_in_registry,
+                       IssueLocation{.file = (diseases_root / name).string()},
+                       fmt::format("the data store has a directory '{}' that the registry in "
+                                   "index.json does not list and that holds no disease measures, so "
+                                   "nothing here reads it. It contains: {}",
+                                   name, describe_contents(diseases_root / name)));
     }
 
     // Metadata.json is not read by the program, but it is where the upstream `pulmonar` spelling

@@ -88,6 +88,24 @@ class Store {
     std::optional<core::DiseaseAnalysisEntity> disease_analysis(const core::Country &country,
                                                                 diag::IssueReport &report) const;
 
+    /// @brief One disease's population impact fraction table, as rows, for a risk factor and
+    ///        scenario.
+    ///
+    /// Read through the index's `diseases.disease.population_impact_fraction` node, which gives the
+    /// file name pattern and, optionally, a path pattern under the disease's own directory. The
+    /// published PIF pack gives only the file name, so the path defaults to what upstream hard-codes:
+    /// `PIF/{RISK_FACTOR}/{SCENARIO}`.
+    ///
+    /// @return nullopt with a located error when the node, the directory or the file is absent. A
+    ///         config that asks for a fraction and does not get one is an **error** here and a silent
+    ///         warning upstream, which is the difference that matters: upstream's run then applies no
+    ///         policy at all and reports success
+    ///         (docs/decisions/0038-population-impact-fraction.md, deviation B-26).
+    std::optional<std::vector<core::PifDataRow>>
+    population_impact_fraction(const core::DiseaseInfo &info, const core::Country &country,
+                               const std::string &risk_factor, const std::string &scenario,
+                               diag::IssueReport &report) const;
+
     /// @brief The LMS childhood growth reference.
     std::optional<std::vector<core::LmsDataRow>> lms_parameters(diag::IssueReport &report) const;
 
