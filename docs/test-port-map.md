@@ -166,12 +166,14 @@ is now unported for want of a feature**. What remains unported is the event bus,
 lazy repository and the printed summary boxes, each of which tests a thing this implementation does not
 have by design, and each of which is listed above with the ADR that says why.
 
-Counts verified on 2026-09-18 with `hgps_tests --gtest_list_tests` (845 tests, 100 suites),
-`ctest --preset release -N` (848) and `python3 -m unittest discover -s tests/equivalence` (48),
+Counts verified on 2026-09-19 with `hgps_tests --gtest_list_tests` (**850** tests, 101 suites),
+`ctest --preset release -N` (**853**) and `python3 -m unittest discover -s tests/equivalence` (**50**),
 against the baseline's `HealthGPS.Tests --gtest_list_tests` (471). None of them is counted by hand.
+`ctest --preset tsan -N` reports **761**, for the reason
+[ADR 0046](decisions/0046-what-runs-under-which-sanitizer.md) gives.
 
-The growth from 738 to 845 is this run's, and none of it is a port, because the baseline has no
-counterpart for any of it.
+The growth from 738 to 845 was the sixth run's and the five above it are the seventh's; none of it is
+a port, because the baseline has no counterpart for any of it.
 
 **Most of it is the second fixture pack.** Every test that runs a configuration is parameterised
 over both synthetic packs ([ADR 0044](decisions/0044-two-fixture-packs-and-a-parameterised-suite.md)):
