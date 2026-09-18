@@ -321,8 +321,8 @@ And every one of those futures agrees with the baseline's:
 | Example | Policy | Comparisons | Out of tolerance |
 |---|---|---:|---:|
 | HLM_France | `simple` | 31,468 | **0** |
-| HLM_France | `marketing` | 31,468 | **0** |
-| HLM_France | `dynamic_marketing` | 31,468 | **0** |
+| HLM_France | `marketing` | 31,462 | **1** — see below |
+| HLM_France | `dynamic_marketing` | 31,552 | **0** |
 | HLM_France | `food_labelling` | 31,552 | **0** |
 | HLM_France | `physical_activity` | 31,552 | **0** |
 | HLM_France | `fiscal` | 31,363 | **0** |
@@ -337,6 +337,42 @@ The comparison counts differ a little between policies on HLM_France because a d
 empties a slightly different set of age bands, and the excluded set is derived from the runs. They
 are identical across every FINCH row for the reason given just above: on that surface the policy
 changes nothing, so every one of those runs is the same pair of futures.
+
+### The one comparison in 347,768 that did not pass
+
+Adding the 60-seed confirmations, the twelve runs above are **347,768 comparisons**. One is out of
+tolerance:
+
+```
+HLM_France + marketing, incidence_osteoarthritisknee, intervention 2042 female
+  median   baseline 0.0069778   this build 0.0052281
+  allowed  0.0017220            difference -0.0017497      = 1.016x the allowance
+```
+
+It exceeds its allowance by 1.6%, and the evidence says it is the test's expected tail rather than
+a difference in the code:
+
+- **It is isolated.** The next-highest excursion anywhere in the 347,768 is **0.963×**, in a
+  different run, a different example and a different variable. There is no cluster pressing against
+  the limit, which is the shape a real difference would have.
+- **The same series' mean agrees**, at 0.908× of its own allowance — and the mean is the statistic
+  with the smallest standard error of the five.
+- **There is no direction to it.** Across years and both scenarios, this variable's ratio of
+  new-to-baseline mean scatters both ways — 1.131, 0.827, 1.113, 0.842, 0.897, 1.065 — with 2042
+  at one tail of that scatter and nothing resembling a trend.
+- **One is what the threshold is set to produce.** 4.5σ is Bonferroni at α = 0.05 over a family of
+  about 5,000 series, so about **0.05 false failures per run**; fourteen runs were scored, so the
+  expected count is about **0.7**. Observing one is the test behaving as designed.
+
+**The threshold was not changed.** There is a real argument that a Bonferroni correction stated for
+one run should be restated for a sweep of fourteen — and at α = 0.05 over the whole sweep the limit
+would be about 4.9σ, which this comparison would clear. It is not being done, because moving a
+threshold *after* seeing which comparison it excludes is not evidence, whatever the argument for
+it. The comparison is reported as it stands.
+
+`scripts/check.sh` runs the two primary comparisons — `simple` on each example, against the
+checked-in references — and both are at zero out of tolerance. The ten policy runs are a deliberate
+extra, run by hand, and this is their one residual.
 
 
 ## What the residuals turned out to be
@@ -505,11 +541,15 @@ difference at all.
 
 Two examples, one per model family. Over 20 seeds and again over 60, every scenario and both sexes:
 
-- **every comparison is within tolerance** — 0 of 31,468 on HLM_France and 0 of 22,679 on
-  KevinHall_FINCH, at both seed counts;
-- the worst numeric comparison anywhere uses 96% of its allowance and the great majority sit far
-  below, so nothing is passing by a hair and nothing suggests the thresholds are doing the work;
-- **each of the six interventions is compared on its own**, 20 seeds each, on both examples;
+- **every comparison in the two primary runs is within tolerance** — 0 of 31,468 on HLM_France and
+  0 of 22,679 on KevinHall_FINCH, at 20 seeds and again at 60;
+- **each of the six interventions is compared on its own**, 20 seeds each, on both examples, which
+  with the confirmations is **347,768 comparisons in all — one of which is out of tolerance**, by
+  1.6%, isolated, with its own mean agreeing, and against an expected count of about 0.7 false
+  failures over a sweep this size. It is reported above rather than corrected away;
+- the next-highest excursion anywhere is 0.963× of its allowance and the great majority sit far
+  below, so nothing else is passing by a hair and nothing suggests the thresholds are doing the
+  work;
 - the mechanism behind the previous run's 54 residual failures has been measured, attributed to the
   baseline, recorded as deviation B-21, and excluded from the reduction by a rule derived from the
   data rather than declared;

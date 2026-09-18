@@ -18,9 +18,12 @@ own data pack — which the baseline also stops on, in the same place.
   [docs/test-port-map.md](test-port-map.md) says where each went.
 - **Two statistical equivalence comparisons against the baseline, both at zero failures.**
   31,468 comparisons on `HLM_France` and 22,679 on `KevinHall_FINCH`, each at 20 seeds and again at
-  60, plus one run per intervention for each of the other five policies on each example. There is
-  **no failure budget**: `scripts/check.sh` fails on any out-of-tolerance comparison, and the
-  harness now has 26 tests of its own, because a mistake in it says PASS.
+  60. With one run per intervention for each of the other five policies on each example, the whole
+  sweep is **347,768 comparisons, of which one is out of tolerance** — by 1.6%, isolated (the next
+  highest excursion anywhere is 0.963×), with its own mean agreeing, against an expected count of
+  about 0.7 false failures at this threshold over a sweep this size. It is reported rather than
+  corrected away. There is **no failure budget**: `scripts/check.sh` fails on any out-of-tolerance
+  comparison, and the harness now has 26 tests of its own, because a mistake in it says PASS.
 - **31 ADRs**, one per design decision, each with the alternatives rejected.
 - **37 recorded deviations** from the baseline — 19 fixed defects that change the numbers, 10
   design differences that change results or output, 8 internal ones that change nothing — each with
