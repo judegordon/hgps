@@ -8,6 +8,7 @@
 #include <gtest/gtest.h>
 
 #include <fstream>
+#include <stdexcept>
 #include <string>
 
 using hgps::io::Sha256Context;

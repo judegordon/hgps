@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <functional>
 #include <span>
+#include <utility>
 #include <vector>
 
 namespace hgps::core::parallel {

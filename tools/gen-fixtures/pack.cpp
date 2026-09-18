@@ -2,6 +2,8 @@
 
 #include <cmath>
 #include <fstream>
+#include <stdexcept>
+#include <utility>
 #include <vector>
 
 #include <fmt/format.h>

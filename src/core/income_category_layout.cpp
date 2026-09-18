@@ -1,6 +1,7 @@
 #include "income_category_layout.h"
 
 #include <stdexcept>
+#include <utility>
 
 #include <fmt/format.h>
 

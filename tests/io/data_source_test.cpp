@@ -11,6 +11,7 @@
 
 #include <cstdlib>
 #include <fstream>
+#include <stdexcept>
 
 namespace {
 

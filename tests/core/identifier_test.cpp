@@ -6,7 +6,9 @@
 
 #include <map>
 #include <sstream>
+#include <stdexcept>
 #include <unordered_map>
+#include <vector>
 
 TEST(TestCore_Identity, CreateEmpty) {
     using namespace hgps::core;

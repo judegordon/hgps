@@ -1,6 +1,7 @@
 #include "paths.h"
 
 #include <array>
+#include <cstdint>
 #include <cstdlib>
 #include <stdexcept>
 #include <vector>

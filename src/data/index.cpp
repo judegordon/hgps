@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <set>
+#include <stdexcept>
 #include <utility>
 
 #include <fmt/format.h>

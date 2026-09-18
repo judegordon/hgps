@@ -3,6 +3,7 @@
 #include <array>
 #include <fstream>
 #include <stdexcept>
+#include <utility>
 
 namespace hgps::test {
 namespace {
