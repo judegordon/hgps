@@ -5,7 +5,10 @@
 #include "predictor_resolver.h"
 
 #include <cmath>
+#include <cstdint>
 #include <functional>
+#include <utility>
+#include <vector>
 
 #include <fmt/format.h>
 
@@ -69,24 +72,63 @@ std::optional<int> trailing_number(const std::string &value, std::size_t prefix_
 
 } // namespace
 
-std::optional<double> Person::try_risk_factor_value(const core::Identifier &key) const {
-    // A stored income value wins, so a continuous-income model works before categories exist.
-    static const core::Identifier income_id{"income"};
-    if (key == income_id) {
-        if (const auto found = risk_factors.find(income_id); found != risk_factors.end()) {
-            return found->second;
+/// The dispatcher again, keyed by risk-factor index instead of by name.
+///
+/// This resolution is the hottest path in the program — once per coefficient per person per year —
+/// and after the store became index-keyed it was what was left: a `std::map<Identifier, …>` tree walk
+/// for every derived predictor, which is most of them, on top of a hash probe for the stored ones
+/// (ADR 0037). So each of the nineteen names is interned once, here, and the lookup becomes a scan of
+/// nineteen 32-bit integers.
+///
+/// Built on first use from `dispatcher()`, so there is one list of names and one place to add to.
+const std::vector<std::pair<std::uint32_t, const std::function<double(const Person &)> *>> &
+indexed_dispatcher() {
+    static const auto table = [] {
+        std::vector<std::pair<std::uint32_t, const std::function<double(const Person &)> *>> result;
+        result.reserve(dispatcher().size());
+        for (const auto &[name, function] : dispatcher()) {
+            result.emplace_back(factor_index().intern(name), &function);
         }
+        return result;
+    }();
+    return table;
+}
+
+std::optional<double> Person::try_risk_factor_value(const core::Identifier &key) const {
+    // Asked for first, and the order is load-bearing: building it interns the nineteen predictor
+    // names, and the index lookup below treats a name it has never seen as resolvable only by the
+    // derived-predictor resolver. Asking for the index before the table was built therefore sent
+    // `age` — on the very first call of a run, before anything else had interned it — straight past
+    // the dispatcher. `HLM_France` changed by a last bit and `KevinHall_FINCH` did not, because the
+    // window depends on which name a run happens to resolve first. The byte-for-byte comparison in
+    // docs/performance.md is what found it.
+    const auto &table = indexed_dispatcher();
+
+    // The name is resolved to an index once, and everything below compares integers. A name this
+    // process has never interned cannot be a stored factor and cannot be one of the nineteen derived
+    // predictors, so it goes straight to the resolver — which is also the fast answer for the
+    // `log_<name>` shapes, whose names are never interned at all.
+    const auto index = factor_index().find(key);
+    if (index == FactorIndex::unknown) {
+        return resolve_derived_predictor(*this, key.to_string());
     }
 
-    // A stored risk factor comes before the named-predictor table, so a model that carries a
-    // factor called "income" or "sector" gets its own value rather than the derived one.
-    if (const auto found = risk_factors.find(key); found != risk_factors.end()) {
-        return found->second;
+    // A stored risk factor comes before the named-predictor table, so a model that carries a factor
+    // called `income` or `sector` gets its own value rather than the derived one — which is what
+    // makes a continuous-income model work before income categories exist.
+    //
+    // This was two lookups until now: an `income`-specific one and then the general one. They were
+    // the same lookup written twice — the first asked whether `income` was stored, which is what the
+    // second asks whenever the key *is* `income` — so it is one lookup here, with no change in
+    // behaviour for any name.
+    if (const auto *value = risk_factors.find_index(index)) {
+        return *value;
     }
 
-    const auto &table = dispatcher();
-    if (const auto found = table.find(key); found != table.end()) {
-        return found->second(*this);
+    for (const auto &[predictor, function] : table) {
+        if (predictor == index) {
+            return (*function)(*this);
+        }
     }
 
     return resolve_derived_predictor(*this, key.to_string());

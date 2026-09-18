@@ -35,32 +35,53 @@ RiskAccumulator combine_risk(RiskAccumulator left, RiskAccumulator right) {
 DiseaseModelBase::DiseaseModelBase(const DiseaseDefinition &definition, WeightModel classifier,
                                    const core::IntegerInterval &age_range)
     : definition_{definition}, classifier_{std::move(classifier)},
-      average_relative_risk_{create_age_gender_table<double>(age_range)} {}
+      average_relative_risk_{create_age_gender_table<double>(age_range)} {
+
+    // Resolve every relative-risk table once, here, rather than per person per year. Two things are
+    // resolved: the factor's index in the run-wide name table, so a person is read without a name, and
+    // the per-sex table pointer, so the gender lookup is a branch rather than a map probe.
+    //
+    // The order is `relative_risk_factors()`'s own — it is a std::map, so factor-name order — and it
+    // is load-bearing: `relative_risk_for_risk_factors` multiplies along this vector, floating-point
+    // multiplication is not associative, and this is the order the per-person map iteration used to
+    // give (ADR 0037).
+    factor_risks_.reserve(definition_.relative_risk_factors().size());
+    for (const auto &[factor, by_gender] : definition_.relative_risk_factors()) {
+        FactorRisk entry;
+        entry.index = factor_index().intern(factor);
+        entry.name = factor;
+        if (const auto found = by_gender.find(core::Gender::male); found != by_gender.end()) {
+            entry.male = &found->second;
+        }
+        if (const auto found = by_gender.find(core::Gender::female); found != by_gender.end()) {
+            entry.female = &found->second;
+        }
+        factor_risks_.push_back(entry);
+    }
+}
 
 double DiseaseModelBase::relative_risk_for_risk_factors(const Person &person) const {
-    const auto &tables = definition_.relative_risk_factors();
-
-    // person.risk_factors is a std::map, so this product is taken in factor-name order.
+    // factor_risks_ is built from a std::map, so this product is taken in factor-name order — the
+    // same order, over the same set, as the loop this replaced (ADR 0037).
     double relative_risk = 1.0;
-    for (const auto &[factor, value] : person.risk_factors) {
-        const auto table = tables.find(factor);
-        if (table == tables.end()) {
+    for (const auto &factor : factor_risks_) {
+        const auto *value = person.risk_factors.find_index(factor.index);
+        if (value == nullptr) {
             continue;
         }
 
-        const auto by_gender = table->second.find(person.gender);
-        if (by_gender == table->second.end()) {
+        const auto *table = factor.for_gender(person.gender);
+        if (table == nullptr) {
             continue;
         }
 
         // A child's BMI is read as the midpoint of their weight category, because the relative
         // risks are tabulated against adult-style categories.
-        const auto adjusted =
-            static_cast<float>(classifier_.adjust_risk_factor_value(person, factor, value));
+        const auto adjusted = static_cast<float>(
+            classifier_.adjust_risk_factor_value(person, factor.name, *value));
         // The lookup tables are float, as the data is; the product is double. Stated rather
         // than implicit, because an unnoticed promotion is how precision arguments start.
-        relative_risk *= static_cast<double>(
-            by_gender->second(static_cast<int>(person.age), adjusted));
+        relative_risk *= static_cast<double>((*table)(static_cast<int>(person.age), adjusted));
     }
 
     return relative_risk;

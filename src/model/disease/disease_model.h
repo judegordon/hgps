@@ -9,9 +9,11 @@
 #include "model/module.h"
 #include "model/weight_model.h"
 
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace hgps::model {
 
@@ -69,6 +71,13 @@ class DiseaseModelBase : public DiseaseModel {
     }
 
     /// @brief The product of this person's risk-factor relative risks, in factor-name order.
+    ///
+    /// Floating-point multiplication is not associative, so the order is part of the result. It used
+    /// to iterate the person's factors — name order, because that was a `std::map` — and look up each
+    /// factor's table. It now iterates `factor_risks_`, which is built once from
+    /// `relative_risk_factors()` and is therefore in the same name order, and looks the person's value
+    /// up by index. The same set in the same order, so the arithmetic is unchanged
+    /// ([ADR 0037](../../../docs/decisions/0037-index-keyed-risk-factor-store.md)).
     double relative_risk_for_risk_factors(const Person &person) const;
 
     /// @brief The product of this person's other-disease relative risks, in disease-code order.
@@ -93,9 +102,29 @@ class DiseaseModelBase : public DiseaseModel {
     virtual Disease make_incident_case(RuntimeContext &context) = 0;
 
   private:
+    /// @brief One risk factor that has a relative-risk table for this disease, resolved once.
+    struct FactorRisk {
+        /// @brief This factor's index in the run-wide table, so a person is read without a name.
+        std::uint32_t index{};
+
+        /// @brief The name, which the weight model's child-BMI adjustment still needs.
+        core::Identifier name;
+
+        /// @brief The table for each sex, or null when the data has none for that sex.
+        const RelativeRiskLookup *male{nullptr};
+        const RelativeRiskLookup *female{nullptr};
+
+        const RelativeRiskLookup *for_gender(core::Gender gender) const noexcept {
+            return gender == core::Gender::male ? male : female;
+        }
+    };
+
     const DiseaseDefinition &definition_;
     WeightModel classifier_;
     DoubleAgeGenderTable average_relative_risk_;
+
+    /// @brief The factors with tables, in the name order `relative_risk_factors()` iterates.
+    std::vector<FactorRisk> factor_risks_;
 };
 
 /// @brief A non-cancer disease: prevalence-based initialisation, then yearly remission and

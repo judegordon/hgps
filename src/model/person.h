@@ -4,6 +4,7 @@
 
 #include "core/identifier.h"
 #include "core/types.h"
+#include "factor_values.h"
 
 #include <cstdint>
 #include <map>
@@ -68,8 +69,17 @@ class Person {
     double physical_activity{0.0};
     double ses{};
 
-    /// @brief Risk factor values, ordered by name so that iterating a person is deterministic.
-    std::map<core::Identifier, double> risk_factors;
+    /// @brief Risk factor values, keyed by index.
+    ///
+    /// A flat store keyed by a run-wide name-to-index table rather than a `std::map`: every risk-factor
+    /// read on every person in every year used to be a tree of string comparisons, and that was 40% of
+    /// HLM_France's samples and 52% of KevinHall_FINCH's
+    /// ([ADR 0037](../../docs/decisions/0037-index-keyed-risk-factor-store.md)).
+    ///
+    /// It presents a map's surface, with one difference: **iteration is in index order, not name
+    /// order**. Exactly one place in the tree multiplies over a person's factors, where the order is
+    /// part of the result, and it iterates its own name-ordered list instead.
+    FactorValues risk_factors;
 
     /// @brief Disease state, ordered by disease code.
     std::map<core::Identifier, Disease> diseases;

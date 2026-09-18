@@ -209,10 +209,16 @@ def absolutise(document: dict, base: Path) -> None:
     two_stage = document.get("project_requirements", {}).get("two_stage", {})
     fix(two_stage, "logistic_file")
 
-    # A URL or a ${VAR} is left alone by `fix`; a relative directory is not, and the synthetic fixture
-    # pack names one. Every shipped example names a URL, so this changes no derived config's hash and
-    # no stored reference.
-    fix(document.get("data", {}), "source")
+    # `data.source` is a URL in every shipped example and a relative directory in the synthetic
+    # fixture pack. Only the second needs absolutising, and telling them apart matters: `fix` sees a
+    # URL as a relative path — it has no leading slash — and would rewrite
+    # `https://…/data.zip` into `<config dir>/https:/…/data.zip`, which changes the derived config,
+    # changes its hash, and orphans the stored reference keyed by it. (It does not even fail loudly:
+    # the source still ends in `.zip`, so the engine looks in its content-addressed cache first and
+    # finds the already-extracted pack.)
+    data = document.get("data", {})
+    if isinstance(data.get("source"), str) and not data["source"].startswith(("http://", "https://")):
+        fix(data, "source")
 
 
 INTERVENTION_OVERLAYS = Path(__file__).resolve().parent / "interventions"
@@ -295,6 +301,14 @@ def link_example_files(source: Path, into: Path) -> None:
 
     This changes nothing about the derived config, and so nothing about its hash or the stored
     reference keyed by it.
+
+    **A caller must not name its derived config after a file in the example directory.** Every file
+    there is linked, `config.json` included, so writing a derived config to `<into>/config.json`
+    writes *through the link* and overwrites the checked-in example. The callers here use
+    `config-seed-<n>.json` for that reason. This is written down because it happened: an ad-hoc
+    measurement script named its config `config.json` and silently rewrote two of the examples, and
+    the runs then still worked — the mangled data source still ended in `.zip`, so the engine found
+    the already-extracted pack in its content-addressed cache and never looked at the path.
     """
     into.mkdir(parents=True, exist_ok=True)
     for entry in sorted(source.iterdir()):

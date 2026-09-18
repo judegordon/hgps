@@ -28,19 +28,20 @@ than any difference discussed below. The figures here were taken after `mds_stor
 | | Wall | CPU | Peak memory |
 |---|---:|---:|---:|
 | **Baseline** | 4.78 / 4.88 / 5.26 s | 7.69 / 7.90 / 8.22 s | 85.2 MiB |
-| **This build** | **2.78 / 2.90 / 3.23 s** | **2.76 / 2.85 / 3.22 s** | **56.7–56.9 MiB** |
+| This build, before the index-keyed store | 2.74 / 2.74 / 2.76 s | 2.68 / 2.70 / 2.71 s | 57.0–57.1 MiB |
+| **This build** | **2.41 / 2.41 / 2.42 s** | **2.36 / 2.36 / 2.37 s** | **52.4 MiB** |
 
 **KevinHall_FINCH**, 2022–2032:
 
 | | Wall | CPU | Peak memory |
 |---|---:|---:|---:|
 | **Baseline** | 15.19 / 15.52 / 15.52 s | 24.05 / 24.31 / 24.46 s | 197.8–198.7 MiB |
-| **This build** | **11.63 / 11.69 / 11.79 s** | **11.61 / 11.65 / 11.74 s** | **195.5–195.9 MiB** |
+| This build, before the index-keyed store | 11.85 / 11.91 / 12.04 s | 11.66 / 11.76 / 11.89 s | 195.3–195.8 MiB |
+| **This build** | **7.71 / 7.73 / 7.89 s** | **7.58 / 7.63 / 7.76 s** | **77.5 MiB** |
 
-On the HLM surface: **1.7× faster in wall time, 2.8× less CPU work, a third less memory**. On the
-FINCH surface: **1.3× faster in wall time, 2.1× less CPU, and the same memory to within 1%** —
-running its two scenarios one after the other, on one thread, against a baseline that runs them
-concurrently.
+Against the baseline: on the HLM surface **2.0× faster in wall time, 3.3× less CPU work, 38% less
+memory**; on the FINCH surface **2.0× faster, 3.2× less CPU, and 2.6× less memory** — running its two
+scenarios one after the other, on one thread, against a baseline that runs them concurrently.
 
 The CPU column is the one that says something about the code. The baseline's wall time is shorter
 than its CPU time because it runs the baseline and intervention scenarios on separate threads; this
@@ -49,11 +50,38 @@ so its wall and CPU times are the same number. Sequential execution was expected
 factor of two in wall time and to be worth it for byte-identical output. It costs nothing on either
 example, because the work itself is smaller.
 
-The previous run's figure for `HLM_France` was 2.72–2.73 s and 57.1 MiB, and the budget set for
-this run was that figure plus 10%. At 2.78–3.23 s and 56.8 MiB it holds: the FINCH surface —
-`StaticLinear`, `KevinHall`, five more interventions, the derived-predictor resolver, region and
-ethnicity — added nothing measurable to an example that uses none of it, which is what one would
-want from code that is selected by the model family named in the config.
+### What the index-keyed store bought
+
+The middle row of each table is this build immediately before
+[ADR 0037](decisions/0037-index-keyed-risk-factor-store.md) and the bottom row immediately after, both
+measured on an idle machine in one session, alternating the two binaries run by run so that any drift
+in the machine falls on both equally:
+
+| | Wall | Peak memory |
+|---|---:|---:|
+| `HLM_France` | 2.75 → 2.41 s, **1.14×** | 57.1 → 52.4 MiB, **−8%** |
+| `KevinHall_FINCH` | 11.93 → 7.78 s, **1.54×** | 195.5 → 77.5 MiB, **−60%** |
+
+The difference between the two examples is the point rather than a curiosity: France's people carry 11
+risk factors and FINCH's carry 55 — 34 declared plus the 21 food groups the static model generates —
+so FINCH did five times as many lookups per person per year and had five times as many red-black tree
+nodes to allocate. A store that replaces a tree of string comparisons with a flat vector of integers
+therefore pays five times over.
+
+**And the output did not change.** Not statistically: *byte for byte*. The result CSV and every
+income-stratified CSV of both examples are identical before and after, because the one place that
+multiplies over a person's factors now iterates a name-ordered list built once per disease model
+instead of the person's own map, so the same numbers are multiplied in the same order. Both stored
+equivalence references therefore remain valid, and both comparisons were re-run to confirm it: 31,468
+and 22,679 comparisons, zero out of tolerance, the same counts as before.
+
+That check earned its keep immediately. The first version of the change made
+`Person::try_risk_factor_value` ask for a name's index *before* the lazily built predictor table had
+interned the nineteen derived-predictor names — so on the very first call of a run, `age` looked
+un-interned and went straight past the dispatcher to the fallback resolver. `HLM_France` moved by a
+last bit and `KevinHall_FINCH` did not, because the window depends on which name a run happens to
+resolve first. Nothing else would have caught it: the suite passed, and a statistical comparison over
+twenty seeds would have called a last-bit difference agreement.
 
 ### Loading
 
@@ -91,8 +119,9 @@ risk tables make each person's share of it six times France's. It is not compare
 baseline ([docs/equivalence.md](equivalence.md)), and one run of it at twenty seeds in each
 implementation would be about a day, which is the real reason it is not.
 
-Recorded because "it runs" is worth qualifying: this is the example where the index-keyed store in
-[docs/backlog.md](backlog.md) would be worth an hour of anybody's time rather than a footnote.
+Recorded because "it runs" is worth qualifying: this is the example the index-keyed store was worth
+doing for, and the figures here are from before it. `HLM_India` after the change is under
+*HLM_India, end to end* below.
 
 ### Where FINCH's 195 MiB is
 
@@ -112,11 +141,13 @@ So it is **≈76 MiB per scenario**, charged at that scenario's first simulated 
 the cohort and its per-scenario result series account for 152. Per person that is about 11 KB,
 which for 34 risk factors and 15 diseases held in `std::map`s keyed by `core::Identifier` — every
 key a string, every node separately allocated — is the same cost the profile below finds in the
-time column, seen from the other side. The index-keyed store in [docs/backlog.md](backlog.md) would
-move both numbers.
+time column, seen from the other side.
 
-The baseline peaks at 198 MiB on the same example, so this is not a regression against it; it is a
-property of the data structure both implementations chose.
+The baseline peaks at 198 MiB on the same example, so this was not a regression against it; it was a
+property of the data structure both implementations had chosen. **It has since been measured again:**
+the index-keyed store took this example from 195.5 MiB to 77.5 MiB, which is 60% of it, by replacing
+55 separately allocated tree nodes per person with one vector. The table above is the old shape and is
+kept because the *breakdown* — how much is per scenario, how much per year — is unchanged by it.
 
 ## Where the time went, and what it cost to find out
 
@@ -180,6 +211,49 @@ the result series.
 
 ## Where the time goes now
 
+`sample` at 1 ms over five seconds of a `KevinHall_FINCH` run, grouped by top of stack, 3,758
+attributed samples. The previous profile of the same example is below it for comparison.
+
+| Share | What |
+|---:|---|
+| 18.0% | `FactorValues::find_index` — the flat store's scan. Integer comparisons, no strings |
+| 11.7% | `_platform_memcmp`, plus 2.7% in its stub |
+| 8.3% | `Identifier` construction: `validate_identifier`, `chars::to_lower`, `chars::is_alnum`, `core::to_lower` |
+| 6.5% | `__tolower` and its stub |
+| 5.0% | `Person::try_risk_factor_value` itself |
+| 4.1% | the name→index hash probe |
+| 3.9% + 3.8% + 1.9% | `FactorValues::find(Identifier)` and `operator[]` — the name-keyed entry points |
+| 3.1% | `case_insensitive::equals` |
+| 2.3% | `is_metadata_predictor` |
+| 1.8% | the Kevin Hall model's derived expected values |
+| the rest | the analysis module, the relative-risk lookups, `libm`, the RNG, allocation |
+
+**Compared with before**: string comparison and identifier handling were **52.3%** and are now about
+**31%**, and the single largest named function — `DiseaseModelBase::relative_risk_for_risk_factors`,
+at 13% of all samples — has left the top eighteen entirely. What replaced it at the top is integer
+work.
+
+Two things the profile now points at, both with a measurement behind them rather than a guess. They
+are [docs/backlog.md](backlog.md) items rather than this run's work, because the ruling for this run
+was the store and the store is done:
+
+1. **`find_index` is a linear scan, and 55 entries is where that stops being free.** It is the right
+   shape for France's 11 factors — contiguous, one or two cache lines, no mispredicted branch — and at
+   FINCH's 55 it averages 27 integer comparisons per lookup and is now the largest single item in the
+   profile. A per-person array indexed directly by factor index would make it O(1) for about the same
+   memory, at the cost of a second vector for the present-index list that iteration and `size()` need.
+2. **The remaining 31% is names being resolved at the *call site*.** The store no longer compares
+   strings; its callers still hand it an `Identifier`, which costs a hash probe, and some of them
+   *construct* one per person per year — which is what `validate_identifier` and `is_alnum` in a
+   profile mean. The fix is the same idea one level up: the linear model's coefficient list and the
+   Kevin Hall model's nutrient names hold resolved indices, and the name never reaches the hot loop.
+
+## Where the time went before the index-keyed store
+
+Kept because it is the measurement the change above was made from, and because the two profiles
+together are the argument: the thing that was 52% of the run is now 31%, and the function that was
+the single largest is no longer in the top eighteen.
+
 Two profiles, one per example, `sample` at 1 ms, grouped by top of stack.
 
 **HLM_France**, two seconds of a run — 1,540 thread samples, 1,463 of them attributed to a symbol
@@ -225,13 +299,15 @@ The single largest named function in the FINCH profile is
 per-disease lookup over tables that do not change during a run, which is item 14 of the previous
 run's backlog, found again from the other end.
 
-The obvious next step is to resolve each factor and channel name to an index once per run and use
-the index on the hot path, which is a contained change to `Person::risk_factors` and `DataSeries`.
-It is in [docs/backlog.md](backlog.md) rather than done, for two reasons: the program is already
-faster than the baseline it has to be comparable to on both examples, and an index-keyed store is
-exactly the kind of change that can reorder a reduction without anyone noticing. Doing it would
-want both equivalence references re-run, which is an hour, and the determinism tests to stay
-green, which they should.
+The conclusion that profile reached — resolve each factor name to an index once and use the index on
+the hot path — is what [ADR 0037](decisions/0037-index-keyed-risk-factor-store.md) did, and *Where the
+time goes now* above is the result. The worry it recorded was the right one: an index-keyed store is
+exactly the kind of change that can reorder a reduction without anyone noticing, and the answer was to
+make the one order-sensitive site iterate its own name-ordered list so that the arithmetic could be
+checked byte for byte rather than argued about. It was checked, and the first attempt failed it.
+
+`DataSeries` is still keyed by channel name and is still on the list; the profile above puts the
+analysis module and the result writer well below the per-person work, so it is the smaller half.
 
 ## Threads
 

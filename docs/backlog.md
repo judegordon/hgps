@@ -46,19 +46,35 @@ carried through the converter and rejected at load with a named error, so the sh
 
 Unblocks `KevinHall_PIF`, the one converted example that does not load.
 
-### 3. Resolve factor and channel names to indices once per run — `cleanup`
+### 3. Finish what the index-keyed store started — `cleanup`
 
-**Value: medium-high. Effort: medium.** [docs/performance.md](performance.md) profiles both
-examples and finds the same thing in each: the program is dominated by `std::map` lookups keyed by
-strings, not by arithmetic. `core::Identifier` compares by string — deliberately, because
-comparing by the cached hash is audit finding B-04 — and every risk-factor read on every person in
-every year is such a comparison.
+**Value: medium. Effort: low-medium, and it is two separate changes.**
+[ADR 0037](decisions/0037-index-keyed-risk-factor-store.md) made `Person::risk_factors` index-keyed:
+`KevinHall_FINCH` is 1.54× faster and uses 60% less memory, `HLM_France` 1.14× faster, and the output
+is byte-identical. The profile was re-taken afterwards
+([docs/performance.md](performance.md) §"Where the time goes now"), and it points at two things with a
+measurement behind each rather than a guess.
 
-The change is contained to `Person::risk_factors` and `DataSeries`: resolve each name to an index
-at start-up and use the index on the hot path. It is worth doing carefully rather than quickly,
-because an index-keyed store is exactly the kind of change that can reorder a reduction without
-anyone noticing. Doing it wants both equivalence references re-run, which is an hour, and the
-determinism tests to stay green, which they should.
+**(a) `FactorValues::find_index` is a linear scan, and 55 entries is where that stops being free.**
+It is now the single largest item in the FINCH profile at **18%** of samples. A scan is the right shape
+for France's 11 factors — contiguous, one or two cache lines, no mispredicted branch — and at FINCH's
+55 (34 declared plus 21 generated food groups) it averages 27 integer comparisons per lookup. A
+per-person array indexed *directly* by factor index makes it O(1) for about the same memory, at the cost
+of a second vector holding the present indices, which iteration and `size()` need.
+
+**(b) The remaining ~31% is names being resolved at the call site.** The store no longer compares
+strings; its callers still hand it a `core::Identifier`, which costs a hash probe, and some of them
+*construct* one per person per year — which is what `Identifier::validate_identifier` and
+`chars::is_alnum` at 8.3% of a profile mean. The fix is the same idea one level up: the linear model's
+coefficient list and the Kevin Hall model's nutrient names hold resolved indices, so no name reaches
+the hot loop. Bigger than (a), and it touches the model loaders.
+
+`DataSeries` is still keyed by channel name and is the smaller half again: the analysis module and the
+result writer are well below the per-person work in the profile.
+
+Whatever is done here, the check that matters is the one that caught a defect in (the first attempt at)
+ADR 0037 within minutes: run both examples before and after and compare the result files **byte for
+byte**. A statistical comparison over twenty seeds calls a last-bit difference agreement.
 
 ### 4. Individual-level tracking output — `scope`
 
