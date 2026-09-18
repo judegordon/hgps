@@ -10,10 +10,60 @@ that matters — *do the two implementations produce the same distributions?*
 This document is the result. It is produced by one command per example:
 
 ```bash
-cd /Users/jude/work/hpgs/hgps_new_rewrite
 tests/equivalence/run.py --example HLM_France      --seeds 20
 tests/equivalence/run.py --example KevinHall_FINCH --seeds 20
 ```
+
+**Since this run, every comparison runs this build with `--baseline-compat all`** — it reproduces
+the baseline's deliberate deviations, so the comparison tests everything *except* them and an
+out-of-tolerance cell means something is wrong rather than something is different on purpose
+([ADR 0041](decisions/0041-deliberate-deviations-are-switchable.md)). The harness then runs this
+build once more with the flags **off** and reports the difference as a **deviation impact** section,
+per variable per year, signed — reported, never graded.
+
+That changes two results below, and both changes are the same change: the `mean_bmi` cluster on
+`HLM_India` and the one isolated `HLM_France` residual were **B-24**, and with the flag on B-24 is
+not there. The sections describing them are kept as written, because how that cluster was
+identified is the more interesting half, and [§ Measured directly](#the-deviation-measured-directly)
+below has what the flag then said about it.
+
+## The deviation, measured directly
+
+The three runs made after the compatibility flag existed, 20 seeds each:
+
+| Example | Intervention | Comparisons | Out of tolerance | Before the flag |
+|---|---|---:|---:|---:|
+| `HLM_France` | `simple` | 31,468 | **0** | 0 |
+| `HLM_France` | `food_labelling` | 31,552 | **0** | 1 |
+| `HLM_India` *(reduced cohort)* | `food_labelling` | 68,041 | **0** | 3 |
+
+**131,061 comparisons, zero out of tolerance.** The previous residuals are gone, and they are gone
+for a stated reason rather than because a threshold moved.
+
+And the impact of turning the flags off — this build's own output minus the baseline-compatible
+one, averaged over the same 20 seeds, so there is no Monte Carlo noise in it at all:
+
+| | mean BMI, males, intervention | When | Relative |
+|---|---:|---:|---:|
+| `HLM_France` | **+0.0531** | 2037 | **+0.209%** |
+| `HLM_India` *(reduced)* | **+0.0313** | 2050 | **+0.160%** |
+
+This document has been quoting "about +0.2% of mean BMI" for B-24, inferred from which
+out-of-tolerance cells looked like it. **The direct measurement agrees.** That is the good case,
+and the reason to build the mechanism is the case where it would not have.
+
+**It reaches further than mean BMI.** On `HLM_India`, **194 series differ** and 12,532 agree to the
+printed precision — years of life lost, disability-adjusted life years, head counts, and the
+prevalence and incidence of eleven diseases. A BMI that is wrong changes incidence, which changes
+mortality, which changes the cohort. Nothing here said that before, because nothing could measure
+it.
+
+One consequence is worth stating because it bit on the first attempt: **the excluded-band set
+depends on the compatibility flags**, because it is partly derived from this build's own runs and a
+flag changes which bands empty. A stored reference is therefore tied to the flag setting it was
+written with, and the harness's own check caught the mismatch and refused rather than comparing
+against the wrong reduction. The `HLM_India` + `food_labelling` reference was refreshed; the others
+were untouched, because on them no deviation reaches the run.
 
 ## What is compared, and how
 
@@ -637,7 +687,11 @@ again over 60, every scenario and both sexes:
 - the residual failures that survived that were, twice, defects in the **test** rather than in
   either implementation — a normal-theory allowance applied first to a point mass and then to a
   quantile of a lattice — and both are now compared by an exact test of the counts, with the
-  harness's own 30 tests pinning the rules.
+  harness's own **39** tests pinning the rules;
+- and since this run, **the comparison runs with the deliberate deviations put back**, so the two
+  residual clusters above are not there at all and the deviation that caused them is *measured*
+  rather than inferred: **131,061 comparisons across three runs, zero out of tolerance**. See
+  [§ The deviation, measured directly](#the-deviation-measured-directly).
 
 That is equivalence in the sense [ADR 0006](decisions/0006-validation-strategy.md) asked for. It is
 not, and was never going to be, bit-exactness: [docs/deviations.md](deviations.md) lists the places
