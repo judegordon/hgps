@@ -748,7 +748,10 @@ class Server::Impl {
 // --- the handle -----------------------------------------------------------------------------------
 
 Server::Server(Options options) : impl_{std::make_unique<Impl>(std::move(options))} {}
-Server::~Server() { impl_->stop(); }
+// stop(), not impl_->stop(): `thread_` is declared after `impl_` and so is destroyed first, and
+// destroying a joinable std::thread calls std::terminate. A server started with `start()` and then
+// simply dropped would have taken the process with it.
+Server::~Server() { stop(); }
 
 bool Server::listen() { return impl_->bind() && impl_->serve(); }
 

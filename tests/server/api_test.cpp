@@ -594,6 +594,30 @@ TEST(ServerApi, TheStreamForARunThatIsNotThereIsA404) {
 
 // --- the boundary that makes "no auth" safe --------------------------------------------------------
 
+TEST(ServerApi, AStartedServerCanSimplyBeDropped) {
+    // `thread_` is declared after `impl_` and so is destroyed first, and destroying a joinable
+    // std::thread calls std::terminate — so a server that was started and then dropped without
+    // `stop()` took the process with it. Every other test here stops its server explicitly, which
+    // is exactly why none of them would have found this.
+    hgps::server::Options options;
+    options.host = "127.0.0.1";
+    options.port = 0;
+    options.runs_root = hgps::test::scratch_dir("api_dropped_runs");
+
+    std::uint16_t port = 0;
+    {
+        hgps::server::Server server{options};
+        port = server.start();
+        ASSERT_NE(0, port);
+        httplib::Client client{"127.0.0.1", port};
+        const auto response = client.Get("/api/version");
+        ASSERT_TRUE(response) << "the server did not answer before being dropped";
+        EXPECT_EQ(200, response->status);
+    }
+    // Reaching here at all is the assertion; the port being free again is the other half.
+    SUCCEED();
+}
+
 TEST(ServerApi, ANonLoopbackHostIsRefusedWithAReason) {
     for (const auto *host : {"0.0.0.0", "192.168.1.10", "example.com", "::"}) {
         const auto refusal = hgps::server::loopback_refusal(host);
