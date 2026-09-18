@@ -117,7 +117,9 @@ Validation has two layers ([ADR 0006](docs/decisions/0006-validation-strategy.md
   baseline skips run here**, and finding out whether they pass is how four defects were found. Of
   the 554 tests here, 229 are in files the baseline has no counterpart for — byte-for-byte
   reproducibility at one thread and at N for every intervention, a modulo-bias regression test,
-  ordered-sampling tests, and a test that an unseeded config is rejected, among others.
+  ordered-sampling tests, and a test that an unseeded config is rejected, among others. A
+  further 26 test the equivalence harness's own statistics, because a mistake there says PASS
+  rather than producing a wrong number.
 - **Statistical equivalence against the baseline** on both reference examples — `HLM_France` for
   the HLM surface and `KevinHall_FINCH` for the FINCH one — over at least 20 seeds, comparing
   means, standard deviations and percentiles per output variable per year per scenario per sex,

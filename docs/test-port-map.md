@@ -132,6 +132,10 @@ The second row is not all ported: several of those suites carry added cases, eac
 section tables above as "plus N added" with what it checks. What the row does say is that no test
 here was written without knowing whether the baseline had one.
 
+Outside both tables, and outside the C++ suite: `tests/equivalence/run_test.py` holds **26 tests
+for the equivalence harness itself**, which CTest runs as the single entry
+`EquivalenceHarness.Rules`. The baseline has no counterpart because it has no harness.
+
 **The 35 tests the baseline skips are now 30 tests that run and pass**, and the five that are not
 ported assert the contents of console tables this build does not print. That is the headline of
 this port: `KevinHallHeight`, `KevinHallWeightQuantiles`, `KevinHallWeightValidation` and

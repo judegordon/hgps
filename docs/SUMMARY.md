@@ -12,7 +12,7 @@ scenarios against the baseline and produce results that agree with it. Three of 
 examples now run end to end, and a fourth loads completely and then stops on a contradiction in its
 own data pack — which the baseline also stops on, in the same place.
 
-- **554 tests**, all passing under every preset — release, debug, **AddressSanitizer +
+- **554 tests**, plus 26 for the equivalence harness itself, all passing under every preset — release, debug, **AddressSanitizer +
   UndefinedBehaviorSanitizer** and **ThreadSanitizer**. The baseline's 471 were gone through one by
   one, and **the 35 the baseline skips now run**: [docs/test-port-map.md](test-port-map.md) says
   where each went.
@@ -32,7 +32,7 @@ own data pack — which the baseline also stops on, in the same place.
 | | |
 |---|---|
 | `src/` | 128 files, 22,600 lines — core, diagnostics, RNG, I/O, config, data, model, sim, output, app |
-| `tests/` | 47 files, 11,700 lines — 554 tests in 63 suites |
+| `tests/` | 48 files, 12,000 lines — 554 tests in 63 suites, plus 26 for the harness |
 | `tools/` | `convert-config` (v1→v2, with `--policy-scenario`) and `gen-fixtures` (the synthetic data pack) |
 | `schemas/v2/` | the published config contract, kept in step with the loader by a test |
 | `docs/` | 9 documents and 31 ADRs |
@@ -54,7 +54,7 @@ For comparison, the baseline is 41,400 lines of C++ for the whole model surface.
 | 7 | The other five interventions, and determinism for each | **Done.** One `BandedInterventionScenario` and one virtual function per policy; 32 tests; every intervention byte-identical at one thread and at four, twice each. |
 | 8 | Converter policy-scenario option, and every example converted and loaded | **Done.** `--policy-scenario S1..S7` resolves audit D-02 without editing the upstream example. Four of six examples run; the two that do not stop at a named missing feature. |
 | 9 | Equivalence and performance for FINCH | **Done.** See below. |
-| 10 | Test port completion and every preset | **Done.** 554 tests, four presets. |
+| 10 | Test port completion and every preset | **Done.** 554 tests and the harness's own 26, four presets. |
 | 11 | Docs, ADRs, README, backlog, this file | **Done.** |
 
 ## What the validation actually shows

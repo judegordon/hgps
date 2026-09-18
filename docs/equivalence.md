@@ -209,21 +209,21 @@ the answer the test gives rather than one assumed.
 
 ## The result — KevinHall_FINCH
 
-**23,432 comparisons over 20 seeds. Zero out of tolerance.**
+**22,679 comparisons over 20 seeds. Zero out of tolerance.**
 
 | Statistic | Failed | Compared | Worst excursion that passed |
 | --- | ---: | ---: | --- |
-| mean | **0** | 4,924 | 0.85× the allowance (`obese_weight`, intervention 2032 male, 9.129 against 9.414) |
-| median | **0** | 4,924 | 0.90× (`obese_weight`, intervention 2031 male, 9.049 against 9.443) |
-| 5th percentile | **0** | 4,330 | 0.86× (`mean_fat`, intervention 2027 male, 107.954 against 108.315) |
-| 95th percentile | **0** | 4,330 | 0.76× (`incidence_esophaguscancer`, intervention 2032 male, 0.000314 against 0.000851) |
-| standard deviation | **0** | 4,330 | 0.74× (`mean_fruit`, baseline 2031 female, 0.664 against 0.275) |
-| departure rate | **0** | 594 | p = 0.048 against a threshold of 10⁻⁵ (`incidence_kidneycancer`, baseline 2023 male, 16 seeds in 20 against 9) |
+| mean | **0** | 4,924 | 0.85× the allowance (`obese_weight`, intervention 2032 male, 9.1290 against 9.4144) |
+| median | **0** | 4,277 | 0.90× (`obese_weight`, intervention 2031 male, 9.0486 against 9.4425) |
+| 5th percentile | **0** | 4,277 | 0.86× (`mean_fat`, intervention 2027 male, 107.954 against 108.315) |
+| 95th percentile | **0** | 4,277 | 0.76× (`incidence_esophaguscancer`, intervention 2032 male, 0.000314 against 0.000851) |
+| standard deviation | **0** | 4,277 | 0.74× (`mean_fruit`, baseline 2031 female, 0.6642 against 0.2750) |
+| distribution | **0** | 647 | p = 0.081 against a threshold of 10⁻⁵ (`incidence_kidneycancer`, baseline 2030 female, modal share 0.60 against 0.50) |
 
-The worst comparison uses 90% of its allowance. The worst rate comparison has p = 0.048, which is
-nominally significant at an uncorrected 5% and is exactly what 594 comparisons should produce from
-noise alone — and the direction test says so: over the 567 (variable, statistic) groups, this
-build's worst-case value is above the baseline's in 55 and below it in 59.
+The worst numeric comparison uses 90% of its allowance, and the smallest distribution p-value is
+0.081 — nearly four orders of magnitude clear of its threshold. Nor is there a direction to what
+does not agree exactly: over the 567 (variable, statistic) groups, this build's worst case is above
+the baseline's in 55 and below it in 59.
 
 ### Getting there
 
