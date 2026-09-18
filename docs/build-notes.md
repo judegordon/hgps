@@ -111,3 +111,46 @@ converted FINCH example and **fail rather than skip** when the fixture is missin
 
 - `/tmp/hgps-build/logs/baseline-build.log`
 - `/tmp/hgps-build/logs/baseline-tests.log`
+
+---
+
+## Third run, orientation: what had drifted
+
+Re-checked on **2026-09-18**, before any change, on the same host as above (macOS 26.6.2 /
+Darwin 25.6.0, Apple Silicon). Nothing had drifted in a way that needed fixing.
+
+| | Recorded in SUMMARY.md | Measured now |
+|---|---|---|
+| Baseline build under `/tmp/hgps-build/` | present | **present, not rebuilt** — the console and test binaries from 2026-09-17 were still there and still ran |
+| `scripts/check.sh` | exit 0 | **exit 0** |
+| Tests, all four presets | 555 | **555, all passing** in release, debug, asan-ubsan and tsan |
+| `HLM_France` equivalence, 20 seeds | 31,468 comparisons, 0 out of tolerance | **31,468, 0** |
+| `KevinHall_FINCH` equivalence, 20 seeds | 22,679 comparisons, 0 out of tolerance | **22,679, 0** |
+| `KevinHall_FINCH` excluded bands | — | 692, matching the stored reference's manifest |
+
+The two stored references were used rather than re-running the baseline (`--use-reference`), which
+is what `scripts/check.sh` does; both config hashes matched the references, so neither example
+needed the baseline binary at all.
+
+**Preset timings, and why they are slower than the previous run's.** Release 8.7 s, debug 80.6 s,
+asan-ubsan 274.6 s, tsan 564.3 s, against 8 / 76 / 219 / 523 s recorded before. The machine was not
+idle: this run's own compilation was going on in another shell for most of the sanitizer presets.
+The previous run already recorded that a background indexer was worth 20% of a wall-clock
+measurement ([docs/performance.md](performance.md)), and this is the same effect. No timing here is
+used as a budget; [docs/performance.md](performance.md)'s numbers are taken on an idle machine.
+
+**One accident worth recording, because it turned into evidence.** The release binary was rebuilt —
+with the library/CLI split applied — while the `KevinHall_FINCH` sweep was between its 13th and
+14th seed. So seeds 1–13 were produced by the pre-split binary and seeds 14–20 by the post-split
+one, and all 22,679 comparisons against the one stored baseline reference passed. That is not how
+the check was meant to run, and it is a real if unplanned cross-check that the split changed no
+number on that example. The deliberate version of the same check — both references re-run against
+the split build — is in [docs/equivalence.md](equivalence.md).
+
+### The PIF data release
+
+`KevinHall_PIF` names `pif-data-v5.zip` from the `healthgps-data` releases. It was **fetched and
+verified** during orientation: 5,366,395 bytes, SHA-256
+`a918e8525cd8c48cab6b13cceb08f51e8593cac80753a6782e4ea2a28d9e02ca`, which is exactly the checksum
+the upstream config declares. So the PIF work in this run runs against the real data pack and not
+against a synthetic stand-in. What the pack contains is in [docs/examples.md](examples.md).
