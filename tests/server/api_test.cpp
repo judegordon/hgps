@@ -8,7 +8,9 @@
 #include "hgps/engine.h"
 
 #include <algorithm>
+#include <atomic>
 #include <fstream>
+#include <thread>
 #include <sstream>
 #include <string>
 
@@ -167,6 +169,53 @@ TEST(ServerApi, ValidateCanBeToldNotToInsistTheFilesExistYet) {
     EXPECT_TRUE(ask(false).at("valid").get<bool>()) << "an editor validating a half-written "
                                                        "document should not be told its files "
                                                        "are missing";
+}
+
+TEST(ServerApi, ConcurrentValidationsOfTheSameDocumentDoNotFightOverAFile) {
+    // Validation writes the document to a scratch file in the example's own directory, because a
+    // model file names its CSVs relative to the config's directory. Two clients validating the
+    // *same* document would pick the same name if the name were only the body's hash — and the
+    // first to finish would delete the file the second was still loading.
+    ServedFixture served{"api_validate_race"};
+
+    const auto example =
+        ServedFixture::json_of(served.client().Get(std::string{"/api/examples/"} +
+                                                   ServedFixture::kExample));
+    const nlohmann::json body{{"document", example.at("document")},
+                              {"base", ServedFixture::kExample}};
+    const auto payload = body.dump();
+
+    constexpr int kClients = 8;
+    std::vector<std::thread> clients;
+    std::atomic<int> valid{0};
+    std::atomic<int> failed{0};
+    for (int i = 0; i < kClients; ++i) {
+        clients.emplace_back([&] {
+            auto http = served.client();
+            const auto response = http.Post("/api/configs/validate", payload, "application/json");
+            if (response && response->status == 200 &&
+                ServedFixture::json_of(response).value("valid", false)) {
+                valid.fetch_add(1);
+            } else {
+                failed.fetch_add(1);
+            }
+        });
+    }
+    for (auto &client : clients) {
+        client.join();
+    }
+
+    EXPECT_EQ(kClients, valid.load()) << failed.load() << " of " << kClients << " did not validate";
+
+    // And no scratch file is left behind.
+    int leftovers = 0;
+    for (const auto &entry :
+         std::filesystem::directory_iterator{served.configs() / ServedFixture::kExample}) {
+        if (entry.path().filename().string().starts_with(".hgps-validate-")) {
+            ++leftovers;
+        }
+    }
+    EXPECT_EQ(0, leftovers) << "a scratch config was left in the example's directory";
 }
 
 TEST(ServerApi, ValidateRefusesABodyThatIsNotOne) {

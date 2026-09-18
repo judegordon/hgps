@@ -7,6 +7,7 @@
 #include "hgps/engine.h"
 
 #include <algorithm>
+#include <atomic>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -371,7 +372,20 @@ class Server::Impl {
                                                       : options_.config_roots.front();
         }
 
-        const auto scratch = directory / fmt::format(".hgps-validate-{}.json", std::hash<std::string>{}(request.body));
+        // The loader reads a *file*, and a model file names its own CSVs by a path relative to
+        // the config's directory — so a document being validated has to be written where its
+        // relative paths mean what they mean. Hence a scratch file in the example's own directory
+        // rather than a temporary one somewhere neutral.
+        //
+        // The name carries a counter as well as the body's hash: httplib serves requests on
+        // several threads, and two clients validating the *same* document would otherwise pick
+        // the same name — whereupon the first to finish would delete the file the second was
+        // still loading, and the second would be told its own document does not exist.
+        static std::atomic<std::uint64_t> validations{0};
+        const auto scratch =
+            directory / fmt::format(".hgps-validate-{:016x}-{}.json",
+                                    std::hash<std::string>{}(request.body),
+                                    validations.fetch_add(1, std::memory_order_relaxed));
         {
             std::ofstream stream{scratch, std::ios::trunc};
             if (!stream) {
