@@ -37,7 +37,7 @@ Three things did the finding.
 | Comparisons against the baseline this run | **187,754**, **0** out of tolerance |
 | Source | `src/` 153 files; `tests/` 71 files; 44,978 lines of C++ between them; `web/src/` 18 files and `web/e2e/` 6, 3,039 lines |
 | Documents | 13, plus **45 ADRs** |
-| CI | **14 jobs** — see below |
+| CI | **15 jobs** — see below |
 | Defects found this run | **9**, of which 8 by the three mechanisms above and 1 by a unit test |
 
 ## The ten tasks, and how each ended
@@ -184,7 +184,7 @@ would call a last-bit difference agreement. It is also the check that did not fi
 
 ## CI, per matrix entry
 
-Fourteen jobs, two of them new this run.
+Fifteen jobs, two of them new this run.
 
 <!--CI-->
 

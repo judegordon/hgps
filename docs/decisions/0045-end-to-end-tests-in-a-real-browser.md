@@ -75,9 +75,9 @@ down because they are about this app's shape rather than about Playwright:
 
 ## Consequences
 
-- **A fourteenth CI job**, which builds the engine and the frontend and then runs a browser. It is
-  the second most expensive job after the sanitizers, and it is the only one that tests the product
-  as a user meets it.
+- **A fourteenth CI job** — a fifteenth arrived in the same run — which builds the engine and the
+  frontend and then runs a browser. It is the second most expensive job after the sanitizers, and it
+  is the only one that tests the product as a user meets it.
 - **A browser download in CI.** `npx playwright install --with-deps chromium` is about 170 MB and a
   minute. It is cached by `setup-node` only in part — the browser itself is not — and that is the
   price of the job.

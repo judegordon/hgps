@@ -100,8 +100,10 @@ itself. Each is now derived from the configuration under test.
 
 ## Consequences
 
-- **The suite is 835 tests rather than 741**, and the release preset takes 33 seconds rather than
-  23. The cost is real and it is paid on every preset, including ThreadSanitizer.
+- **The suite is 845 tests rather than 741** — 184 of them in fourteen `Packs/` suites, which is 92
+  distinct tests run twice — and the release preset takes about 35 seconds rather than 23. The cost
+  is real and it is paid on every preset, including ThreadSanitizer, where the suite is the better
+  part of an hour.
 - **A test that passes on one pack and not the other is a finding about the code**, not a reason to
   narrow the test. All three above were resolved that way.
 - **The second pack is not more realistic than the first.** Both are invented; the pack's own
