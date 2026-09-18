@@ -5,6 +5,7 @@
 #include "model/predictor_resolver.h"
 
 #include <algorithm>
+#include <limits>
 #include <utility>
 
 #include <fmt/format.h>
@@ -302,6 +303,41 @@ std::optional<LoadedInputs> load_inputs(const config::Config &config, const data
     for (const auto &item : *population) {
         loaded.population_data[item.at_time].emplace(
             item.with_age, model::PopulationRecord{item.with_age, item.males, item.females});
+    }
+
+    // The configured age range has to cover every age the population data carries, because the
+    // initial cohort is drawn from that data while several per-age tables — the disease models'
+    // average relative risk, the migration target, the analysis — are built over the configured
+    // range. A person the data supplies and the range does not cover indexes those tables with a
+    // key they do not have.
+    //
+    // Both implementations assume this and neither checked it. The baseline reaches the same
+    // situation inside a parallel loop; this build reached it as `map::at: key not found` with no
+    // location, which is how the second synthetic pack found it. Narrowing the range to mean
+    // "simulate only these ages" would be a modelling change — which ages receive births, deaths
+    // and migration — so this refuses rather than inventing one.
+    if (!loaded.population_data.empty()) {
+        int lowest = std::numeric_limits<int>::max();
+        int highest = std::numeric_limits<int>::min();
+        for (const auto &[year, by_age] : loaded.population_data) {
+            if (by_age.empty()) {
+                continue;
+            }
+            lowest = std::min(lowest, by_age.begin()->first);
+            highest = std::max(highest, by_age.rbegin()->first);
+        }
+
+        const auto &configured = config.settings.age_range;
+        if (lowest <= highest && (lowest < configured.lower() || highest > configured.upper())) {
+            report.error(IssueCode::config_bad_value,
+                         IssueLocation{.field = "/inputs/settings/age_range"},
+                         fmt::format("[{}, {}] does not cover the ages the population data "
+                                     "carries, [{}, {}]; the cohort is drawn from that data, so a "
+                                     "person outside the range has no row in the per-age tables "
+                                     "the run needs",
+                                     configured.lower(), configured.upper(), lowest, highest));
+            return std::nullopt;
+        }
     }
 
     std::map<int, model::Birth> birth_table;
