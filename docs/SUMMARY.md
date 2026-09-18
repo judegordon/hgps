@@ -32,7 +32,7 @@ Three things happened, in the order the run found them.
 | Tests, C++ | **738** in 93 suites — 741 CTest entries — passing under release, debug, ASan+UBSan and TSan |
 | Tests, the equivalence harness's own | **39** (was 30) |
 | Tests, the frontend | **48** |
-| Comparisons against the baseline this run | **131,061**, **0** out of tolerance |
+| Comparisons against the baseline this run | **185,208**, **0** out of tolerance |
 | Source | `src/` 153 files; `tests/` 67 files; 43,576 lines of C++ between them; `web/src/` 14 files, 2,357 lines |
 | Documents | 12, plus **43 ADRs** |
 | CI | **13 jobs**, green on every matrix entry |
@@ -47,7 +47,7 @@ Three things happened, in the order the run found them.
 | 4 | The local server: design, implementation, tests | **Done.** [docs/server-api.md](server-api.md), [ADR 0042](decisions/0042-a-local-server-in-the-same-binary.md), **45 tests** — 26 over a real socket, 3 for byte identity against the CLI, 10 for the reduction, 6 for the command line. |
 | 5 | The frontend: four screens | **Done**, all four. [ADR 0043](decisions/0043-a-plain-typescript-frontend.md). 27 kB of JavaScript, 48 tests. |
 | 6 | A CI job for the frontend | **Done**, and green. |
-| 7 | Docs, ADRs, backlog, this file | **Done.** |
+| 7 | Docs, ADRs, backlog, this file | **Done.** `scripts/check.sh` exits 0: 741 CTest entries under release, debug, ASan+UBSan and TSan, then both stored-reference comparisons at zero out of tolerance. |
 
 ## What CI found, and what it says about the four clean runs before it
 
@@ -118,9 +118,16 @@ reported, never graded, because a deviation has no right size.
 | `HLM_France` | `simple` | 31,468 | **0** | 0 |
 | `HLM_France` | `food_labelling` | 31,552 | **0** | 1 |
 | `HLM_India` *(reduced cohort)* | `food_labelling` | 68,041 | **0** | 3 |
+| `KevinHall_FINCH` | `simple` | 22,679 | **0** | 0 |
+| `HLM_France` | `simple`, flags **off** | 31,468 | **0** | — |
 
-**131,061 comparisons this run, zero out of tolerance.** The previous run's isolated `HLM_France`
+**185,208 comparisons this run, zero out of tolerance.** The previous run's isolated `HLM_France`
 residual and India's three are gone — they were B-24, and with the flag on B-24 is not there.
+
+The last row is the control: `--baseline-compat none` compares the *fixed* behaviour, which is what
+every run before ADR 0041 did. It gives the same 31,468 comparisons and the same zero, which is the
+evidence that the flag is not quietly making the comparison easier — on `HLM_France` with `simple`
+active no deviation reaches the run either way, and the harness's probe says so and stops.
 
 And the measurement, mean BMI of males in the intervention scenario, this build minus the
 baseline-compatible one, over 20 seeds:
