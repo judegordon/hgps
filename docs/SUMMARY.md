@@ -92,8 +92,8 @@ baseline's lazily-populated repository — was confirmed in the first place. Six
 per test are the six interventions' byte-identical-at-1-and-4-threads checks, at about 85 s each —
 which is why they are six tests rather than the one that exceeded CTest's timeout. Across every run this project has
 made — several hundred, over two examples, six interventions and both seed counts — this build has
-not once exited on a signal. The baseline has, on `KevinHall_FINCH`, on roughly one run in twenty,
-with three different signals seen.
+not once exited on a signal. The baseline has, on `KevinHall_FINCH`, in 4 of 180 measured runs —
+three `SIGTRAP` and one `SIGABRT`, each succeeding when re-run unchanged.
 
 **Performance.** [docs/performance.md](performance.md):
 

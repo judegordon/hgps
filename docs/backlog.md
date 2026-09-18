@@ -177,9 +177,9 @@ data and the baseline, and telling them is not done:
    that surface runs with no error and no effect.
 3. **`KevinHall_FINCH`'s legacy `static_model.json` names two files the pack does not contain**
    (audit D-02, [ADR 0030](decisions/0030-policy-scenario-selection-for-the-broken-finch-example.md)).
-4. **The baseline crashes on `KevinHall_FINCH` about one run in twenty** — same binary, same
-   config, same seed, and it succeeds on the retry. Three signals have been seen: `SIGSEGV`,
-   `SIGTRAP` and `SIGABRT`. That is audit findings B-01 and B-02 (concurrent scenarios, a
+4. **The baseline crashes on `KevinHall_FINCH` about one run in forty-five** — 4 of 180 measured
+   runs, three on `SIGTRAP` and one on `SIGABRT`, each succeeding on the retry with the same
+   binary, config and seed. That is audit findings B-01 and B-02 (concurrent scenarios, a
    lazily-populated repository) showing up as a crash rather than as a reordering. The equivalence
    harness retries up to three times and prints every retry, so it is visible here rather than
    smoothed away.

@@ -280,10 +280,10 @@ missing file is indistinguishable from an effect somebody meant to switch off.
 
 ## One more thing worth knowing about the baseline
 
-Running the baseline on `KevinHall_FINCH` is not reliable. Over the many runs
-[docs/equivalence.md](equivalence.md) reports — the same binary, the same config, the same seed —
-some exit on a signal and then succeed when re-run unchanged, and three different signals have been
-seen: `SIGTRAP`, `SIGSEGV` and `SIGABRT`. That is the concurrency defect the audit recorded (B-01,
+Running the baseline on `KevinHall_FINCH` is not reliable: over the comparisons
+[docs/equivalence.md](equivalence.md) reports, **4 of 180 runs exited on a signal** — three
+`SIGTRAP` and one `SIGABRT` — and every one succeeded when re-run unchanged, same binary, same
+config, same seed. `HLM_France` ran 80 times over the same comparisons and never failed. That is the concurrency defect the audit recorded (B-01,
 B-02: two scenario threads, and a repository populated lazily from inside a parallel loop, behind a
 lock-free fast path that races a concurrent insert).
 

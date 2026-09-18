@@ -590,9 +590,11 @@ case — so the tables above can be regenerated rather than retyped.
 
 ## The baseline does not always finish
 
-Running the baseline on `KevinHall_FINCH` is not reliable. Over the runs this document reports —
-the same binary, the same config, the same seed — some exit on a signal and then succeed when
-re-run unchanged. Three different signals have been seen: `SIGSEGV`, `SIGTRAP` and `SIGABRT`.
+Running the baseline on `KevinHall_FINCH` is not reliable. Counting the comparisons in this
+document that actually ran the baseline binary: **180 FINCH runs, of which 4 exited on a signal and
+succeeded when re-run unchanged** — about one in forty-five. Three on `SIGTRAP` and one on
+`SIGABRT`; same binary, same config, same seed each time. `HLM_France` ran 80 times over the same
+comparisons without a single failure, so it is the FINCH surface that provokes it.
 
 That is audit findings **B-01** and **B-02** showing up as a crash rather than as a reordering:
 two scenario threads, and a disease repository populated lazily from inside a parallel loop behind
