@@ -12,8 +12,9 @@ model surface implemented, three examples compared against the baseline, and thr
 as a library, from a command line, and from a browser.
 
 **This run added no feature.** Every one of its tasks was a way of making the existing tree harder to
-fool, and the point of it is the count at the bottom of this section: **nine defects**, seven of them
-found by something that was not there before.
+fool, and the point of it is the count at the bottom of this section: **nine findings** — eight
+defects and one component with no test that ran it — seven of them found by something that was not
+there before.
 
 Three things did most of the finding.
 
@@ -38,14 +39,14 @@ Three things did most of the finding.
 | Source | `src/` 153 files; `tests/` 71 files; 44,978 lines of C++ between them; `web/src/` 18 files and `web/e2e/` 6, 3,039 lines |
 | Documents | 13, plus **45 ADRs** |
 | CI | **15 jobs** — see below |
-| Defects found this run | **9** — five by the three mechanisms above, one by re-scoring the stored references, one by a unit test, two by reading |
+| Findings this run | **9** — eight defects and one untested component. Five came from the three mechanisms above, one from re-scoring the stored references, one from a unit test, two from reading |
 
 ## The ten tasks, and how each ended
 
 | | Task | Outcome |
 |---:|---|---|
 | 1 | Orientation, pre-flight, the concurrency group, CI on HEAD | **Done.** No stale processes of this project's were running; the concurrency group was already in the workflow from the end of the previous run; run 35360811751 on the starting commit was 13 of 13 green. |
-| 2 | A second fixture, and parameterised tests | **Done.** [ADR 0044](decisions/0044-two-fixture-packs-and-a-parameterised-suite.md). **Three defects**, and 184 tests where there were 92. |
+| 2 | A second fixture, and parameterised tests | **Done.** [ADR 0044](decisions/0044-two-fixture-packs-and-a-parameterised-suite.md). **Three findings**, and 184 tests where there were 92. |
 | 3 | Playwright end to end, and a CI job | **Done.** [ADR 0045](decisions/0045-end-to-end-tests-in-a-real-browser.md). 19 tests in about seven seconds, **one defect**, green in CI on its first run. |
 | 4 | A server stress test under TSan | **Done.** `tests/server/stress_test.cpp`, **one defect** — a hang — on its first run. 78 seconds under TSan at six shuffles, trimmed to three. |
 | 5 | GCC required | **Done.** One line, and the reason for it had expired. |
@@ -55,14 +56,14 @@ Three things did most of the finding.
 | 9 | The briefing for Imperial | **Done.** [docs/briefing.md](briefing.md). |
 | 10 | Docs, ADRs, backlog, this file | **Done.** |
 
-## The nine defects, and what found each
+## The nine findings, and what found each
 
 The point of the run, in one table. **Seven of the nine were found by something running**, which is
 the difference between this run and the one before it — that one found nine defects in its new code
 and none of them by a test. Two of these were still found by reading, and they are marked as such,
 because a summary that claimed otherwise would be doing the thing this project keeps catching.
 
-| | Defect | Found by |
+| | What | Found by |
 |---|---|---|
 | 1 | **An age range narrower than the population data crashed with `map::at: key not found` and no location.** The cohort is drawn from the data while several per-age tables are built over the configured range. The baseline reaches the same place inside a parallel loop | the second fixture pack, in its first run |
 | 2 | **A cancelled two-scenario run started the intervention anyway and simulated a year of it**, so the result file held a baseline stopping in one year and an intervention stopping in another — and `years_completed` was four rather than three. The comment above that code claimed the opposite | the second fixture pack, which is the first fixture with two scenarios |
