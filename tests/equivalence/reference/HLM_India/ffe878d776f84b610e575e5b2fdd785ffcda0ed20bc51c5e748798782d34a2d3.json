@@ -28,7 +28,7 @@
   "stop_time_override": null,
   "size_fraction_override": 1e-05,
   "baseline_binary": "/tmp/hgps-build/baseline-release/src/HealthGPS.Console/HealthGPS.Console",
-  "reduction": "count-weighted mean over age bands; counts summed; the age bands listed in excluded_bands are left out on both sides \u2014 see docs/equivalence.md",
+  "reduction": "count-weighted mean over age bands; head counts (count, deaths, emigrations and the four weight categories) summed; the age bands listed in excluded_bands are left out on both sides \u2014 see docs/equivalence.md",
   "baseline_empty_bands": [
     [
       "baseline",
@@ -19341,5 +19341,5 @@
       100
     ]
   ],
-  "written_utc": "2026-09-18T12:56:31Z"
+  "written_utc": "2026-09-18T21:57:56Z"
 }
