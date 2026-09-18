@@ -289,6 +289,144 @@ checked-in references — and both are at zero out of tolerance. The ten policy 
 extra, run by hand, and this is their one residual.
 
 
+## The result — HLM_India, at a reduced cohort
+
+**Read this before the numbers: `HLM_India` was compared at one hundredth of the cohort it ships,
+not as shipped.** Its `inputs.settings.size_fraction` is 0.001, which is 1,240,613 people and forty
+minutes a run in this build; the harness's `--size-fraction 1e-5` puts **12,406** people through the
+same code, which is about twice `HLM_France`'s 6,244 and `KevinHall_FINCH`'s 6,817. The value goes
+into **both** implementations' configs identically and is part of the derived config, so it is part
+of the config hash, so a reduced run cannot be compared against a full-scale reference by accident.
+
+What that buys is the comparison at all: at full scale, twenty seeds of both implementations is
+about a day. What it does not buy is a statement about the shipped cohort. Nothing below is evidence
+about `HLM_India` at 1.24 million people, beyond the fact that it runs there — which
+[docs/performance.md](performance.md) measures separately.
+
+It is also the first example compared here whose **dynamic model is `EBHLM`** rather than `HLM`, and
+the first with 35 diseases rather than 6 or 15.
+
+### Two comparisons, because the example ships a policy the two implementations deliberately differ on
+
+`HLM_India` is the only one of the three examples that ships an **active** intervention:
+`food_labelling`. That matters, because `food_labelling` is where deviation **B-24** lives — the
+baseline re-applies its impact to a person who failed an early coverage draw and passed a later one,
+and this build applies it once ([docs/deviations.md](deviations.md)). So the example's own
+configuration compares a policy the two implementations are *known and intended* to disagree about.
+
+Both were therefore run: the example's own `food_labelling`, and `simple`, whose one-year absolute
+shift has no coverage book and no memory of who it has affected.
+
+| Run | Seeds | Comparisons | Out of tolerance | Bands excluded |
+|---|---:|---:|---:|---:|
+| `simple` | 20 | 67,885 | **0** | 1,641 |
+| `simple` | 60 | 68,740 | 3 | 1,771 |
+| `food_labelling` (the example's own) | 20 | 68,083 | 3 | 1,657 |
+| `food_labelling` | 60 | 68,833 | 34 | 1,791 |
+
+**Every `mean_bmi` failure is in a `food_labelling` run and there are none in a `simple` run, at
+either seed count.** That is the whole attribution, and the rest of this section is the evidence
+behind it.
+
+### The 28 `mean_bmi` comparisons are deviation B-24, measured
+
+B-24 was found by reading the baseline's code two runs ago and has never been visible in a
+comparison until now. It is visible now, and the shape is unmistakable. Mean BMI of males, this
+build minus the baseline, averaged over 20 seeds:
+
+| Year | Baseline scenario | Intervention scenario |
+|---:|---:|---:|
+| 2021 | −0.00002 | −0.00002 |
+| 2022 | −0.00002 | −0.00002 |
+| 2023 | −0.00002 | **+0.00066** |
+| 2024 | −0.00002 | **+0.00446** |
+| 2025 | −0.00003 | **+0.01235** |
+| 2026 | −0.00002 | **+0.03114** |
+| 2030 | −0.00003 | **+0.04373** |
+| 2050 | −0.00003 | **+0.03981** |
+
+Five things, and each of them is what B-24 predicts:
+
+1. **The baseline scenario agrees to 2×10⁻⁵ BMI units at every year of the horizon** — a relative
+   difference of 10⁻⁷, which is the floor of what the baseline's six printed significant digits can
+   express. The two implementations are not disagreeing about the model.
+2. **The gap exists only in the intervention scenario**, which is the only place a policy runs.
+3. **It is exactly zero in 2022, the policy's first year.** The defect needs a person who failed a
+   draw in an *earlier* year and passes a later one, so it cannot express itself until the second
+   year of the coverage window. It does not, and then it does.
+4. **It grows through the coverage window and then stops growing.** `coverage_cutoff_time` is 4 from
+   a start of 2022, so the window is 2022–2025; the gap grows 2023 → 2026 and is flat from 2026 to
+   2050. After the window every person is decided once and never reconsidered, in both
+   implementations, so no new divergence is created — and BMI is state, so what was created persists.
+5. **The sign is right.** The impact lowers BMI, the baseline applies it more often than once, so the
+   baseline's BMI is the *lower* of the two. It is.
+
+**And the same signature is on `HLM_France`, where it passes.** Re-running that example with
+`--intervention food_labelling` reproduces the recorded row exactly — 31,552 comparisons, 0 out of
+tolerance — and inside it, the same curve: baseline scenario identical to the last printed digit,
+intervention scenario +0.00179 in 2023 rising to +0.05101 (+0.203%) in 2026. Its worst `mean_bmi`
+excursion is **0.820× of its allowance, at intervention 2026 male** — the same variable, the same
+statistic and the same cell as India's worst, one notch under the line instead of one over.
+
+So the difference is not India's. It is the same size on both examples, about **+0.2% of mean BMI in
+the intervention scenario**, and India surfaces it because India's cohort here is twice France's,
+which makes its seed-to-seed spread smaller and its allowance tighter. A tighter test found a real
+difference that a looser one had been passing over. That is the test working.
+
+**It is not corrected away, and the harness is not adjusted to admit it.** B-24 is a baseline defect
+this build deliberately does not reproduce ([ADR 0024](decisions/0024-deviations-recorded-baseline-bugs-fixed.md)),
+so a comparison that activates `food_labelling` on a surface where policies work *should* fail, and a
+harness that passed it would be the thing that was wrong. What `simple` shows is that nothing else
+does.
+
+### The six that are not B-24, and what they say about the harness
+
+The remaining failures — 6 at 60 seeds with `food_labelling`, 3 at 60 seeds with `simple`, none at 20
+seeds in either — are all the same shape: the **95th percentile of a rare-disease rate**, at 1.02× to
+1.09× of its allowance, scattered over five variables and single years. `incidence_gout` at
+(baseline, 2019, female) fails in both 60-seed runs, which already says these are a property of the
+comparison rather than of the policy.
+
+They are the defect class the previous run found and fixed for the median: a quantile of a series
+that lives on a lattice cannot be compared numerically, because the allowance shrinks as 1/√n while
+the lattice step does not. The harness has a rule for that, it covers all three quantiles and the
+standard deviation, and it did not fire here. Profiling the four failing series says why:
+
+| Series | Distinct values, pooled | Modal share | Seeds that are exactly zero |
+|---|---:|---:|---:|
+| `incidence_gout` p95 | 43 | 0.12 / 0.32 | 7 / 60 and 5 / 60 |
+| `prevalence_pancreascancer` p95 | 71 | 0.40 / 0.33 | 24 / 60 and 20 / 60 |
+| `incidence_arthritis` p95 | 79 | 0.33 / 0.32 | 20 / 60 and 19 / 60 |
+| `prevalence_livercancer` p95 | 78 | 0.37 / 0.30 | 22 / 60 and 18 / 60 |
+
+The detector's two rules are "at most 6 distinct values" and "one value covering more than half the
+seeds". These series have 43 to 79 distinct values and a modal share of 0.12 to 0.40, so neither
+fires — **and they are lattice-valued anyway.** The numerator is a small integer count of cases; the
+denominator is a band head count that differs from seed to seed. Dividing a small integer by a
+varying denominator produces a different value almost every time, so a series that is a handful of
+counts in disguise presents 79 distinct values to a detector that is looking at the *rate*.
+
+A third of the seeds being exactly zero is the tell: the modal value **is** zero, at 0.30 to 0.40,
+just under the 0.5 the rule wants.
+
+**The threshold is not being moved and the rule is not being widened here**, for the reason this
+document already gives about the one France failure: changing a rule after seeing which comparisons
+it excludes is not evidence, whatever the argument for it. The fix is a real one and it is specific —
+the detector should classify on the **numerator** rather than on the rate, which needs the harness to
+carry the count alongside the reduced value — and it is in [docs/backlog.md](backlog.md) with this
+measurement attached.
+
+### What the India comparison adds, and what it does not
+
+**Adds:** a third example, a second dynamic model family (`EBHLM`), 35 diseases against 6 and 15, a
+cohort twice the size of the other two, and about 273,000 further comparisons. A tighter test than
+either of the others, which is how it found B-24 in the numbers and a hole in the harness's lattice
+detector on the same run.
+
+**Does not add:** anything about `HLM_India` as shipped. 12,406 people is not 1,240,613, the excluded
+band count is about twice the other examples' because a smaller cohort empties more bands, and no
+statement here extends to the full-scale run.
+
 ## What the residuals turned out to be
 
 The previous run of this project ended with 54 out-of-tolerance comparisons and a failure budget of
@@ -432,19 +570,33 @@ tests/equivalence/run.py --example KevinHall_FINCH --seeds 60 \
     --reference-dir /tmp/hgps-ref60 --refresh-reference
 ```
 
-| | HLM_France, 20 | HLM_France, 60 | KevinHall_FINCH, 20 | KevinHall_FINCH, 60 |
-|---|---:|---:|---:|---:|
-| Comparisons | 31,468 | 31,468 | 22,679 | 22,745 |
-| Out of tolerance | **0** | **0** | **0** | **0** |
-| Age bands excluded | 785 | 923 | 692 | 711 |
-| Worst numeric excursion | 0.87× | 0.91× | 0.90× | 0.96× |
-| Smallest distribution p | 1 | 1 | 0.081 | 0.055 |
+| | HLM_France, 20 | HLM_France, 60 | KevinHall_FINCH, 20 | KevinHall_FINCH, 60 | HLM_India, 20 | HLM_India, 60 |
+|---|---:|---:|---:|---:|---:|---:|
+| Comparisons | 31,468 | 31,468 | 22,679 | 22,745 | 67,885 | 68,740 |
+| Out of tolerance | **0** | **0** | **0** | **0** | **0** | 3 |
+| Age bands excluded | 785 | 923 | 692 | 711 | 1,641 | 1,771 |
+| Worst numeric excursion | 0.87× | 0.91× | 0.90× | 0.96× | 0.99× | 1.09× |
+| Smallest distribution p | 1 | 1 | 0.081 | 0.055 | 1 | 1 |
+
+(The `HLM_India` columns are the `simple` runs at a reduced cohort — the comparison of the model
+surface rather than of a policy. Its `food_labelling` runs are the other two rows of the table in
+*The result — HLM_India*, and what they find is deviation B-24.)
 
 Tripling the seeds tightens every allowance by √3, so a difference that was hiding inside the
-allowance at 20 seeds surfaces at 60. **Something did**, and it was a defect in the test rather
-than in either implementation: eighteen medians of lattice-valued series, above. Once that was
-fixed, nothing else did. The excluded-band set grows with the seed count, because more seeds empty
-more bands — which is the mechanism behaving as described rather than a new one appearing.
+allowance at 20 seeds surfaces at 60. **Something has, every time it has been tried**, and each time
+the question was which of three things it was:
+
+- the previous run: a defect in the **test** — eighteen medians of lattice-valued series, above;
+- this run, on `HLM_India` with `food_labelling`: a real and **deliberate** difference in the code,
+  deviation B-24, which went from 1.07× at 20 seeds to 1.68× at 60 exactly as a fixed difference
+  against a shrinking allowance must;
+- this run, on `HLM_India` with either policy: three to six comparisons at 1.0–1.1× that are the
+  same defect in the test as the first item, in a corner its rule does not reach — a rare-event
+  *rate*, whose lattice lives in the numerator.
+
+That is the seed count doing its job three times over. The excluded-band set grows with the seed
+count in every column, because more seeds empty more bands — which is the mechanism behaving as
+described rather than a new one appearing.
 
 The 60-seed runs are what the evidence rests on where the two disagree, because at sixty seeds both
 of the weak tests become sharp: the standard deviation's standard error falls to 9%, and the exact
@@ -453,10 +605,17 @@ difference at all.
 
 ## Verdict
 
-Two examples, one per model family. Over 20 seeds and again over 60, every scenario and both sexes:
+Three examples, covering both model families and both dynamic model families. Over 20 seeds and
+again over 60, every scenario and both sexes:
 
 - **every comparison in the two primary runs is within tolerance** — 0 of 31,468 on HLM_France and
   0 of 22,679 on KevinHall_FINCH, at 20 seeds and again at 60;
+- **`HLM_India` agrees on the model surface and disagrees on exactly one policy**, which is a policy
+  the two implementations are meant to disagree about: 0 of 67,885 with `simple` at 20 seeds, and
+  with `food_labelling` a cluster of `mean_bmi` comparisons that is deviation **B-24** seen in the
+  numbers for the first time, +0.2% of mean BMI in the intervention scenario, reproduced at the same
+  size on `HLM_France`. It was compared at **one hundredth of its shipped cohort**, and nothing in it
+  is evidence about the full-scale example;
 - **each of the six interventions is compared on its own**, 20 seeds each, on both examples, which
   with the confirmations is **347,768 comparisons in all — one of which is out of tolerance**, by
   1.6%, isolated, with its own mean agreeing, and against an expected count of about 0.7 false
@@ -476,11 +635,22 @@ That is equivalence in the sense [ADR 0006](decisions/0006-validation-strategy.m
 not, and was never going to be, bit-exactness: [docs/deviations.md](deviations.md) lists the places
 where this implementation deliberately computes or reports something differently.
 
+**And population impact fraction has no comparison at all.** It is implemented
+([ADR 0038](decisions/0038-population-impact-fraction.md)), but `KevinHall_PIF` is the only example
+that uses it and **neither implementation can run that example** — it shares `KevinHall_India`'s
+weight defect, byte for byte, and the baseline dies in the same place
+([docs/examples.md](examples.md), "Does not run — upstream data defect"). So the PIF mechanism is
+validated **end to end on the synthetic fixture pack only**, by `tests/data/pif_data_test.cpp`, which
+asserts that incidence falls in the intervention scenario, that the baseline scenario is untouched to
+the last bit, and that a PIF run is as reproducible as any other. Against the real baseline it is
+validated **not at all**, and that cannot change until upstream fixes the pack.
+
 **What would make this stronger**, in order: a second *country* for the FINCH surface, so that
 evidence is not one data pack — which needs `KevinHall_India` to be runnable at all, and it is not
-([docs/examples.md](examples.md)); more of the output compared at the band level rather than only
-after reduction; and a CI runner, because two stored references that nothing exercises
-automatically are a document rather than a check.
+([docs/examples.md](examples.md)); `HLM_India` compared at the cohort it ships rather than at a
+hundredth of it; a lattice detector that classifies on the numerator, so the six rare-rate residuals
+above are either explained or gone; and more of the output compared at the band level rather than
+only after reduction.
 
 ## Reproducing this
 

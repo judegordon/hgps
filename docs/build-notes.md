@@ -203,3 +203,66 @@ binary.
 compiler family usually has opinions. `.github/workflows/ci.yml` therefore has an **informational**
 GCC job, marked `continue-on-error`, so the first GCC build's complaints are visible without a red
 tick in a commit that cannot fix them; [docs/backlog.md](backlog.md) carries promoting it to required.
+
+---
+
+## Fourth run, orientation: what was found running, and what was recovered
+
+Re-checked on **2026-09-18**, on the same host, before any change.
+
+### What was still running from the previous session, and what happened to it
+
+Three things were live on the machine and none of them was wanted:
+
+| | What | Disposition |
+|---|---|---|
+| 1 | `scripts/check.sh --no-equivalence`, mid-way through the debug preset, with a `ctest` and two `self_check.py` children | **Killed.** Unattended, its output going nowhere, and this run needed to choose when the presets ran. |
+| 2 | A full-scale `HLM_India` run of this build, 20 minutes in, chained to a baseline run after it | **Killed**, and this is the one worth recording. It was started by the previous session's Bash tool, so its `/usr/bin/time -l` output was going to a pipe whose reader had died with that session. The run would have completed and the *timings and peak memory would have been lost*, which was the only reason it was running. It was restarted later in this run with its output redirected to a file. |
+| 3 | Assorted scratch under `/tmp/hgps-audit-build`, `/tmp/hgps-build`, `/tmp/hgps-self-check` | **Left alone.** `/tmp/hgps-build` is the baseline build this project depends on; the other two are previous runs' working directories and are not read by anything. |
+
+The lesson from (2) is worth keeping: **a long measurement started in the background must write to a
+file, not to a pipe.** A backgrounded run outlives the session that started it, and its standard
+output does not.
+
+### What was uncommitted, and what was done with it
+
+`git status` showed 18 modified files and 5 new ones: the **population impact fraction**
+implementation, complete with its tests, its converted example variants and its documentation. It was
+not a work in progress — it was finished work that had not been committed.
+
+It was checked rather than assumed: `scripts/check.sh --no-equivalence` at **666 tests, passing under
+all four presets**, and then committed as it stood (`feat(model): population impact fraction, and the
+two examples that cannot use it`). **Nothing was discarded.** The only changes made to it afterwards
+were documentary — restructuring `docs/examples.md` around a "Does not run — upstream data defect"
+heading, and correcting one code comment that cited deviation B-28 where it meant D-04.
+
+`.github/workflows/ci.yml` was also already present and committed, from the previous session.
+
+### How the CI workflow was validated
+
+**By reading, not by running.** Neither [`act`](https://github.com/nektos/act) nor Docker is installed
+on this host, so the workflow has never been executed. Every step was instead checked against the
+local scripts it stands in for:
+
+| Step | Checked against |
+|---|---|
+| `cmake --preset <p>` / `--build --preset <p>` / `ctest --preset <p>` | `CMakePresets.json` — all four presets exist in all three of `configurePresets`, `buildPresets` and `testPresets` |
+| the checkout layout | `tests/CMakeLists.txt`'s `HGPS_UPSTREAM_EXAMPLES_DIR`, which resolves the examples as a **sibling** of the source tree; the two `path:` values reproduce that |
+| `VCPKG_ROOT` reaching the configure step | set with `>> "$GITHUB_ENV"` inside the composite action, which is visible to later *job* steps; `CMakePresets.json` reads `$env{VCPKG_ROOT}` |
+| the vcpkg commit | `vcpkg.json`'s `builtin-baseline`, `bd2b548…`, pinned identically in the workflow's `env` |
+| the sparse checkout list | the six directories `tests/config/convert_config_test.cpp` converts, plus the FINCH pack that the loader tests read directly |
+| `~/.cache/healthgps` as the data cache | `src/io/paths.cpp:58-62` — `$XDG_CACHE_HOME/healthgps` or `~/.cache/healthgps` on Linux. The equivalence job is Linux-only, so this is the right path for it |
+| `self_check.py` with no `--new` | its default is `REPO / "out/build/release/src/healthgps"`, which is what the job has just built; the fixture pack it needs is derived from that path |
+| the harness's Python tests being covered by `ctest` | `EquivalenceHarness.Rules`, `.SelfConsistencyAcrossSeeds` and `.DetectsADeliberatePerturbation` are CTest entries, so `ctest --preset` runs them |
+| `-Wno-missing-designated-field-initializers` under GCC | `cmake/warnings.cmake` adds it only behind `check_cxx_compiler_flag`, so an older clang or a GCC never sees an unknown option |
+
+That is not the same as a green run, and it is not claimed to be. **The first time this workflow
+executes will be the first evidence that it works**, and the honest expectation is that something in
+it is wrong — most likely in the GCC entries, which is why they are `continue-on-error`
+([docs/backlog.md](backlog.md) item 2).
+
+What changed from the shape the previous session left: GCC moved **into the build matrix** as a
+compiler axis on Linux rather than sitting in a separate job, and the three verbatim copies of the
+checkout-plus-Ninja-plus-vcpkg bootstrap became one composite action at
+`.github/actions/prepare/action.yml`. Three copies of a bootstrap is how a pinned commit gets updated
+in two places out of three.

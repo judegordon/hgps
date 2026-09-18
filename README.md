@@ -15,9 +15,9 @@ statement of derivation.
 An audit of the upstream baseline, its data and examples, and an earlier rewrite is in
 [docs/audit/](docs/audit) — start with [SUMMARY.md](docs/audit/SUMMARY.md). It found 19 confirmed
 defects in the baseline, six of them high severity, and a rewrite that fixed twelve of them while
-deleting the 471-test suite that was the only evidence any of it was correct. Four more baseline
+deleting the 471-test suite that was the only evidence any of it was correct. Seven more baseline
 defects were found here, by running code the baseline's own tests never reach; they are in
-[docs/deviations.md](docs/deviations.md) as B-21 to B-24.
+[docs/deviations.md](docs/deviations.md) as B-21 to B-24 and B-26 to B-28.
 
 The one requirement that shapes everything here follows from what the model is *for*. A comparison
 you cannot reproduce is not evidence, so:
@@ -40,8 +40,9 @@ that enforces each one.
 | [docs/decisions/](docs/decisions) | one Architecture Decision Record per design choice, with the alternatives that were rejected |
 | [docs/deviations.md](docs/deviations.md) | every behaviour that intentionally differs from the baseline, with the audit finding ID and the evidence |
 | [docs/build-notes.md](docs/build-notes.md) | how the baseline reference build was produced, and what its test suite reports |
-| [docs/examples.md](docs/examples.md) | which upstream examples run here and which are out of scope |
+| [docs/examples.md](docs/examples.md) | which upstream examples run here, and the two that neither implementation can run |
 | [docs/equivalence.md](docs/equivalence.md) | the statistical equivalence harness, its tolerances and its results |
+| [docs/equivalence-method.md](docs/equivalence-method.md) | the method alone: the reduction, the exclusions, the allowance and how it is derived |
 | [docs/performance.md](docs/performance.md) | wall time and peak memory, this implementation versus the baseline |
 | [docs/test-port-map.md](docs/test-port-map.md) | where each of the baseline's 471 tests went, suite by suite |
 | [docs/backlog.md](docs/backlog.md) | what is left, ranked |
@@ -149,26 +150,32 @@ scripts/check.sh          # every preset, every test, plus the equivalence harne
 scripts/check.sh --fast   # release only
 ```
 
+`.github/workflows/ci.yml` is the same work split across jobs: four presets on Linux and macOS,
+Linux with both clang and GCC, and the equivalence harness against the checked-in references. It
+does not build the baseline — see the comment at the top of that file for why.
+
 Validation has two layers ([ADR 0006](docs/decisions/0006-validation-strategy.md)):
 
 - **The baseline's test suite, ported.** Its 471 tests were gone through one by one, keeping each
   test's intent and — wherever the numbers are the point — its expected values unchanged. Where a
   baseline test encoded one of the audit's findings, the expectation is changed and the finding ID
-  is named in the test. 408 have a counterpart here; 18 do not because population impact fraction
-  is out of scope, and 34 do not because the thing they test does not exist here by design — the
-  event bus, the sync channel, the lazy repository, the printed summary boxes.
-  [docs/test-port-map.md](docs/test-port-map.md) says which, suite by suite. **The 35 tests the
-  baseline skips run here**, and finding out whether they pass is how four defects were found. Of
-  the 554 tests here, 229 are in files the baseline has no counterpart for — byte-for-byte
-  reproducibility at one thread and at N for every intervention, a modulo-bias regression test,
-  ordered-sampling tests, and a test that an unseeded config is rejected, among others. A
-  further 26 test the equivalence harness's own statistics, because a mistake there says PASS
-  rather than producing a wrong number.
-- **Statistical equivalence against the baseline** on both reference examples — `HLM_France` for
-  the HLM surface and `KevinHall_FINCH` for the FINCH one — over at least 20 seeds, comparing
-  means, standard deviations and percentiles per output variable per year per scenario per sex,
-  within tolerances argued for in [docs/equivalence.md](docs/equivalence.md). Any divergence that
-  is not explained by a recorded deviation fails the check; there is no failure budget.
+  is named in the test. **426 have a counterpart here**, and 34 do not because the thing they test
+  does not exist here by design — the event bus, the sync channel, the lazy repository, the printed
+  summary boxes. [docs/test-port-map.md](docs/test-port-map.md) says which, suite by suite. **The 35
+  tests the baseline skips run here**, and finding out whether they pass is how four defects were
+  found. Of the **665** tests here, 340 are in files the baseline has no counterpart for —
+  byte-for-byte reproducibility at one thread and at N for every intervention, a modulo-bias
+  regression test, ordered-sampling tests, and a test that an unseeded config is rejected, among
+  others. A further **30** test the equivalence harness's own statistics, because a mistake there
+  says PASS rather than producing a wrong number.
+- **Statistical equivalence against the baseline** on three examples — `HLM_France` for the HLM
+  surface, `KevinHall_FINCH` for the FINCH one, and `HLM_India` for the `EBHLM` dynamic model at a
+  reduced cohort — over at least 20 seeds and again at 60, comparing means, standard deviations and
+  percentiles per output variable per year per scenario per sex, within tolerances argued for in
+  [docs/equivalence.md](docs/equivalence.md). Any divergence that is not explained by a recorded
+  deviation fails the check; there is no failure budget.
 
 Bit-exact agreement with the baseline is deliberately **not** a goal: it would require reproducing
-four of the audit's confirmed defects on purpose.
+several of the audit's confirmed defects on purpose. One of them is now visible in the numbers —
+the `HLM_India` comparison measures deviation B-24, the baseline's double-applied food-labelling
+impact, at about +0.2% of mean BMI in the intervention scenario.

@@ -119,26 +119,33 @@ Counted two ways, because the two questions are different ones.
 | the `to_json` half of a `to_json`/`from_json` pair, where nothing here writes that structure | 11 |
 | **Baseline** | **471** |
 
-**Of this implementation's 663, where did each come from?**
+**Of this implementation's 665, where did each come from?**
 
 | | Tests |
 |---|---:|
-| in a test file with no baseline counterpart at all | 338 |
+| in a test file with no baseline counterpart at all | 340 |
 | in a file that descends from a baseline suite | 325 |
-| **This implementation** | **663** |
+| **This implementation** | **665** |
 
 The second row is not all ported: several of those suites carry added cases, each noted in the
 section tables above as "plus N added" with what it checks. What the row does say is that no test
 here was written without knowing whether the baseline had one.
 
-The first row grew by 109 over this run: the public API and its event stream, the run manifest,
-the CLI's argument parser, the index-keyed factor store, the intervention-reach check, the perturbation
-knob and the population impact fraction tables. None of those has a baseline counterpart, because none
-of those things exists there.
+The first row grew by 111 over this run: the public API and its event stream, the run manifest,
+the CLI's argument parser, the index-keyed factor store and the two branches of its lookup
+([ADR 0040](decisions/0040-a-bounded-search-for-the-long-vectors.md)), the intervention-reach check,
+the perturbation knob and the population impact fraction tables. None of those has a baseline
+counterpart, because none of those things exists there.
 
-Outside both tables, and outside the C++ suite: `tests/equivalence/run_test.py` holds **26 tests
-for the equivalence harness itself**, which CTest runs as the single entry
-`EquivalenceHarness.Rules`. The baseline has no counterpart because it has no harness.
+Outside both tables, and outside the C++ suite: `tests/equivalence/run_test.py` holds **30 tests
+for the equivalence harness itself**, which CTest runs as the single entry `EquivalenceHarness.Rules`;
+`self_check.py` is two more CTest entries that run the harness against this build twice over. The
+baseline has no counterpart because it has no harness. Four of the 30 are new this run and pin that a
+staged working directory cannot write back into the example it was staged from
+([ADR 0039](decisions/0039-scratch-directories-copy-what-they-may-write.md)); each of them fails
+against the behaviour it replaced.
+
+**So `ctest` reports 668**: 665 C++ tests in 86 suites, plus those three Python entries.
 
 **The 35 tests the baseline skips are now 30 tests that run and pass**, and the five that are not
 ported assert the contents of console tables this build does not print. That is the headline of
@@ -154,5 +161,6 @@ is now unported for want of a feature**. What remains unported is the event bus,
 lazy repository and the printed summary boxes, each of which tests a thing this implementation does not
 have by design, and each of which is listed above with the ADR that says why.
 
-Counts verified with `hgps_tests --gtest_list_tests` and the baseline's
-`HealthGPS.Tests --gtest_list_tests`, not counted by hand.
+Counts verified on 2026-09-18 with `hgps_tests --gtest_list_tests` (665 tests, 86 suites),
+`ctest --preset release -N` (668) and `python3 tests/equivalence/run_test.py` (30), against the
+baseline's `HealthGPS.Tests --gtest_list_tests` (471). None of them is counted by hand.

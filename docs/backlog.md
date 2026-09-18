@@ -16,11 +16,49 @@ Tags:
 - `docs`
 
 The previous run's first three items — `StaticLinear`, `KevinHall`, the other five interventions —
-are done, and with them the FINCH surface end to end. What is left is smaller and more varied.
+are done, and with them the FINCH surface end to end. This run closed the last three: population
+impact fraction, a CI workflow, and the factor store's lookup. **The model surface is complete**:
+nothing upstream implements is refused here any more.
+
+So the ranking below changes shape. What is left is no longer "finish the model"; it is one large
+piece of new work — a graphical host, which is what the library split and the event stream were built
+for — and a tail of validation and cleanup. The GUI is first because it is the only item that needs
+*design* rather than execution, and because the API gaps it needs (item 2) are cheaper to close before
+something depends on the current shape than after.
 
 ## Do these first
 
-### 1. Make the GCC build a required check — `platform`
+### 1. A graphical host, and what the API still owes it — `scope`
+
+**Value: high. Effort: large, and it is the first item here that is a project rather than a task.**
+[ADR 0032](decisions/0032-library-and-a-thin-cli.md) split the engine from the CLI so that something
+other than a terminal could drive it, [ADR 0033](decisions/0033-an-event-stream-the-simulation-cannot-see.md)
+gave it an event stream a host can render, and [ADR 0034](decisions/0034-a-run-manifest-beside-the-results.md)
+gave every run a manifest. Nothing uses any of it yet. A host would be the first real test of whether
+that API is the right shape, and `docs/api.md` is currently a contract with one implementor.
+
+**What a GUI needs from `hgps::engine` that is not there.** This list is the substance of the item;
+the widgets are the easy half.
+
+| | What is missing | Why a host needs it | Rough cost |
+|---|---|---|---|
+| 1 | **Results in memory.** `execute` writes CSVs and `RunSummary` lists the paths. A host that wants to draw a chart has to parse files the engine just wrote | every chart, every table, every live-updating view | medium — and it needs care: the output contract is "one owner per file, rows in a defined order" ([ADR 0020](decisions/0020-output-single-owner-defined-row-order.md)), and an in-memory sink must not become a second, differently ordered output path |
+| 2 | **Per-year results in the event stream.** `YearCompleted` carries the year, the elapsed milliseconds and the population size — enough for a progress bar, nothing for a live chart | showing a run as it happens, which is most of why a GUI is better than a CLI | medium, and it is item 1's design decided once rather than twice |
+| 3 | **Progress inside a year.** Cancellation and events are both per-year by design, and a year of `HLM_India` is 60 seconds at full scale. A progress bar that moves once a minute is a spinner | any run larger than the reference examples | small for the event; the *cancellation* granularity is deliberate ([docs/api.md](api.md)) and should stay per-year |
+| 4 | **A machine-readable `Diagnostic`.** The code and location are structured, but the message is a prose string with numbers in it. A host that wants to underline the offending line in an editor has `Location`; one that wants to offer "fix this for me" has a sentence | showing config errors in a form editor rather than a log pane | small–medium: it needs the arguments carried beside the formatted message |
+| 5 | **Config *writing*.** `tools/convert-config` writes config v2 and the loader reads it; there is no supported way for a host to modify a configuration and save it. A GUI is mostly a config editor | the whole editing half of a GUI | medium, and it wants the schema to drive it ([item 11](#11-a-schema-for-the-model-definition-files--docs)) |
+| 6 | **Enumerating what a data pack offers.** `Run::description()` answers what *this* run will do. A host building a config needs the other direction: which countries, diseases and risk factors the store has, before a run exists | every dropdown in the editor | small: the index is already parsed and validated |
+| 7 | **Cancellation that is observable.** `CancellationToken::cancel()` returns immediately and the run stops at the end of its current year. A host has no way to ask "has it noticed yet?" without waiting for `RunCompleted` | a Cancel button that can grey itself out honestly | small |
+| 8 | **A version on the API.** [docs/api.md](api.md) says there is none, which is correct while nothing depends on it. A GUI is the thing that starts depending on it | not breaking the host on every engine change | small, and it is a decision rather than code |
+
+Items 1 and 2 are one design; 3, 6 and 7 are small and independent; 4 and 5 are the ones that decide
+whether the GUI can be a *config editor* or only a *run viewer*, which is the real scope question and
+belongs to whoever wants the GUI rather than here.
+
+**What it does not need.** Threading (the engine is process-wide single-run by design and says so),
+determinism work (byte-identical at any thread count already), or a new output format.
+
+### 2. Make the GCC build a required check — `platform`
 
 **Value: medium-high. Effort: unknown until it is run once.** `.github/workflows/ci.yml` builds and
 tests four presets on ubuntu-latest and macos-latest, runs the harness's own tests, and runs the
@@ -33,11 +71,18 @@ never seen it. Building with a newer clang than the development one found two re
 style disagreement ([docs/build-notes.md](build-notes.md)), which is a fair guide to what GCC will
 find.
 
-So the workflow has a GCC job marked `continue-on-error`: the information appears without a red tick
-in a commit that cannot act on it. Promoting it to required means reading what it says and fixing it,
-which cannot be estimated before seeing it — hence this item rather than a guess.
+So the two GCC entries in the build matrix carry `experimental: true`, which makes them
+`continue-on-error`: the information appears on every run without a red tick in a commit that cannot
+act on it. Promoting them means deleting that flag, reading what GCC says and fixing it, which cannot
+be estimated before seeing it — hence this item rather than a guess.
 
-### 2. A runnable Kevin Hall example, which needs upstream — `needs-ruling`
+**Nothing in this repository has ever been built by GCC, or on Linux, or by CI.** The workflow was
+written this run and validated by reading it against `scripts/check.sh` step by step, because neither
+`act` nor Docker is installed on the development host ([docs/build-notes.md](build-notes.md)). The
+first real run of it is also the first evidence that it works, and the honest expectation is that
+something in it is wrong.
+
+### 3. A runnable Kevin Hall example, which needs upstream — `needs-ruling`
 
 **Value: high. Effort: none here.** Population impact fraction is implemented
 ([ADR 0038](decisions/0038-population-impact-fraction.md)) and `KevinHall_PIF` loads completely: config,
@@ -53,37 +98,31 @@ raising the curve or lowering the bound would both be inventing a number for som
 model. This is item 6's question asked again from a second direction, and answering it would unblock
 two examples rather than one, plus the only PIF equivalence comparison there could be.
 
-### 3. Finish what the index-keyed store started — `cleanup`
+### 4. Resolve names to indices at the call site — `cleanup`
 
-**Value: medium. Effort: low-medium, and it is two separate changes.**
-[ADR 0037](decisions/0037-index-keyed-risk-factor-store.md) made `Person::risk_factors` index-keyed:
-`KevinHall_FINCH` is 1.54× faster and uses 60% less memory, `HLM_France` 1.14× faster, and the output
-is byte-identical. The profile was re-taken afterwards
-([docs/performance.md](performance.md) §"Where the time goes now"), and it points at two things with a
-measurement behind each rather than a guess.
+**Value: medium. Effort: medium, and it touches the model loaders.**
+[ADR 0037](decisions/0037-index-keyed-risk-factor-store.md) made `Person::risk_factors` index-keyed
+and [ADR 0040](decisions/0040-a-bounded-search-for-the-long-vectors.md) fixed the lookup that left
+behind — `KevinHall_FINCH` is 1.54× and then a further 1.44× faster, and the output is byte-identical
+across both. **The first half of this item is therefore done**; what is left is the half the profile
+said was bigger.
 
-**(a) `FactorValues::find_index` is a linear scan, and 55 entries is where that stops being free.**
-It is now the single largest item in the FINCH profile at **18%** of samples. A scan is the right shape
-for France's 11 factors — contiguous, one or two cache lines, no mispredicted branch — and at FINCH's
-55 (34 declared plus 21 generated food groups) it averages 27 integer comparisons per lookup. A
-per-person array indexed *directly* by factor index makes it O(1) for about the same memory, at the cost
-of a second vector holding the present indices, which iteration and `size()` need.
+**About 31% of the FINCH profile is names being resolved at the call site.** The store no longer
+compares strings; its callers still hand it a `core::Identifier`, which costs a hash probe, and some
+of them *construct* one per person per year — which is what `Identifier::validate_identifier` and
+`chars::is_alnum` at 8.3% of a profile mean. The fix is ADR 0037's idea one level up: the linear
+model's coefficient list and the Kevin Hall model's nutrient names hold **resolved indices**, so no
+name reaches the hot loop.
 
-**(b) The remaining ~31% is names being resolved at the call site.** The store no longer compares
-strings; its callers still hand it a `core::Identifier`, which costs a hash probe, and some of them
-*construct* one per person per year — which is what `Identifier::validate_identifier` and
-`chars::is_alnum` at 8.3% of a profile mean. The fix is the same idea one level up: the linear model's
-coefficient list and the Kevin Hall model's nutrient names hold resolved indices, so no name reaches
-the hot loop. Bigger than (a), and it touches the model loaders.
+`DataSeries` is still keyed by channel name and is the smaller half again: the analysis module and
+the result writer are well below the per-person work in the profile.
 
-`DataSeries` is still keyed by channel name and is the smaller half again: the analysis module and the
-result writer are well below the per-person work in the profile.
+Whatever is done here, the check that matters is the one ADR 0040 used and that caught a defect in
+the first attempt at ADR 0037 within minutes: run both examples before and after and compare the
+result files **byte for byte**. A statistical comparison over twenty seeds calls a last-bit
+difference agreement.
 
-Whatever is done here, the check that matters is the one that caught a defect in (the first attempt at)
-ADR 0037 within minutes: run both examples before and after and compare the result files **byte for
-byte**. A statistical comparison over twenty seeds calls a last-bit difference agreement.
-
-### 4. Individual-level tracking output — `scope`
+### 5. Individual-level tracking output — `scope`
 
 **Value: medium. Effort: low-medium.** `output.individual_tracking` is parsed, validated and
 carried in `config::IndividualTracking`, and nothing writes the file. The baseline's
@@ -94,21 +133,25 @@ counter rather than the earlier rewrite's slot reuse
 
 ## Worth doing soon
 
-### 5. Equivalence for `HLM_India` — `validation`
+### 6. `HLM_India` at the cohort it ships — `validation`
 
-**Value: medium. Effort: medium, and most of it is machine time.** `HLM_India` loads and runs here
-in 42 minutes; the baseline has not been run on it at all. This run's ruling was to put it through
-the loader so that data inconsistencies surface as located input issues, and not to compare it. The
-harness needs only a new entry in its example table.
+**Value: medium. Effort: medium, and all of it is machine time.** `HLM_India` is now compared against
+the baseline at 20 and 60 seeds — but at `size_fraction` 1e-5, which is **12,406 people against the
+1,240,613 it ships** ([docs/equivalence.md](equivalence.md)). That was the only way to have the
+comparison at all: at full scale one seed is about 40 minutes in this build and over an hour in the
+baseline, so twenty seeds of both is about a day and sixty is three.
 
-The cost is the runs, not the harness: 1,240,613 people against France's 6,244, so twenty seeds of
-both implementations is about a day, and the stored reference would be large. A sampled cohort
-would make it cheap and would no longer be the example anyone ships.
+What the reduction cannot tell you is anything that only appears at scale. Two candidates are
+specific rather than hypothetical: the emptying-band exclusion is **1,641 bands at 12,406 people**
+against 785 on `HLM_France`, and at 1.24 million almost none of those bands would empty at all — so
+the full-scale comparison would exclude far less and test more; and a rare disease that gives 0, 1 or
+2 cases at this cohort size gives hundreds at the shipped one, which moves several of the comparisons
+off the lattice that item 12 is about.
 
-(`KevinHall_India` was the other half of this item and is now item 6, because it cannot be run at
-all.)
+So this is worth doing once, on a machine that can be left alone for a few days, and the stored
+reference would be large — which is item 10.
 
-### 6. A second country for the FINCH surface — `validation`, and it needs upstream
+### 7. A second country for the FINCH surface — `validation`, and it needs upstream
 
 **Value: high. Effort: unknown, and not all of it is here.** The FINCH equivalence evidence is one
 pack, one country. The obvious second is `KevinHall_India`, which uses the same `StaticLinear` and
@@ -124,7 +167,7 @@ Nothing here can fix that: raising the curve or lowering the bound would be inve
 somebody else's fitted model. What this item needs is upstream to say which of the two is wrong.
 Until then the FINCH surface has one country, and that is the largest single gap in the validation.
 
-### 7. Apply interventions on Kevin Hall models — `needs-ruling`
+### 8. Apply interventions on Kevin Hall models — `needs-ruling`
 
 **Value: unknown, and it is not this project's call. Effort: small to wire, unbounded to justify.**
 In the whole baseline, `Scenario::apply` — the call that offers a person and a risk factor to the
@@ -178,7 +221,7 @@ an ADR, and both equivalence references re-run.
 point in the food → nutrient → energy → body chain does an impact apply? Until there is an answer,
 refusing the config is the honest behaviour, and it is what is implemented.
 
-### 8. A fallback donor for immigration into an empty band — `correctness`
+### 9. A fallback donor for immigration into an empty band — `correctness`
 
 **Value: low-medium. Effort: low.** When an age-sex band is empty there is nobody to clone an
 immigrant from, so both implementations skip it and the cohort falls short of the demographic
@@ -192,7 +235,7 @@ that misses its own target. The baseline has a nearest-age search in its demogra
 achievable, at the cost of nudging the age distribution. It changes results, so it needs a
 deviation entry, an ADR and a re-run of both references.
 
-### 9. More seeds, and a smaller stored reference — `validation`
+### 10. More seeds, and a smaller stored reference — `validation`
 
 **Value: low-medium. Effort: low.** Both references are 20 seeds, confirmed at 60 and then
 discarded. Keeping the 60-seed references would be about 12 MB gzipped. The alternative is to
@@ -200,7 +243,7 @@ store the reduction rather than the raw results — the harness reduces to (scen
 variable) before it compares anything, and the reduction is two orders of magnitude smaller — at
 the cost of not being able to change the reduction without a re-run.
 
-### 10. Windows — `platform`
+### 11. Windows — `platform`
 
 **Value: unknown. Effort: medium.** Not targeted
 ([ADR 0013](decisions/0013-platforms-linux-and-macos.md)). The code avoids PSTL and
@@ -210,7 +253,35 @@ worth doing if someone needs it.
 
 ## Smaller things
 
-### 11. A schema for the model definition files — `docs`
+### 12. The lattice detector should classify on the numerator — `validation`
+
+**Value: medium-high. Effort: low-medium, and the measurement is already taken.** The equivalence
+harness compares a quantile of a **lattice-valued** series with an exact test of the counts rather
+than numerically, because the normal-theory allowance shrinks as 1/√n while the lattice step does
+not — a test that gets worse with more evidence. That rule was derived and added last run, and it is
+right.
+
+**Its detector looks at the wrong number.** It classifies a series as lattice-valued when the pooled
+sample has at most 6 distinct values, or when one value covers more than half the seeds. Both rules
+are applied to the **rate**. But a disease rate is a small integer count of cases over a band head
+count that differs from seed to seed, so dividing smears the lattice: the `HLM_India` comparison at
+60 seeds produced four such series with **43 to 79 distinct values** and a modal share of 0.30 to
+0.40 — under both rules — while a third of their seeds were **exactly zero**. Six comparisons, at
+1.02× to 1.09× of their allowance, in both the `simple` and the `food_labelling` runs, which is what
+says they belong to the comparison and not to either implementation
+([docs/equivalence.md](equivalence.md)).
+
+The fix is specific: classify on the **numerator**. The harness reduces to a rate and throws the
+count away; carrying the count alongside it would let the detector ask the question it means to ask —
+"how many distinct case counts are there, and how often is it zero?" — instead of asking it of a
+quotient.
+
+**Do not do this by widening the thresholds.** Moving 0.5 to 0.3 after seeing which comparisons it
+excludes is not evidence, which is the same rule this project applied to the one `HLM_France`
+residual ([docs/equivalence.md](equivalence.md), "The threshold was not changed"). The detector
+either measures the right quantity or it does not.
+
+### 13. A schema for the model definition files — `docs`
 
 **Value: medium. Effort: low.** `schemas/v2/` covers the config. The static and dynamic model
 files have no published schema, which is why their member names were wrong for a week in the
@@ -219,14 +290,14 @@ and its R row-index columns. The shapes are documented only in `src/config/model
 the three loader test files. Write them, and extend `schema_agreement_test.cpp` to cover them the
 way it covers the config.
 
-### 12. Sector, and `demographic_models` — `scope`
+### 14. Sector, and `demographic_models` — `scope`
 
 **Value: low. Effort: low.** `person.sector` (urban/rural) is assigned nowhere; the channel
 appears if the mapping declares the factor. `modelling.demographic_models` is carried through as
 opaque JSON, deliberately — its shape belongs to the model family that reads it — and no model
 family reads it yet.
 
-### 13. The fixture pack's top-age artefact — `validation`
+### 15. The fixture pack's top-age artefact — `validation`
 
 **Value: low. Effort: low.** The synthetic pack's population table stops at the same age as the
 config's `age_range`, so anyone reaching the top age leaves the cohort and the pack's simulated
@@ -234,7 +305,7 @@ death rate runs above what its mortality table implies. Recorded in the pack's o
 Extending the pack's age range by a few years above the configured one would remove the artefact;
 nothing depends on it, because no test reads the pack's death rates as a check on anything.
 
-### 14. Report four things upstream — `docs`
+### 16. Report four things upstream — `docs`
 
 **Value: low here, high upstream. Effort: low.** Four findings belong to the people who own the
 data and the baseline, and telling them is not done:

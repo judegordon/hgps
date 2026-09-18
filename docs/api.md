@@ -195,10 +195,31 @@ The engine writes files; it does not hand back a result table. `RunSummary` list
   start and end times, and the scenarios that ran.
 
 A host that wants the numbers in memory rather than on disk does not have what it needs yet. That is
-the first thing [docs/backlog.md](backlog.md) lists under what a GUI needs from this API, and it is a
-deliberate gap rather than an oversight: the output contract is "one owner per file, rows in a defined
-order" ([ADR 0020](decisions/0020-output-single-owner-defined-row-order.md)), and an in-memory
-result sink has to be designed so that it cannot become a second, differently ordered output path.
+a deliberate gap rather than an oversight: the output contract is "one owner per file, rows in a
+defined order" ([ADR 0020](decisions/0020-output-single-owner-defined-row-order.md)), and an
+in-memory result sink has to be designed so that it cannot become a second, differently ordered
+output path.
+
+## What is not here yet
+
+This API has one implementor — `src/app`, the CLI — and a contract with one implementor is a
+description of that implementor. The gaps below are the ones a *graphical* host would hit, listed
+here because they are properties of this document rather than of any host, and worked through with
+costs in [docs/backlog.md](backlog.md) item 1.
+
+| | Missing | Consequence for a host |
+|---|---|---|
+| 1 | **Results in memory.** `execute` writes files; `RunSummary` lists their paths | a host draws its charts by parsing files the engine has just written |
+| 2 | **Per-year results in the event stream.** `YearCompleted` carries the year, the elapsed milliseconds and the population size, and no results | a run can be shown progressing but not shown *happening* |
+| 3 | **Progress inside a year.** Events and cancellation are both per-year. A year of `HLM_India` at full scale is about a minute | a progress bar that moves once a minute. The *cancellation* granularity is deliberate and should stay — see above — but the event need not be |
+| 4 | **Structured diagnostic arguments.** `code` and `Location` are structured; the message is prose with the numbers formatted into it | a config error can be located in a file but not turned into a field-level annotation with the offending value |
+| 5 | **Writing a configuration.** The loader reads config v2 and `tools/convert-config` writes it; there is no supported call for a host to modify a `Configuration` and save it | a host can run configurations but not edit them |
+| 6 | **Enumerating a data store.** `Run::description()` says what *this* run will do; nothing says what a pack *offers* — its countries, diseases and risk factors — before a run exists | a host cannot populate a chooser without a run to ask |
+| 7 | **Observable cancellation.** `cancel()` returns at once and the run stops at the end of its current year; there is no way to ask whether it has noticed | a Cancel button cannot honestly change state until `RunCompleted` |
+
+None of these is hard. The reason they are listed rather than built is that items 1 and 2 are one
+design decision about result ownership, and making it for a host that does not exist yet is how the
+wrong answer gets locked in.
 
 ## Threading and determinism
 
