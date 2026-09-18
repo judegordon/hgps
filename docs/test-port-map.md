@@ -164,14 +164,35 @@ is now unported for want of a feature**. What remains unported is the event bus,
 lazy repository and the printed summary boxes, each of which tests a thing this implementation does not
 have by design, and each of which is listed above with the ADR that says why.
 
-Counts verified on 2026-09-18 with `hgps_tests --gtest_list_tests` (738 tests, 93 suites),
-`ctest --preset release -N` (741) and `python3 -m unittest discover -s tests/equivalence` (39),
+Counts verified on 2026-09-18 with `hgps_tests --gtest_list_tests` (845 tests, 100 suites),
+`ctest --preset release -N` (848) and `python3 -m unittest discover -s tests/equivalence` (48),
 against the baseline's `HealthGPS.Tests --gtest_list_tests` (471). None of them is counted by hand.
 
-The growth from 665 to 738 is this run's, and none of it is a port, because the baseline has no
-counterpart for any of it: **26** for the compatibility flag
-([ADR 0041](decisions/0041-deliberate-deviations-are-switchable.md)) — 9 on the flag type, 5 end to
-end, 5 in the config loader, 4 on the command line and 3 on the food-labelling policy — **45** for
-the local server ([ADR 0042](decisions/0042-a-local-server-in-the-same-binary.md)), and **2** more
-in the library/host boundary test, which now reads the server's sources as well as the CLI's. The
-frontend's 48 are counted by `vitest` and are in neither total.
+The growth from 738 to 845 is this run's, and none of it is a port, because the baseline has no
+counterpart for any of it.
+
+**Most of it is the second fixture pack.** Every test that runs a configuration is parameterised
+over both synthetic packs ([ADR 0044](decisions/0044-two-fixture-packs-and-a-parameterised-suite.md)):
+**184 tests in fourteen `Packs/` suites**, which is 92 distinct tests each run twice, against
+configurations whose file layout, output name, scenario set, disease set, seed, horizon and age range
+are all different. Two defects the single pack could not have shown came out of it.
+
+Eight of those 92 are new this run, and so are seven tests that are not parameterised:
+
+| | Distinct tests | |
+|---|---:|---|
+| `Packs/CliRun` | 5 | the CLI **as a program**, in a working directory of its own: the suite had nothing that ran it |
+| `Packs/ServerStress` | 2 | N clients validating while runs start, cancel and stop in a seeded random order |
+| `Packs/PublicApi` | 1 | an age range the population data does not fit in |
+| `LinearModelResolution` | 5 | a resolved model evaluates to the same bits as an unresolved one, and the ordering that makes that true |
+| `ServerLifetime` | 2 | a server stopped or dropped before it has served anything |
+
+`CancellationToken`'s two tests are a split rather than an addition: they were inside `Cancellation`,
+which is parameterised, and they do not run a configuration.
+
+The arithmetic: 738 + **84** (existing tests that now run twice) + **16** (eight new parameterised
+tests, twice each) + **7** (the unparameterised new ones) = **845**.
+
+The frontend's **48** unit tests are counted by `vitest`, and its **19** end-to-end tests by
+`playwright test --list` ([ADR 0045](decisions/0045-end-to-end-tests-in-a-real-browser.md)). Neither
+is in the totals above.

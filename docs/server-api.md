@@ -19,6 +19,13 @@ so the graphical host is a static site plus this, and not a second runtime to in
 
 ## Ground rules
 
+**`start` means it is serving.** The server binds, spawns its thread and then waits until that
+thread is accepting before returning the port. It has to: cpp-httplib's `stop()` does nothing at all
+unless the server is already running, so a `start()` that returned as soon as the thread was spawned
+could be followed by a `stop()` that was lost, and the join then blocked for ever. A test that made
+a request in between never saw it, because an answer proves the loop is running; the randomised
+lifetime stress test in `tests/server/stress_test.cpp` found it on its first run.
+
 **Localhost only, and it refuses to be otherwise.** `--host` accepts `127.0.0.1`, `::1` and
 `localhost` and nothing else; anything that resolves elsewhere is refused at start-up with a message
 saying so, before the socket is opened. There is no authentication, and that is only safe because
@@ -362,6 +369,14 @@ This is the one endpoint that computes rather than reports, and it earns its pla
 is every client re-implementing a reduction the harness already had to get right, and getting a
 different answer.
 
+**One thing in that reduction is wrong, in both places.** `normal_weight`, `over_weight`,
+`obese_weight` and `above_weight` are head counts — the analysis module increments one per person —
+so their population figure is a sum, and the rule above gives them a count-weighted mean. The series
+still moves with the underlying quantity, which is why it does not look wrong; its level is
+meaningless. It is not fixed here because the harness's reduction has to change with it — the two
+must not disagree — and that invalidates every stored equivalence reference.
+[docs/backlog.md](backlog.md) item 11a has the cost.
+
 ## The event stream
 
 `GET /api/runs/{id}/events` is `text/event-stream`. Each message is one JSON object with a `type`,
@@ -405,9 +420,12 @@ thread.
   and neither belongs in this binary.
 - **No result data in the run-start response, and no way to run two at once.** Both follow from the
   engine's contract rather than from this layer.
-- **No configuration writing.** `POST /api/configs/validate` takes a document and gives back
-  diagnostics; it does not save one. An editor keeps its document and sends it inline to
-  `POST /api/runs`, which is enough to run what is on screen without inventing a file-management API
-  the engine has no support for ([docs/api.md](api.md#what-is-not-here-yet), gap 5).
+- **No configuration writing, and no way to run a document that is not on disk.**
+  `POST /api/configs/validate` takes a document and gives back diagnostics; it does not save one,
+  and `POST /api/runs` takes an example **id** and not a document. So an editor can validate what is
+  on screen and cannot run it: to run it, somebody has to save it as a configuration first, which
+  needs config *writing*, which the engine does not offer
+  ([docs/api.md](api.md#what-is-not-here-yet), gap 5). That is the gap, stated rather than papered
+  over; this section used to claim the opposite of the endpoint above it.
 - **No equivalence harness.** It is a research instrument that runs two implementations and takes
   half an hour; it is not a thing to poke from a browser.

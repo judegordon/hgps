@@ -41,7 +41,7 @@ output from the same inputs, and a test asserts that rather than claiming it.
 |---|---|---|
 | **Library** | `hgps::engine`, whose whole surface is `include/hgps/`. Load a configuration, resolve its data, build a run, execute it — with an event stream, a cancellation token and located diagnostics | [docs/api.md](docs/api.md) |
 | **Command line** | `healthgps --config FILE`. A thin client of the library: it parses arguments, subscribes to the events, prints, and chooses an exit code | [Running](#running), below |
-| **Graphical** | `healthgps serve --web web/dist`, then a browser. A JSON API over the library and a single-page app on top of it: edit a configuration against the published schema, start a run and watch it, read the results as tables and charts | [docs/server-api.md](docs/server-api.md) |
+| **Graphical** | `healthgps serve --web web/dist`, then a browser. A JSON API over the library and a single-page app on top of it: edit a configuration against the published schema, start a run and watch it, read the results as tables and charts. Driven end to end by a browser in CI ([ADR 0045](docs/decisions/0045-end-to-end-tests-in-a-real-browser.md)) | [docs/server-api.md](docs/server-api.md) |
 
 ```bash
 # The graphical host: build the frontend once, then one binary and one folder.
@@ -74,6 +74,7 @@ configuration names files to read and a folder to write
 | [docs/test-port-map.md](docs/test-port-map.md) | where each of the baseline's 471 tests went, suite by suite |
 | [docs/backlog.md](docs/backlog.md) | what is left, ranked |
 | [docs/SUMMARY.md](docs/SUMMARY.md) | what was built, what passes, what is still open |
+| [docs/briefing.md](docs/briefing.md) | the short form for the upstream authors: what this proves, what it found in the baseline, and what only they can decide |
 
 ## Building
 
@@ -179,13 +180,16 @@ cannot pass by assuming what one of them happens to say
 
 ```bash
 export VCPKG_ROOT=/path/to/vcpkg
-scripts/check.sh          # every preset, every test, plus the equivalence harness
-scripts/check.sh --fast   # release only
+scripts/check.sh            # every preset, the frontend, the browser, the equivalence harness
+scripts/check.sh --fast     # release only, and the frontend without its browser tests
+scripts/check.sh --no-web   # the C++ only
 ```
 
 `.github/workflows/ci.yml` is the same work split across jobs: four presets on Linux and macOS,
-Linux with both clang and GCC, and the equivalence harness against the checked-in references. It
-does not build the baseline — see the comment at the top of that file for why.
+Linux with both clang and GCC, the frontend's type-check and unit tests, a browser driving the built
+frontend against a real server, the equivalence harness against the checked-in references, and an
+indicative Linux timing. It does not build the baseline — see the comment at the top of that file
+for why.
 
 Validation has two layers ([ADR 0006](docs/decisions/0006-validation-strategy.md)):
 
@@ -196,11 +200,13 @@ Validation has two layers ([ADR 0006](docs/decisions/0006-validation-strategy.md
   does not exist here by design — the event bus, the sync channel, the lazy repository, the printed
   summary boxes. [docs/test-port-map.md](docs/test-port-map.md) says which, suite by suite. **The 35
   tests the baseline skips run here**, and finding out whether they pass is how four defects were
-  found. Of the **665** tests here, 340 are in files the baseline has no counterpart for —
+  found. Of the **845** tests here, most are in files the baseline has no counterpart for —
   byte-for-byte reproducibility at one thread and at N for every intervention, a modulo-bias
   regression test, ordered-sampling tests, and a test that an unseeded config is rejected, among
-  others. A further **30** test the equivalence harness's own statistics, because a mistake there
-  says PASS rather than producing a wrong number.
+  others. A further **48** test the equivalence harness's own statistics, because a mistake there
+  says PASS rather than producing a wrong number. Every test that runs a configuration runs against
+  **two** synthetic packs, which differ in every way a program might have assumed they did not
+  ([ADR 0044](docs/decisions/0044-two-fixture-packs-and-a-parameterised-suite.md)).
 - **Statistical equivalence against the baseline** on three examples — `HLM_France` for the HLM
   surface, `KevinHall_FINCH` for the FINCH one, and `HLM_India` for the `EBHLM` dynamic model at a
   reduced cohort — over at least 20 seeds and again at 60, comparing means, standard deviations and
