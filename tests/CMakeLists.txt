@@ -51,3 +51,17 @@ include(GoogleTest)
 gtest_discover_tests(hgps_tests
     DISCOVERY_MODE PRE_TEST
     PROPERTIES TIMEOUT 300)
+
+# The equivalence harness is the thing that decides whether this implementation agrees with the
+# baseline, so a mistake in it says PASS. Two of its rules have been wrong once each, and both
+# times a whole twenty-minute run was what found it. Its own tests run in milliseconds and are
+# part of the ordinary suite, so `ctest` covers them and so does scripts/check.sh.
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME EquivalenceHarness.Rules
+             COMMAND ${Python3_EXECUTABLE} -m unittest discover
+                     -s "${CMAKE_CURRENT_SOURCE_DIR}/equivalence" -p "run_test.py" -v)
+    set_tests_properties(EquivalenceHarness.Rules PROPERTIES TIMEOUT 120)
+else()
+    message(WARNING "No Python 3 interpreter: the equivalence harness's own tests will not run.")
+endif()

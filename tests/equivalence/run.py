@@ -118,17 +118,40 @@ SIGMA_LIMIT = 4.5
 # allowance — which turns that case into "equal to the precision the baseline prints".
 PRINTED_PRECISION_FLOOR = 1e-5
 
-# When a series takes one single value in more than this share of the seeds, its across-seed
-# distribution is a point mass with rare jumps rather than anything like a normal, and the
-# normal-theory tests below do not apply to it: the sample standard deviation is then an estimate
-# of how often the jump happens, not of a spread, and the 5th and 95th percentiles ARE the jumps.
-# Such a series has its standard deviation and tail percentiles compared by a distribution-free
-# test of the departure rate instead. docs/equivalence.md derives this.
+# A series is LATTICE-VALUED when either of the two conditions below holds. Its across-seed
+# distribution is then a set of counts on a small set of values rather than anything like a
+# normal, and no *quantile* of it can be compared numerically at all:
+#
+#   * a quantile of a lattice-valued sample is itself a lattice point, so the comparison's
+#     resolution is one whole lattice step;
+#   * the normal-theory allowance shrinks as 1/sqrt(n) while the lattice step does not, so the
+#     comparison gets WORSE with more seeds — the opposite of what a test should do.
+#
+# The second point is not hypothetical. `incidence_esophaguscancer` at (intervention, 2025, male)
+# is 0, one case or two cases, and the two implementations' counts over sixty seeds were
+# {0: 26, 1: 28, 2: 6} and {0: 33, 1: 21, 2: 6} — distributions Fisher's exact test cannot tell
+# apart, p = 0.27. But the zero share crosses one half between them, so their medians differ by a
+# whole lattice step, and at sixty seeds the allowance is smaller than one step. The same
+# comparison passed at twenty seeds, where the allowance was larger than a step. docs/equivalence.md
+# has the derivation.
+#
+# For such a series the mean is compared as usual — it is not a lattice point and its allowance
+# does shrink correctly — and the standard deviation and the three quantiles, all of which are
+# functions of the same counts, are replaced by one exact test of those counts.
+
+# (1) At most this many distinct values, at the baseline's printed precision, in the two
+#     implementations' samples pooled. A continuous quantity gives one distinct value per seed, so
+#     this cannot catch one: six is a quarter of the smallest seed count the harness accepts.
+LATTICE_MAX_DISTINCT_VALUES = 6
+
+# (2) Or one value covering more than this share of one implementation's seeds. A series can have
+#     many distinct values and still be a point mass with rare jumps — and when one value covers
+#     more than half the seeds, the median IS that value, so it is a step function too.
 DEGENERATE_MODAL_SHARE = 0.5
 
-# The family-wide significance the departure-rate test uses, matching the 4.5 sigma the other
+# The family-wide significance the distribution test uses, matching the 4.5 sigma the other
 # tests use: a Bonferroni correction at alpha = 0.05 over the ~5,000 independent series.
-DEPARTURE_RATE_ALPHA = 0.05 / 5000
+DISTRIBUTION_TEST_ALPHA = 0.05 / 5000
 
 # Variables the baseline does not actually compute, keyed to the deviation that records why.
 #
@@ -485,7 +508,7 @@ class Comparison:
     allowed: float
     difference: float
 
-    # Set for the departure-rate test, which is a p-value against a threshold rather than a
+    # Set for the distribution test, which is a p-value against a threshold rather than a
     # difference against an allowance. `allowed` then holds the threshold and `difference` the
     # p-value, so the two kinds of comparison still report and aggregate the same way.
     p_value: float | None = None
@@ -522,16 +545,60 @@ class Outcome:
     retries: list[str] = field(default_factory=list)
 
 
-def modal_share(values: list[float]) -> float:
+def lattice_keys(values: list[float], scale: float) -> list[int]:
+    """The values bucketed at the baseline's printed precision.
+
+    Two figures the baseline's own output cannot tell apart must not count as different values.
+    The baseline prints six significant digits, so `0.00029274` and `0.000292741` are one value
+    and not two — and counting them as two is enough to hide a lattice series from the test below.
+    """
+    step = PRINTED_PRECISION_FLOOR * max(scale, 1e-12)
+    return [round(value / step) for value in values]
+
+
+def modal_share(keys: list[int]) -> float:
     """The share of the seeds that take the series' single commonest value."""
-    if not values:
+    if not keys:
         return 0.0
-    return collections.Counter(values).most_common(1)[0][1] / len(values)
+    return collections.Counter(keys).most_common(1)[0][1] / len(keys)
 
 
-def departures_from_mode(values: list[float]) -> int:
-    """How many seeds do NOT take the commonest value."""
-    return len(values) - collections.Counter(values).most_common(1)[0][1]
+def distribution_p_value(base_keys: list[int], new_keys: list[int]) -> float:
+    """How likely two lattice-valued samples this different are, if they came from one source.
+
+    One Fisher exact test per distinct value — "this value against every other" — over the two
+    implementations' counts, Bonferroni-corrected for the number of values tested. That tests the
+    whole shape of the discrete distribution rather than one summary of it, and it is exact, so it
+    holds at the counts these series actually have: a handful of events in twenty or sixty seeds,
+    where every normal approximation is worthless.
+
+    It is a real test rather than a waiver, but it is a blunt one at twenty seeds, and the exact
+    numbers are worth knowing. Against the family-wide alpha of 1e-5, for a two-valued series:
+
+      * at n = 20, a baseline that never leaves one value fails once this build leaves it in 14 of
+        20 seeds — but 10 of 20 against 20 of 20 does NOT fail, because no arrangement of forty
+        observations is unlikely enough at that alpha;
+      * at n = 60, the same all-or-nothing case fails at 17 of 60, and 30 of 60 against 54 of 60
+        fails as well.
+
+    So a rare-event rate is barely testable at twenty seeds and properly testable at sixty. That is
+    a second reason for the 60-seed confirmation, beyond the one docs/equivalence.md gives for the
+    standard deviation.
+    """
+    values = sorted(set(base_keys) | set(new_keys))
+    if len(values) < 2:
+        return 1.0
+
+    base_n, new_n = len(base_keys), len(new_keys)
+    base_counts = collections.Counter(base_keys)
+    new_counts = collections.Counter(new_keys)
+
+    smallest = 1.0
+    for value in values:
+        a = base_counts[value]
+        c = new_counts[value]
+        smallest = min(smallest, fisher_exact_two_sided(a, base_n - a, c, new_n - c))
+    return min(1.0, smallest * len(values))
 
 
 def fisher_exact_two_sided(a: int, b: int, c: int, d: int) -> float:
@@ -609,18 +676,18 @@ def compare(baseline: dict[int, dict], new: dict[int, dict], seeds: list[int],
         scale = max(abs(base.mean), abs(mine.mean), base.sd, mine.sd, 1e-12)
         floor = PRINTED_PRECISION_FLOOR * scale
 
-        # A series that sits on one value in most of the seeds is not a sample from anything
-        # like a normal distribution: it is a constant with an occasional one-person jump, and
-        # its standard deviation and tail percentiles measure how often that jump happens rather
-        # than any spread. Applying a normal-theory allowance to them compares two estimates of a
-        # rare-event rate as though they were estimates of a spread, and fails whenever the rate
-        # differs by a couple of seeds out of twenty. So those three statistics are replaced, for
-        # such a series, by a distribution-free test of the rate itself.
-        degenerate = max(modal_share(base_values), modal_share(new_values)) > \
-            DEGENERATE_MODAL_SHARE
+        # Is this series lattice-valued? See LATTICE_MAX_DISTINCT_VALUES above for what that means
+        # and why no quantile of such a series can be compared numerically. Both implementations'
+        # samples are bucketed on one common scale, so that "distinct value" means the same thing
+        # on both sides.
+        common_scale = max(abs(value) for value in base_values + new_values) or 1.0
+        base_keys = lattice_keys(base_values, common_scale)
+        new_keys = lattice_keys(new_values, common_scale)
+        lattice = (len(set(base_keys) | set(new_keys)) <= LATTICE_MAX_DISTINCT_VALUES or
+                   max(modal_share(base_keys), modal_share(new_keys)) > DEGENERATE_MODAL_SHARE)
 
         for name, se_factor in STATISTICS.items():
-            if degenerate and name in ("p5", "p95"):
+            if lattice and name != "mean":
                 continue
             allowed = SIGMA_LIMIT * se_factor * math.sqrt(pooled_variance / n) + floor
             outcome.comparisons.append(
@@ -628,17 +695,16 @@ def compare(baseline: dict[int, dict], new: dict[int, dict], seeds: list[int],
                            allowed=allowed,
                            difference=getattr(mine, name) - getattr(base, name)))
 
-        if degenerate:
-            # Fisher's exact test on "seeds that left the commonest value" against "seeds that did
-            # not", at the same family-wide significance the sigma limit encodes. It makes no
-            # assumption about the shape of the distribution, and it is a real test rather than a
-            # waiver: a rate that differed by, say, 0 of 20 against 12 of 20 fails it.
-            base_out = departures_from_mode(base_values)
-            new_out = departures_from_mode(new_values)
-            probability = fisher_exact_two_sided(base_out, n - base_out, new_out, n - new_out)
+        if lattice:
+            # The mean above, and the whole discrete distribution here. Between them they cover
+            # everything the four dropped statistics were measuring, and they measure it with a
+            # test that holds at these counts.
+            probability = distribution_p_value(base_keys, new_keys)
+            base_mode = collections.Counter(base_keys).most_common(1)[0][1] / n
+            new_mode = collections.Counter(new_keys).most_common(1)[0][1] / n
             outcome.comparisons.append(
-                Comparison(key, "departure_rate", base_out / n, new_out / n,
-                           allowed=DEPARTURE_RATE_ALPHA, difference=probability,
+                Comparison(key, "distribution", base_mode, new_mode,
+                           allowed=DISTRIBUTION_TEST_ALPHA, difference=probability,
                            p_value=probability))
             continue
 
