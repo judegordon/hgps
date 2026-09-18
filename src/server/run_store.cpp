@@ -87,8 +87,9 @@ std::vector<BufferedEvent> RunRecord::events_since(std::size_t after,
                                                    std::chrono::milliseconds wait) {
     std::unique_lock lock{mutex_};
     const auto has_more = [&] {
-        return (!events_.empty() && events_.back().sequence > after) || state_ == RunState::completed ||
-               state_ == RunState::cancelled || state_ == RunState::failed;
+        return (!events_.empty() && events_.back().sequence > after) ||
+               state_ == RunState::completed || state_ == RunState::cancelled ||
+               state_ == RunState::failed;
     };
     changed_.wait_for(lock, wait, has_more);
 
@@ -432,9 +433,10 @@ nlohmann::json RunStore::list() const {
     }
 
     // Newest first, by id, which is time-ordered by construction.
-    std::sort(runs.begin(), runs.end(), [](const nlohmann::json &left, const nlohmann::json &right) {
-        return left.value("id", std::string{}) > right.value("id", std::string{});
-    });
+    std::sort(runs.begin(), runs.end(),
+              [](const nlohmann::json &left, const nlohmann::json &right) {
+                  return left.value("id", std::string{}) > right.value("id", std::string{});
+              });
 
     return {{"active", active_id.empty() ? nlohmann::json(nullptr) : nlohmann::json(active_id)},
             {"runs", runs}};

@@ -65,7 +65,8 @@ nlohmann::json summary_of(const api::Configuration &configuration) {
     out["active_intervention"] = intervention.has_value() ? nlohmann::json(*intervention)
                                                           : nlohmann::json(nullptr);
     const auto checksum = configuration.data_checksum();
-    out["data_checksum"] = checksum.has_value() ? nlohmann::json(*checksum) : nlohmann::json(nullptr);
+    out["data_checksum"] =
+        checksum.has_value() ? nlohmann::json(*checksum) : nlohmann::json(nullptr);
     return out;
 }
 
@@ -171,8 +172,8 @@ nlohmann::json resolve(const nlohmann::json &node, const std::filesystem::path &
         const auto target = reference->get<std::string>();
         if (!target.empty() && target.find("://") == std::string::npos && target.front() != '#') {
             auto inlined = load_and_resolve(directory / target, open);
-            // Anything beside the $ref — a description, usually — stays, and wins, because it is
-            // the more specific statement about this use of the schema.
+            // Anything beside the $ref — a description, usually — stays, and wins: it is the
+            // more specific statement about this use of the schema.
             for (const auto &[key, value] : node.items()) {
                 if (key != "$ref") {
                     inlined[key] = resolve(value, directory, open);

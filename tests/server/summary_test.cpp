@@ -91,9 +91,9 @@ TEST(SummaryReduction, BothScenariosAreReportedSeparately) {
 
 TEST(SummaryReduction, ARowEndingInACommaIsStillARow) {
     // `std::getline(stream, field, ',')` stops at the last separator, so a line ending in a comma
-    // yields one field too few — the row's field count then disagrees with the header and the whole
-    // row is skipped, silently. That is a missing year in a chart, not a wrong number, which is why
-    // it is worth its own test.
+    // yields one field too few — the row's field count then disagrees with the header and the
+    // whole row is skipped, silently. That is a missing year in a chart, not a wrong number, which
+    // is why it is worth its own test.
     const auto path = write_csv("trailing", R"(source,run,time,gender_name,index_id,count,mean_bmi
 Baseline,1,2010,male,0,50,
 Baseline,1,2011,male,0,50,25

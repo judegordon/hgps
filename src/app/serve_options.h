@@ -34,7 +34,8 @@ struct ServeOptions {
     /// @brief The built frontend, served as static files. Empty serves none.
     std::filesystem::path web_root;
 
-    /// @brief The published config schema for `GET /api/schema`. Defaults to ./schemas/v2/config.json.
+    /// @brief The published config schema for `GET /api/schema`. Defaults to
+    ///        ./schemas/v2/config.json.
     std::filesystem::path schema_path;
 
     bool help{false};

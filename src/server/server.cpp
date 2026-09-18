@@ -125,7 +125,7 @@ std::string loopback_refusal(const std::string &host) {
         host);
 }
 
-// --- the implementation ---------------------------------------------------------------------------
+// --- the implementation -------------------------------------------------------------------------
 
 class Server::Impl {
   public:
@@ -165,9 +165,9 @@ class Server::Impl {
         server_.stop();
 
         // And the run, if one is going. Without this, stopping the server detaches a thread that
-        // is still writing a result file and then returns from main — so Ctrl-C during a run could
-        // truncate its output, which is the one thing this project's output contract cannot
-        // tolerate.
+        // is still writing a result file and then returns from main — so Ctrl-C during a run
+        // could truncate its output, which is the one thing this project's output contract
+        // cannot tolerate.
         //
         // Cancelling rather than waiting for the horizon: the engine stops at the end of the year
         // it is in and closes its files, so a cancelled run is a *prefix* of the run that would
@@ -423,9 +423,10 @@ class Server::Impl {
         options.require_files_exist = body.value("require_files_exist", true);
         for (const auto &name : body.value("baseline_compat", std::vector<std::string>{})) {
             if (!api::BaselineCompat::apply_name(name, options.baseline_compat)) {
-                send_error(response, 400, "bad_request",
-                           fmt::format("'{}' is not a baseline compatibility flag; the flags are {}",
-                                       name, api::BaselineCompat::known_names_sentence()));
+                send_error(
+                    response, 400, "bad_request",
+                    fmt::format("'{}' is not a baseline compatibility flag; the flags are {}", name,
+                                api::BaselineCompat::known_names_sentence()));
                 return;
             }
         }
@@ -459,7 +460,7 @@ class Server::Impl {
         }
     }
 
-    // --- runs -------------------------------------------------------------------------------------
+    // --- runs -----------------------------------------------------------------------------------
 
     void start_run(const httplib::Request &request, httplib::Response &response) {
         nlohmann::json body;
@@ -505,9 +506,10 @@ class Server::Impl {
         for (const auto &name : body.value("baseline_compat", std::vector<std::string>{})) {
             if (!api::BaselineCompat::apply_name(name, load_options.baseline_compat)) {
                 runs_.discard(id);
-                send_error(response, 400, "bad_request",
-                           fmt::format("'{}' is not a baseline compatibility flag; the flags are {}",
-                                       name, api::BaselineCompat::known_names_sentence()));
+                send_error(
+                    response, 400, "bad_request",
+                    fmt::format("'{}' is not a baseline compatibility flag; the flags are {}", name,
+                                api::BaselineCompat::known_names_sentence()));
                 return;
             }
         }
@@ -753,7 +755,7 @@ class Server::Impl {
     std::uint16_t port_{0};
 };
 
-// --- the handle -----------------------------------------------------------------------------------
+// --- the handle ---------------------------------------------------------------------------------
 
 Server::Server(Options options) : impl_{std::make_unique<Impl>(std::move(options))} {}
 // stop(), not impl_->stop(): `thread_` is declared after `impl_` and so is destroyed first, and

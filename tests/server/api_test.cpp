@@ -657,7 +657,7 @@ TEST(ServerApi, TheStreamForARunThatIsNotThereIsA404) {
     EXPECT_EQ(404, response->status);
 }
 
-// --- the boundary that makes "no auth" safe --------------------------------------------------------
+// --- the boundary that makes "no auth" safe ------------------------------------------------------
 
 TEST(ServerApi, AStartedServerCanSimplyBeDropped) {
     // `thread_` is declared after `impl_` and so is destroyed first, and destroying a joinable
@@ -685,10 +685,10 @@ TEST(ServerApi, AStartedServerCanSimplyBeDropped) {
 
 TEST(ServerApi, StoppingTheServerDoesNotAbandonARunMidWrite) {
     // Without this, stopping the server detached a thread that was still writing a result file and
-    // then returned from main — so Ctrl-C during a run could truncate its output, which is the one
-    // thing this project's output contract cannot tolerate. `stop()` cancels the run and waits, so
-    // what is left on disk is a *prefix* of the run that would have happened, with its files
-    // closed (docs/api.md).
+    // then returned from main — so Ctrl-C during a run could truncate its output, which is the
+    // one thing this project's output contract cannot tolerate. `stop()` cancels the run and
+    // waits, so what is left on disk is a *prefix* of the run that would have happened, with its
+    // files closed (docs/api.md).
     const auto runs = hgps::test::scratch_dir("api_stop_runs");
     const auto configs = hgps::test::scratch_dir("api_stop_configs");
     const auto recursive = std::filesystem::copy_options::recursive |

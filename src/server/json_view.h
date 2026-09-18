@@ -3,7 +3,8 @@
 // Kept apart from the HTTP layer on purpose: this is the part a test can check without opening a
 // socket, and it is the part that has to stay in step with the document. Nothing here includes an
 // engine internal — the server is a client of hgps::engine, exactly as the CLI is
-// (docs/decisions/0032-library-and-a-thin-cli.md, docs/decisions/0042-a-local-server-in-the-same-binary.md).
+// (docs/decisions/0032-library-and-a-thin-cli.md and
+// docs/decisions/0042-a-local-server-in-the-same-binary.md).
 #pragma once
 
 #include "hgps/engine.h"

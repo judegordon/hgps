@@ -75,7 +75,8 @@ nlohmann::json summarise_results(const std::filesystem::path &csv, const Summary
     }
     const auto header = split_row(line);
     if (header.empty()) {
-        throw std::runtime_error(fmt::format("the result file {} has an empty header", csv.string()));
+        throw std::runtime_error(
+            fmt::format("the result file {} has an empty header", csv.string()));
     }
 
     const std::set<std::string> wanted{filter.variables.begin(), filter.variables.end()};
@@ -192,8 +193,9 @@ nlohmann::json summarise_results(const std::filesystem::path &csv, const Summary
     }
 
     return {
-        {"reduction", "count-weighted mean over age bands; count, deaths and emigrations summed — "
-                      "the same rule docs/equivalence-method.md reduces by"},
+        {"reduction",
+         "count-weighted mean over age bands; count, deaths and emigrations summed — the same "
+         "rule docs/equivalence-method.md reduces by"},
         {"sex", filter.sex},
         {"scenarios", std::vector<std::string>{scenarios.begin(), scenarios.end()}},
         {"years", std::vector<int>{years.begin(), years.end()}},
