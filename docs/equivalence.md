@@ -227,10 +227,12 @@ the baseline's in 55 and below it in 59.
 
 ### Getting there
 
-FINCH did not pass first time. The count of out-of-tolerance comparisons went 1,542 → 1,326 →
-1,202 → 269 → 52 → 19 → **0**, and every step was a defect in this implementation rather than a
-loosened threshold. The last two are worth recording because both were the same mistake in
-different clothes — **calibrating onto the wrong target**:
+FINCH did not pass first time. At 20 seeds the count of out-of-tolerance comparisons went 1,542 →
+1,326 → 1,202 → 269 → 52 → 19 → **0**, and every step was a defect in this implementation rather
+than a loosened threshold. (Those counts are against the comparison as it then was; the lattice
+rule below changed both the count and which comparisons exist, and the last entry is zero under
+either.) The last two steps are worth recording because both were the same mistake in different
+clothes — **calibrating onto the wrong target**:
 
 - **Physical activity.** `adjust_to_factors_mean` shifts an (age, sex) band so its mean lands on
   the FactorsMean table's value, and the shifted values are then clamped to the factor's configured
