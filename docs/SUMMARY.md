@@ -87,8 +87,10 @@ agree they do nothing. Finding (2) below has the measurement.
 six interventions** — asserted by `tests/sim/reproducibility_test.cpp`, not just claimed.
 
 **Memory and threading.** The whole suite passes under AddressSanitizer + UndefinedBehaviorSanitizer
-and under ThreadSanitizer, which is where audit finding B-02 — a data race in the baseline's
-lazily-populated repository — was confirmed in the first place. Across every run this project has
+(365 s) and under ThreadSanitizer (836 s), which is where audit finding B-02 — a data race in the
+baseline's lazily-populated repository — was confirmed in the first place. Six of those 836 seconds
+per test are the six interventions' byte-identical-at-1-and-4-threads checks, at about 85 s each —
+which is why they are six tests rather than the one that exceeded CTest's timeout. Across every run this project has
 made — several hundred, over two examples, six interventions and both seed counts — this build has
 not once exited on a signal. The baseline has, on `KevinHall_FINCH`, on roughly one run in twenty,
 with three different signals seen.
