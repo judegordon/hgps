@@ -183,6 +183,14 @@ recording it. An uncancelled run is bit-for-bit what it would have been with no 
 A default-constructed token is never cancelled, and is what a caller that does not want cancellation
 passes.
 
+**"Between scenarios" means a scenario that has not begun does not begin.** That is worth spelling
+out because the code did not do it: a scenario's first simulated year happens before its year loop
+reaches a cancellation check, so a run cancelled three years into the baseline went on to start the
+intervention and simulate one year of it — leaving a result file whose two futures covered different
+horizons, which is the one thing the pairing exists to rule out. This paragraph was already right and
+the code is now what it says (`src/sim/engine.cpp`); it was found by the first fixture pack with two
+scenarios in it.
+
 ## Results
 
 The engine writes files; it does not hand back a result table. `RunSummary` lists what it wrote:
