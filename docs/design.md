@@ -121,6 +121,16 @@ Neither family's model is given a 31-argument constructor. Each takes one `share
 Parameters>` whose fields are named at the call site and validated in one place
 ([ADR 0029](decisions/0029-one-banded-intervention-shape.md)).
 
+**Which model family sees an intervention.** Only `EBHLM`. `Scenario::apply` — the call that offers
+a person and a risk factor to the active policy — has exactly one call site here
+(`model/riskfactor/hlm_model.cpp`), and exactly one in the baseline
+(`dynamic_hierarchical_linear_model.cpp:110`). Neither `StaticLinear` nor `KevinHall` calls it, so
+on the FINCH surface **all six intervention scenarios are inert**, in both implementations and
+measurably so ([docs/equivalence.md](equivalence.md)). That surface has its own policy mechanism
+instead: `modelling.policy_start_year`, from which the static linear model applies the policy-effect
+coefficients and the residual policy covariance to the intervention scenario. The two mechanisms
+are unrelated, and a config can select either without the other.
+
 ---
 
 ## 3. Data flow

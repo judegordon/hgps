@@ -25,8 +25,8 @@ has a single entry, `simple`, whose `impacts` list is empty. The FINCH policy is
 `policy_start_year` is 2024 and the `StaticLinear` model applies the S1 policy-effect coefficients
 and residual policy covariance to the intervention scenario from that year. So on FINCH there is
 nothing in the `interventions` block to compare, and the five age-banded policies have never been
-exercised against the Kevin Hall energy balance — where an energy impact propagates into weight and
-BMI rather than sitting in a static factor.
+activated against the FINCH surface at all — which, at the time this was written, looked like a gap
+in the evidence. It turned out to be a property of the baseline instead; see below.
 
 ## Decision
 
@@ -48,6 +48,26 @@ HLM_France's five upstream definitions **verbatim**, with two substitutions and 
 France's coefficients are meaningless for Finland, and that is not what they are for. Both
 implementations are given the identical definition and the question asked is whether they apply it
 identically.
+
+## What running it then showed, which is not what this ADR first assumed
+
+This ADR was written expecting that an energy impact on the FINCH surface would propagate through
+the Kevin Hall energy balance into weight and BMI. **It does not, because nothing on that surface
+consults the policy at all.** In the whole baseline, `Scenario::apply` has one call site,
+`dynamic_hierarchical_linear_model.cpp:110`; neither `static_linear_model.cpp` nor
+`kevin_hall_model.cpp` calls it. The six intervention scenarios reach the HLM surface and nothing
+else. This build has the same single call site, and running FINCH with `marketing` active gives
+output byte-identical to running it with `simple` active, in both implementations.
+
+So the FINCH intervention runs establish something narrower than intended: that both
+implementations agree these policies are inert there. That is still worth having — it is what would
+catch an implementation that wired `apply` into a model the baseline leaves alone — but the five
+policies' own rules are exercised against the baseline on `HLM_France` only.
+
+The decision stands unchanged; only the expectation of what it would show was wrong.
+[docs/equivalence.md](../equivalence.md) has the measurement, and
+[docs/backlog.md](../backlog.md) carries the upstream question of whether a policy *should* reach
+the Kevin Hall surface.
 
 ## Alternatives
 

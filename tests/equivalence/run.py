@@ -217,10 +217,10 @@ def intervention_overlay(example_name: str) -> dict:
     """The intervention definitions an example does not ship but the comparison needs.
 
     `KevinHall_FINCH` declares exactly one intervention, `simple`, and its impact list is
-    **empty** — so activating it compares the baseline scenario against a copy of itself. That
-    still exercises the whole FINCH model surface, but it exercises none of the five age-banded
-    policies against the FINCH surface, where an energy impact propagates through the Kevin Hall
-    energy balance into weight and BMI rather than being a shift in a static factor.
+    **empty**, so activating it compares the baseline scenario against a copy of itself as far as
+    the `interventions` block is concerned. (The two scenarios do differ, but through
+    `policy_start_year` and the S1 policy-effect coefficients, which are the static linear model's
+    own mechanism and nothing to do with this block.)
 
     `tests/equivalence/interventions/KevinHall_FINCH.json` is HLM_France's own five definitions,
     verbatim from the upstream example, with two substitutions and nothing else:
@@ -229,9 +229,17 @@ def intervention_overlay(example_name: str) -> dict:
         declares — because HLM_France's runs to 2050 and the FINCH horizon ends in 2032;
       * the risk factor `Energy` becomes `EnergyIntake`, which is FINCH's name for it.
 
-    The numbers are France's and mean nothing for Finland. That does not matter for what they are
-    used for: both implementations get the identical definition, and the question asked is whether
-    they apply it identically.
+    What running them shows is narrower than it looks, and worth knowing before reading the result.
+    In the whole baseline, `Scenario::apply` has ONE call site —
+    `dynamic_hierarchical_linear_model.cpp:110` — so an intervention scenario reaches the HLM
+    surface and nothing else, and on the FINCH surface all six are inert. This build has the same
+    single call site. Running FINCH with `marketing` active gives output byte-identical to running
+    it with `simple` active, in both implementations.
+
+    So these runs check that both implementations agree the policies are inert here, for each
+    policy separately — which is what would catch an implementation that wired `apply` into a
+    model the baseline leaves alone. The policies' own rules are compared on HLM_France, where the
+    definitions are upstream's own and the model does consult them.
     """
     path = INTERVENTION_OVERLAYS / f"{example_name}.json"
     return json.loads(path.read_text()) if path.is_file() else {}

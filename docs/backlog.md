@@ -91,7 +91,23 @@ Nothing here can fix that: raising the curve or lowering the bound would be inve
 somebody else's fitted model. What this item needs is upstream to say which of the two is wrong.
 Until then the FINCH surface has one country, and that is the largest single gap in the validation.
 
-### 7. A fallback donor for immigration into an empty band — `correctness`
+### 7. Ask upstream whether a policy should reach the Kevin Hall surface — `docs`
+
+**Value: medium. Effort: none here, and it is not this project's call.** In the whole baseline,
+`Scenario::apply` — the call that offers a person and a risk factor to the active policy — has one
+call site, in `dynamic_hierarchical_linear_model.cpp`. The `StaticLinear` and `KevinHall` models
+never call it, so **all six intervention scenarios are inert on the FINCH surface**: `marketing`
+and `simple` produce byte-identical output there, in both implementations
+([docs/equivalence.md](equivalence.md)).
+
+That may be deliberate — FINCH's policy mechanism is `policy_start_year` and the S1 policy-effect
+coefficients, which is a different and arguably better-founded thing than an age-banded shift. But
+a config can select `food_labelling` on a Kevin Hall model today and get a run that reports no
+error and no effect, which is the shape of thing somebody eventually mistakes for a result. At the
+very least this build should say so at load time, and that is a small change once upstream has said
+which way it is meant to be.
+
+### 8. A fallback donor for immigration into an empty band — `correctness`
 
 **Value: low-medium. Effort: low.** When an age-sex band is empty there is nobody to clone an
 immigrant from, so both implementations skip it and the cohort falls short of the demographic
@@ -105,7 +121,7 @@ that misses its own target. The baseline has a nearest-age search in its demogra
 achievable, at the cost of nudging the age distribution. It changes results, so it needs a
 deviation entry, an ADR and a re-run of both references.
 
-### 8. More seeds, and a smaller stored reference — `validation`
+### 9. More seeds, and a smaller stored reference — `validation`
 
 **Value: low-medium. Effort: low.** Both references are 20 seeds, confirmed at 60 and then
 discarded. Keeping the 60-seed references would be about 12 MB gzipped. The alternative is to
@@ -113,7 +129,7 @@ store the reduction rather than the raw results — the harness reduces to (scen
 variable) before it compares anything, and the reduction is two orders of magnitude smaller — at
 the cost of not being able to change the reduction without a re-run.
 
-### 9. Windows — `platform`
+### 10. Windows — `platform`
 
 **Value: unknown. Effort: medium.** Not targeted
 ([ADR 0013](decisions/0013-platforms-linux-and-macos.md)). The code avoids PSTL and
@@ -123,7 +139,7 @@ worth doing if someone needs it.
 
 ## Smaller things
 
-### 10. A schema for the model definition files — `docs`
+### 11. A schema for the model definition files — `docs`
 
 **Value: medium. Effort: low.** `schemas/v2/` covers the config. The static and dynamic model
 files have no published schema, which is why their member names were wrong for a week in the
@@ -132,14 +148,14 @@ and its R row-index columns. The shapes are documented only in `src/config/model
 the three loader test files. Write them, and extend `schema_agreement_test.cpp` to cover them the
 way it covers the config.
 
-### 11. Sector, and `demographic_models` — `scope`
+### 12. Sector, and `demographic_models` — `scope`
 
 **Value: low. Effort: low.** `person.sector` (urban/rural) is assigned nowhere; the channel
 appears if the mapping declares the factor. `modelling.demographic_models` is carried through as
 opaque JSON, deliberately — its shape belongs to the model family that reads it — and no model
 family reads it yet.
 
-### 12. The fixture pack's top-age artefact — `validation`
+### 13. The fixture pack's top-age artefact — `validation`
 
 **Value: low. Effort: low.** The synthetic pack's population table stops at the same age as the
 config's `age_range`, so anyone reaching the top age leaves the cohort and the pack's simulated
@@ -147,18 +163,21 @@ death rate runs above what its mortality table implies. Recorded in the pack's o
 Extending the pack's age range by a few years above the configured one would remove the artefact;
 nothing depends on it, because no test reads the pack's death rates as a check on anything.
 
-### 13. Report three things upstream — `docs`
+### 14. Report four things upstream — `docs`
 
-**Value: low here, high upstream. Effort: low.** Three findings belong to the people who own the
+**Value: low here, high upstream. Effort: low.** Four findings belong to the people who own the
 data and the baseline, and telling them is not done:
 
 1. **`KevinHall_India` cannot be run by its own baseline** — its `Weight` lower bound is above what
    its weight quantile curve produces (item 6), and its `new_config.json` contradicts itself
    between the deprecated root `trend_type` and `project_requirements.trend.type`, which the
    baseline's own validator refuses.
-2. **`KevinHall_FINCH`'s legacy `static_model.json` names two files the pack does not contain**
+2. **An intervention scenario is inert on the FINCH model surface** (item 7): `Scenario::apply` has
+   one call site and neither Kevin Hall model calls it, so a config selecting `food_labelling` on
+   that surface runs with no error and no effect.
+3. **`KevinHall_FINCH`'s legacy `static_model.json` names two files the pack does not contain**
    (audit D-02, [ADR 0030](decisions/0030-policy-scenario-selection-for-the-broken-finch-example.md)).
-3. **The baseline crashes on `KevinHall_FINCH` about one run in twenty** — same binary, same
+4. **The baseline crashes on `KevinHall_FINCH` about one run in twenty** — same binary, same
    config, same seed, and it succeeds on the retry. Three signals have been seen: `SIGSEGV`,
    `SIGTRAP` and `SIGABRT`. That is audit findings B-01 and B-02 (concurrent scenarios, a
    lazily-populated repository) showing up as a crash rather than as a reordering. The equivalence

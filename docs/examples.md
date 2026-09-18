@@ -95,6 +95,23 @@ mid-run failure, and they do.
 The two that stop, stop at a named missing feature with a pointer to
 [docs/backlog.md](backlog.md), never at a crash or a plausible-looking wrong number.
 
+### KevinHall_FINCH's policy is not in its `interventions` block
+
+`KevinHall_FINCH` selects `simple` and gives it an **empty impact list**, which looks like an
+oversight and is not. On its model surface an intervention scenario does nothing at all:
+`Scenario::apply` has one call site in the baseline, in the dynamic HLM model, and neither
+`StaticLinear` nor `KevinHall` calls it. Filling that list would change no number. Running FINCH
+with `marketing` active gives output byte-identical to running it with `simple` active, in both
+implementations.
+
+What makes the two scenarios differ on FINCH is `modelling.policy_start_year: 2024` and the S1
+policy-effect coefficients, which the static linear model applies to the intervention scenario from
+that year — a different mechanism with a different shape.
+
+Worth knowing before configuring a study: a config that selects `food_labelling` on a Kevin Hall
+model is accepted, runs, and has no effect, with nothing said. [docs/backlog.md](backlog.md) has
+that as a question for upstream rather than a change made here.
+
 ### KevinHall_FINCH and the policy files that are not there
 
 `KevinHall_FINCH/static_model.json` names two files the pack does not contain:

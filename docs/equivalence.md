@@ -267,11 +267,39 @@ harness simply activates one at a time. On `KevinHall_FINCH` they come from
 `tests/equivalence/interventions/KevinHall_FINCH.json`, which is HLM_France's five definitions
 verbatim with two substitutions and nothing else — the active period becomes FINCH's own 2025
 onwards, because France's runs to 2050 and the FINCH horizon ends in 2032, and the risk factor
-`Energy` becomes `EnergyIntake`, which is FINCH's name for it. France's coefficients mean nothing
-for Finland; that is not what they are for. Both implementations get the identical definition, and
-the question asked is whether they apply it identically — which on the FINCH surface is a different
-question, because an energy impact propagates through the Kevin Hall energy balance into weight and
-BMI rather than sitting in a static factor.
+`Energy` becomes `EnergyIntake`, which is FINCH's name for it.
+
+### On the FINCH surface, an intervention scenario does nothing at all
+
+That is not a defect here and it is not a defect in the comparison; it is how the baseline is
+built, and this build reproduces it. In the whole of the baseline, `Scenario::apply` — the call
+that hands a person and a risk factor to the active policy — has **exactly one call site**:
+
+```
+hgps_main/src/HealthGPS/dynamic_hierarchical_linear_model.cpp:110
+```
+
+The `StaticLinear` and `KevinHall` models never call it. So the six intervention scenarios reach
+the **HLM** surface and nothing else, and on `KevinHall_FINCH` all six — including
+`food_labelling`'s energy adjustments and `fiscal`'s impact types — are inert. This build has the
+same single call site, in `src/model/riskfactor/hlm_model.cpp`.
+
+It is measurable rather than inferred. Running FINCH with `marketing` active and with `simple`
+active gives, for the same seed, **byte-identical reduced output in both scenarios and in both
+implementations** — 2,530 of 2,530 series identical on each side.
+
+That explains something the config looked odd about: `KevinHall_FINCH` ships `simple` with an empty
+impact list because filling it would change nothing. And it is why FINCH's policy lives somewhere
+else entirely, in `policy_start_year` and the S1 policy-effect coefficients.
+
+So what the five extra FINCH runs establish is narrower than it looks, and the narrow thing is
+worth having: **both implementations agree that these policies are inert on this surface**, for
+each policy separately, which is what catches an implementation that wired `apply` into a model the
+baseline does not. What they do not do is exercise the five policies' own rules — that is
+`HLM_France`'s job, where the definitions are upstream's own and the model does consult them.
+
+Whether an intervention scenario *should* reach the Kevin Hall surface is an upstream design
+question, and it is in [docs/backlog.md](backlog.md) as one.
 
 <!-- INTERVENTION-RESULTS -->
 
