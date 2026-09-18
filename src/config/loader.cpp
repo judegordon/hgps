@@ -844,7 +844,17 @@ bool load_output(const JsonCursor &root, const LoadOptions &options, Config &con
     const auto folder = output->string("folder");
     const auto configured_folder = folder.value_or("");
 
-    if (options.output_folder.has_value() && !configured_folder.empty()) {
+    if (options.output_folder.has_value() && options.output_folder_override.has_value()) {
+        report.error(IssueCode::config_bad_value, IssueLocation{.field = "--output"},
+                     "an output folder was given both as a command-line override and as a host "
+                     "override; give it in one place");
+    } else if (options.output_folder_override.has_value()) {
+        // The host decides, and the config does not get a vote — not even a warning, because a
+        // warning on every run of a host that always sets this is a warning nobody reads.
+        config.output.folder = expand_folder(*options.output_folder_override,
+                                             IssueLocation{.field = "output_folder_override"},
+                                             report);
+    } else if (options.output_folder.has_value() && !configured_folder.empty()) {
         output->error("folder", IssueCode::config_bad_value,
                       "an output folder was given both here and on the command line; give it in "
                       "one place");

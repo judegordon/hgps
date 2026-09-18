@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 project(healthgps
-        VERSION 0.1.0
+        VERSION 0.2.0
         DESCRIPTION "Deterministic reimplementation of the Health-GPS population health microsimulation"
         LANGUAGES CXX)
 
@@ -23,6 +23,7 @@ if(WIN32)
 endif()
 
 include(cmake/warnings.cmake)
+include(cmake/build_info.cmake)
 include(CTest)
 
 find_package(fmt CONFIG REQUIRED)

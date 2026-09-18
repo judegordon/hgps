@@ -12,6 +12,7 @@
 #include "model/ses_module.h"
 #include "scenario.h"
 
+#include <cstddef>
 #include <functional>
 #include <memory>
 #include <string>
@@ -37,6 +38,40 @@ struct ResultRow {
     model::ModelResult result;
 };
 
+/// @brief Watches a run go by, and can ask it to stop.
+///
+/// The one channel through which anything outside the simulation learns that a year has finished.
+/// It is deliberately narrow: an observer receives copies of numbers the run has already computed
+/// and returns nothing the run reads, so there is no way for one to consume a random draw, reorder
+/// work, or change a result. `hgps::api::EventSubscriber` is the public face of this
+/// (docs/decisions/0033-an-event-stream-the-simulation-cannot-see.md).
+///
+/// Cancellation lives here too, as a predicate the runner consults **between** years and between
+/// scenarios rather than inside a population sweep — so a cancelled run is a prefix of the run that
+/// would have happened, never a half-updated cohort.
+struct RunHooks {
+    /// @brief Called as each scenario starts. `run` is the 1-based trial run number.
+    std::function<void(ScenarioType type, const std::string &name, unsigned int run)>
+        scenario_started{};
+
+    /// @brief Called as each simulated year finishes, with the wall-clock time it took and the
+    ///        number of people alive and present at the end of it.
+    std::function<void(ScenarioType type, const std::string &name, unsigned int run, int year,
+                       double elapsed_ms, std::size_t population_size)>
+        year_completed{};
+
+    /// @brief Called as each scenario finishes, with how many years it actually simulated.
+    std::function<void(ScenarioType type, const std::string &name, unsigned int run,
+                       double elapsed_ms, std::size_t years_completed)>
+        scenario_completed{};
+
+    /// @brief True when the run should stop at its next safe point. Never called from inside a
+    ///        population sweep.
+    std::function<bool()> cancelled{};
+
+    bool is_cancelled() const { return cancelled && cancelled(); }
+};
+
 /// @brief Runs one scenario over the horizon.
 ///
 /// The baseline wraps this in the vendored adevs discrete-event simulator, which buys a clock and
@@ -57,8 +92,9 @@ class Engine {
     /// @param run The 1-based trial run number.
     /// @param run_seed The seed for this run, the same for both scenarios.
     /// @param journal Written by the baseline scenario, read by the intervention.
-    std::vector<ResultRow> run(unsigned int run, std::uint32_t run_seed,
-                               ScenarioJournal &journal);
+    /// @param hooks Progress and cancellation, or null for neither.
+    std::vector<ResultRow> run(unsigned int run, std::uint32_t run_seed, ScenarioJournal &journal,
+                               const RunHooks *hooks = nullptr);
 
   private:
     std::shared_ptr<const model::ModelInput> inputs_;
@@ -97,15 +133,27 @@ class Runner {
 
     Runner() = default;
 
+    /// @brief What one call to `run` did.
+    struct Outcome {
+        /// @brief Wall-clock milliseconds taken.
+        double elapsed_ms{};
+
+        /// @brief True if the hooks' cancellation predicate stopped it short of the horizon.
+        bool cancelled{};
+
+        /// @brief How many scenario-years were simulated and handed to the sink.
+        std::size_t years_completed{};
+    };
+
     /// @brief Runs `trial_runs` runs of the baseline alone.
-    /// @return The wall-clock milliseconds taken.
-    double run(Engine &baseline, unsigned int trial_runs, std::uint32_t master_seed,
-               const ResultSink &sink);
+    Outcome run(Engine &baseline, unsigned int trial_runs, std::uint32_t master_seed,
+                const ResultSink &sink, const RunHooks *hooks = nullptr);
 
     /// @brief Runs `trial_runs` runs of the baseline then the intervention, sharing each run's
     ///        seed — the common-random-numbers method the model's whole purpose rests on.
-    double run(Engine &baseline, Engine &intervention, unsigned int trial_runs,
-               std::uint32_t master_seed, const ResultSink &sink);
+    Outcome run(Engine &baseline, Engine &intervention, unsigned int trial_runs,
+                std::uint32_t master_seed, const ResultSink &sink,
+                const RunHooks *hooks = nullptr);
 
   private:
     ScenarioJournal journal_;

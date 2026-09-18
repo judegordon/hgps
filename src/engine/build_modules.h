@@ -1,5 +1,9 @@
 // Turns a validated config and an open data store into the five modules a run needs.
 //
+// Engine internals, not the public API: `include/hgps/engine.h` is what a caller sees, and
+// `build_run` is this file's one public face
+// (docs/decisions/0032-library-and-a-thin-cli.md).
+//
 // Derived from Health-GPS (BSD-3-Clause, Imperial College London / INRAE); see LICENSE.
 // Origin: the build_*_module functions and src/HealthGPS/converter.cpp, and the wiring in
 //         src/HealthGPS.Console/program.cpp.
@@ -18,7 +22,7 @@
 #include <optional>
 #include <vector>
 
-namespace hgps::app {
+namespace hgps::engine {
 
 /// @brief Everything a run needs, loaded once, before any scenario starts.
 ///
@@ -60,4 +64,4 @@ std::optional<sim::Modules> build_modules(const LoadedInputs &loaded,
                                           sim::ScenarioJournal &journal,
                                           diag::IssueReport &report);
 
-} // namespace hgps::app
+} // namespace hgps::engine

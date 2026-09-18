@@ -25,6 +25,12 @@ struct Options {
     int job_id{0};
     bool verbose{false};
 
+    /// @brief Print a line as each simulated year finishes, and a header before the run.
+    ///
+    /// Off by default. The engine emits the events either way — they cost a function call per year
+    /// and cannot change a result — and this only decides whether they are printed.
+    bool progress{false};
+
     /// @brief Print the help text and exit.
     bool help{false};
 

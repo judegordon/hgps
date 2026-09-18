@@ -9,7 +9,7 @@
 
 #include <fmt/format.h>
 
-namespace hgps::app {
+namespace hgps::engine {
 namespace {
 
 /// @brief The union of what two models assign: either one giving people an attribute is enough.
@@ -529,4 +529,4 @@ std::optional<sim::Modules> build_modules(const LoadedInputs &loaded,
     return modules;
 }
 
-} // namespace hgps::app
+} // namespace hgps::engine

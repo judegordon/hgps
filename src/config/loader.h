@@ -15,6 +15,15 @@ struct LoadOptions {
     /// @brief `--output` — allowed only when `output.folder` is empty, as upstream.
     std::optional<std::string> output_folder;
 
+    /// @brief Replaces `output.folder` whatever the config says, with no diagnostic.
+    ///
+    /// The one-place rule above is command-line ergonomics: a person who typed `--output` and also
+    /// wrote a folder in the file has made a mistake worth telling them about. A library host that
+    /// keeps results in a directory of its own choosing — a file dialogue's answer, an HPC job
+    /// directory — has not, and needs the config's value to simply not apply. Setting both this and
+    /// `output_folder` is an error.
+    std::optional<std::string> output_folder_override;
+
     /// @brief `--jobid` for HPC array jobs; 0 means "not a job".
     int job_id{0};
 

@@ -16,12 +16,14 @@ file(GLOB_RECURSE HGPS_TEST_SOURCES CONFIGURE_DEPENDS
      "${CMAKE_CURRENT_SOURCE_DIR}/model/*.cpp"
      "${CMAKE_CURRENT_SOURCE_DIR}/sim/*.cpp"
      "${CMAKE_CURRENT_SOURCE_DIR}/output/*.cpp"
+     "${CMAKE_CURRENT_SOURCE_DIR}/engine/*.cpp"
+     "${CMAKE_CURRENT_SOURCE_DIR}/app/*.cpp"
      "${CMAKE_CURRENT_SOURCE_DIR}/support/*.cpp")
 
 add_executable(hgps_tests ${HGPS_TEST_SOURCES})
 hgps_target_options(hgps_tests)
 target_include_directories(hgps_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
-target_link_libraries(hgps_tests PRIVATE hgps GTest::gtest GTest::gtest_main)
+target_link_libraries(hgps_tests PRIVATE hgps::internal hgps::cli GTest::gtest GTest::gtest_main)
 
 # The synthetic data pack is generated into the build tree at build time rather than committed,
 # so a test never reads a stale copy and the repository holds no generated data
@@ -45,7 +47,8 @@ target_compile_definitions(hgps_tests PRIVATE
     HGPS_EXAMPLES_DIR="${CMAKE_SOURCE_DIR}/examples"
     HGPS_UPSTREAM_EXAMPLES_DIR="${CMAKE_SOURCE_DIR}/../hgps_main_examples"
     HGPS_SCHEMAS_DIR="${CMAKE_SOURCE_DIR}/schemas"
-    HGPS_BINARY_DIR="${CMAKE_BINARY_DIR}")
+    HGPS_BINARY_DIR="${CMAKE_BINARY_DIR}"
+    HGPS_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
 include(GoogleTest)
 gtest_discover_tests(hgps_tests

@@ -2,119 +2,53 @@
 
 #include "test_paths.h"
 
-#include "app/build_modules.h"
-#include "config/loader.h"
-#include "core/parallel.h"
-#include "data/store.h"
-#include "io/data_source.h"
-#include "output/result_writer.h"
-#include "random/seed.h"
-#include "sim/engine.h"
-
 #include <fstream>
 
 namespace hgps::test {
 
 RunOutcome run_simulation(const std::filesystem::path &config_path,
-                          const std::filesystem::path &output_folder, std::size_t threads) {
+                          const std::filesystem::path &output_folder, std::size_t threads,
+                          hgps::api::EventSubscriber *subscriber,
+                          const hgps::api::CancellationToken &cancellation) {
     RunOutcome outcome;
 
-    const hgps::core::parallel::WorkerCountScope workers{threads};
-
-    // The config is loaded as it stands and then its output folder is replaced, rather than
-    // passing --output: giving a folder in both places is an error, and the point of the harness
-    // is to run the real config unaltered.
-    auto config = hgps::config::load(config_path, hgps::config::LoadOptions{}, outcome.report);
-    if (!config.has_value()) {
-        return outcome;
-    }
-
+    // The host override, not `--output`: the synthetic config names an output folder of its own,
+    // and the point of a test run is to run the real config unaltered while putting its results
+    // where the test can find them.
     std::filesystem::create_directories(output_folder);
-    config->output.folder = output_folder.string();
 
-    const hgps::io::DataSource source{config->data.source, config->data.checksum,
-                                      config->root_path};
-    const auto data_directory = source.resolve(outcome.report);
-    if (!data_directory.has_value()) {
+    hgps::api::LoadOptions load_options;
+    load_options.output_folder_override = output_folder.string();
+
+    const auto configuration =
+        hgps::api::load_configuration(config_path, load_options, outcome.report);
+    if (!configuration.has_value()) {
         return outcome;
     }
 
-    const auto store = hgps::data::Store::open(*data_directory, outcome.report);
-    if (!store.has_value() || outcome.report.has_errors()) {
+    const auto data = hgps::api::resolve_data(*configuration, outcome.report);
+    if (!data.has_value()) {
         return outcome;
     }
 
-    const auto loaded = hgps::app::load_inputs(*config, *store, outcome.report);
-    if (!loaded.has_value()) {
+    auto run = hgps::api::build_run(*configuration, *data, outcome.report);
+    if (!run.has_value()) {
         return outcome;
     }
 
-    hgps::sim::ScenarioJournal journal;
+    hgps::api::RunOptions run_options;
+    run_options.threads = threads;
 
-    auto baseline_modules = hgps::app::build_modules(*loaded, *config, journal, outcome.report);
-    if (!baseline_modules.has_value()) {
-        return outcome;
-    }
+    const auto summary =
+        hgps::api::execute(*run, run_options, subscriber, cancellation, outcome.report);
 
-    std::optional<hgps::sim::Modules> intervention_modules;
-    if (config->running.active_intervention.has_value()) {
-        intervention_modules = hgps::app::build_modules(*loaded, *config, journal, outcome.report);
-        if (!intervention_modules.has_value()) {
-            return outcome;
-        }
-    }
-
-    hgps::output::RunMetadata metadata;
-    metadata.model = "healthgps";
-    metadata.version = "test";
-    metadata.intervention = config->running.active_intervention.has_value()
-                                ? config->running.active_intervention->identifier
-                                : "";
-    metadata.seed = config->running.seed;
-    for (unsigned int run = 0; run < config->running.trial_runs; ++run) {
-        metadata.run_seeds.push_back(hgps::rng::derive_run_seed(config->running.seed, run));
-    }
-    metadata.config_path = config->source_path;
-    metadata.config_sha256 = config->source_sha256;
-    metadata.country = loaded->inputs->settings().country.name;
-    metadata.start_time = config->running.start_time;
-    metadata.stop_time = config->running.stop_time;
-    metadata.trial_runs = config->running.trial_runs;
-    metadata.cohort_size = loaded->cohort_size;
-
-    const auto output_path =
-        std::filesystem::path{config->output.folder} /
-        hgps::config::expand_output_file_name(config->output, config->job_id);
-
-    {
-        hgps::output::ResultWriter writer{output_path, metadata,
-                                          loaded->inputs->income_analysis_enabled(),
-                                          loaded->inputs->income_layout()};
-
-        hgps::sim::Engine baseline{loaded->inputs,
-                                    std::make_unique<hgps::sim::BaselineScenario>(),
-                                    std::move(*baseline_modules), config->running.seed};
-
-        hgps::sim::Runner runner;
-        const auto sink = [&writer](const hgps::sim::ResultRow &row) { writer.write(row); };
-
-        if (intervention_modules.has_value()) {
-            hgps::sim::Engine intervention{
-                loaded->inputs,
-                hgps::sim::create_intervention_scenario(*config->running.active_intervention),
-                std::move(*intervention_modules), config->running.seed};
-            runner.run(baseline, intervention, config->running.trial_runs, config->running.seed,
-                       sink);
-        } else {
-            runner.run(baseline, config->running.trial_runs, config->running.seed, sink);
-        }
-
-        outcome.csv_path = writer.csv_path();
-        outcome.json_path = writer.json_path();
-        outcome.all_paths = writer.paths();
-    }
-
-    outcome.succeeded = true;
+    outcome.succeeded = summary.succeeded;
+    outcome.cancelled = summary.cancelled;
+    outcome.years_completed = summary.years_completed;
+    outcome.csv_path = summary.result_csv;
+    outcome.json_path = summary.result_json;
+    outcome.manifest_path = summary.manifest;
+    outcome.all_paths = summary.outputs;
     return outcome;
 }
 

@@ -1,10 +1,8 @@
 #pragma once
 
-#include "config/types.h"
-#include "diagnostics/issue_report.h"
+#include "hgps/engine.h"
 
 #include <filesystem>
-#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -16,23 +14,35 @@ namespace hgps::test {
 /// @brief What one harness run produced.
 struct RunOutcome {
     bool succeeded{false};
-    hgps::diag::IssueReport report;
+    hgps::api::Report report;
     std::filesystem::path csv_path;
     std::filesystem::path json_path;
+    std::filesystem::path manifest_path;
     std::vector<std::filesystem::path> all_paths;
+
+    /// @brief Set when the run was cancelled before the horizon.
+    bool cancelled{false};
+
+    /// @brief How many scenario-years were simulated.
+    std::size_t years_completed{0};
 };
 
-/// @brief Runs a whole simulation in process, through the same code path as the CLI.
+/// @brief Runs a whole simulation in process, through the public API and nothing else.
 ///
-/// Everything but argument parsing: config loading, data resolution, model loading, the engine,
-/// the runner and the writer. That is what makes the reproducibility test meaningful — it
-/// exercises the real pipeline rather than a test-only arrangement of it.
+/// This used to be a copy of `main()`'s body, which is why the library/CLI split exists: the
+/// sequence of load, resolve, build and execute belongs to the engine, and this function is now
+/// four calls to it. A test that passes here therefore exercises exactly what a caller — the CLI,
+/// or a GUI — gets (docs/decisions/0032-library-and-a-thin-cli.md).
 ///
 /// @param config_path The config v2 file to run.
 /// @param output_folder Where results go; the config's own output.folder is overridden.
 /// @param threads Workers for the RNG-free parallel sections.
+/// @param subscriber Progress events, or null for none.
+/// @param cancellation Checked between years; the default token is never cancelled.
 RunOutcome run_simulation(const std::filesystem::path &config_path,
-                          const std::filesystem::path &output_folder, std::size_t threads = 1);
+                          const std::filesystem::path &output_folder, std::size_t threads = 1,
+                          hgps::api::EventSubscriber *subscriber = nullptr,
+                          const hgps::api::CancellationToken &cancellation = {});
 
 /// @brief The synthetic config as JSON, for a test that needs to change something in it.
 nlohmann::json synthetic_config_document();

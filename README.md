@@ -36,6 +36,7 @@ that enforces each one.
 | | |
 |---|---|
 | [docs/design.md](docs/design.md) | module layout, data flow, the determinism contract, the parallelism model, config v2, I/O formats |
+| [docs/api.md](docs/api.md) | the public C++ API: the four calls, the handles, the event stream, cancellation, what it throws |
 | [docs/decisions/](docs/decisions) | one Architecture Decision Record per design choice, with the alternatives that were rejected |
 | [docs/deviations.md](docs/deviations.md) | every behaviour that intentionally differs from the baseline, with the audit finding ID and the evidence |
 | [docs/build-notes.md](docs/build-notes.md) | how the baseline reference build was produced, and what its test suite reports |
@@ -62,6 +63,43 @@ Presets: `release`, `debug`, `asan-ubsan`, `tsan`. Dependencies are `fmt`, `nloh
 implemented here, and HTTP download and zip extraction are delegated to `curl` and `unzip`
 ([ADR 0014](docs/decisions/0014-minimal-dependency-set.md)).
 
+The build produces a library and a program. `hgps::engine` is the simulation; `healthgps` is a
+command-line client of it that parses arguments, prints, and does nothing else
+([ADR 0032](docs/decisions/0032-library-and-a-thin-cli.md)).
+
+## Using it as a library
+
+```cmake
+add_subdirectory(hgps_new_rewrite)
+target_link_libraries(my_host PRIVATE hgps::engine)
+```
+
+The whole API is `include/hgps/`, and it is four calls: load a configuration, resolve its data, build
+a run, execute it.
+
+```cpp
+#include "hgps/engine.h"
+
+hgps::api::Report report;
+const auto configuration = hgps::api::load_configuration(path, {}, report);
+if (!configuration) { std::cerr << report.to_string(); return 3; }
+
+const auto data = hgps::api::resolve_data(*configuration, report);
+auto run = hgps::api::build_run(*configuration, *data, report);
+const auto summary = hgps::api::execute(*run, {}, &my_subscriber, token, report);
+```
+
+Each of the first three accumulates every problem it finds into the `Report` and returns nothing if
+any of them is an error, so a host can validate a configuration in milliseconds without touching the
+network and show the user everything that is wrong at once. `execute` takes an `EventSubscriber` —
+run started, scenario started, year completed, run completed — and a `CancellationToken` that stops
+the run at the end of its current year. The library writes to neither `stdout` nor `stderr`; there is
+no stream in its API.
+
+[docs/api.md](docs/api.md) is the contract: what the handles own, what the events guarantee, and what
+is not there yet. The example above is abridged; the one in that document is compiled and run by the
+test suite.
+
 ## Running
 
 ```bash
@@ -78,7 +116,13 @@ implemented here, and HTTP download and zip extraction are delegated to `curl` a
 ```
 
 `--threads N` sets the worker count for the RNG-free parallel sections; the default is one, and the
-output is byte-identical either way. `--help` lists the rest.
+output is byte-identical either way. `--progress` prints a line as each simulated year finishes.
+`--help` lists the rest.
+
+Every run writes a **manifest** JSON beside its results — the config hash, the data checksum, the seed
+actually used, the engine version and commit, the host platform, the start and end times, and the
+scenarios that ran ([ADR 0034](docs/decisions/0034-a-run-manifest-beside-the-results.md)). The result
+CSVs are unchanged by its existence.
 
 `convert-config` also takes `--policy-scenario S1..S7`, which selects one of the seven modelled
 policy scenarios the FINCH data pack ships. It matters for exactly one example, whose static model

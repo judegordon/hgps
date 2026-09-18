@@ -32,6 +32,7 @@ Options:
   -o, --output DIR      The output folder, when the config leaves output.folder empty.
       --dry-run         Validate the config, the models, the data index and the disease
                         registry, then stop. Reports every problem it finds, not just the first.
+      --progress        Print a line as each simulated year finishes, on stderr.
   -j, --jobid N         An HPC array job identifier. Appended to the output file name unless the
                         name contains {JOBID}.
   -T, --threads N       Workers for the RNG-free parallel sections (default 1). The output is
@@ -40,8 +41,12 @@ Options:
       --version         Print the version and exit.
   -h, --help            Print this and exit.
 
+Every run writes a manifest JSON beside its results recording the config hash, the data
+checksum, the seed used, the engine version and commit, the host platform and the scenarios run.
+
 The same config, seed, data and binary produce byte-identical CSV output on every run. See
-docs/design.md section 4 for the contract and how it is enforced.
+docs/design.md section 4 for the contract and how it is enforced. The engine is a library —
+hgps::engine, docs/api.md — and this program is a client of it.
 )";
 }
 
@@ -91,6 +96,11 @@ OptionsResult parse_options(const std::vector<std::string> &arguments) {
 
         if (argument == "--dry-run") {
             options.dry_run = true;
+            continue;
+        }
+
+        if (argument == "--progress") {
+            options.progress = true;
             continue;
         }
 

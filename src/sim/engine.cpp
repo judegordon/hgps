@@ -17,6 +17,15 @@ namespace {
 
 using Clock = std::chrono::steady_clock;
 
+void notify_scenario_completed(const RunHooks *hooks, const Engine &engine, unsigned int run,
+                               Clock::time_point started, std::size_t years_completed) {
+    if (hooks == nullptr || !hooks->scenario_completed) {
+        return;
+    }
+    const auto elapsed = std::chrono::duration<double, std::milli>(Clock::now() - started).count();
+    hooks->scenario_completed(engine.type(), engine.name(), run, elapsed, years_completed);
+}
+
 } // namespace
 
 Engine::Engine(std::shared_ptr<const model::ModelInput> inputs,
@@ -34,7 +43,7 @@ ScenarioType Engine::type() const noexcept { return context_.scenario().type(); 
 const std::string &Engine::name() const noexcept { return context_.scenario().name(); }
 
 std::vector<ResultRow> Engine::run(unsigned int run, std::uint32_t run_seed,
-                                   ScenarioJournal &journal) {
+                                   ScenarioJournal &journal, const RunHooks *hooks) {
     const auto start_year = static_cast<int>(inputs_->start_time());
     const auto stop_year = static_cast<int>(inputs_->stop_time());
 
@@ -64,15 +73,43 @@ std::vector<ResultRow> Engine::run(unsigned int run, std::uint32_t run_seed,
                                     .result = modules_.analysis->analyse(context_)});
     };
 
+    if (hooks != nullptr && hooks->scenario_started) {
+        hooks->scenario_started(context_.scenario().type(), context_.scenario().name(), run);
+    }
+
+    // Reading a clock and a population count changes nothing the simulation can see. The timing
+    // is taken around each year rather than accumulated inside the modules so that a subscriber's
+    // own cost is not charged to the year it is reporting on.
+    const auto notify_year = [&](Clock::time_point year_start) {
+        if (hooks == nullptr || !hooks->year_completed) {
+            return;
+        }
+        const auto elapsed =
+            std::chrono::duration<double, std::milli>(Clock::now() - year_start).count();
+        hooks->year_completed(context_.scenario().type(), context_.scenario().name(), run,
+                              context_.time_now(), elapsed,
+                              context_.population().current_active_size());
+    };
+
+    auto year_start = Clock::now();
     initialise_population();
     record();
+    notify_year(year_start);
 
     for (int year = start_year + 1; year <= stop_year; ++year) {
+        // Between years, before any of the year's work: stopping here leaves a whole number of
+        // simulated years, which is what makes a cancelled run a prefix of the full one.
+        if (hooks != nullptr && hooks->is_cancelled()) {
+            break;
+        }
+
+        year_start = Clock::now();
         context_.set_current_time(year);
         journal.reset_adjustment_cursor(run, year);
 
         update_population(journal);
         record();
+        notify_year(year_start);
     }
 
     return results;
@@ -262,8 +299,9 @@ void Engine::apply_net_migration(const MigrationEntry &migration) {
     }
 }
 
-double Runner::run(Engine &baseline, unsigned int trial_runs, std::uint32_t master_seed,
-                   const ResultSink &sink) {
+Runner::Outcome Runner::run(Engine &baseline, unsigned int trial_runs,
+                            std::uint32_t master_seed, const ResultSink &sink,
+                            const RunHooks *hooks) {
     if (trial_runs < 1) {
         throw diag::InternalError("The number of trial runs must not be less than one.");
     }
@@ -273,23 +311,39 @@ double Runner::run(Engine &baseline, unsigned int trial_runs, std::uint32_t mast
     }
 
     const auto start = Clock::now();
+    Outcome outcome;
 
     for (unsigned int run = 1; run <= trial_runs; ++run) {
+        if (hooks != nullptr && hooks->is_cancelled()) {
+            outcome.cancelled = true;
+            break;
+        }
+
         // Derived, not drawn: adding a trial run does not change the earlier runs' seeds
         // (ADR 0015).
         const auto run_seed = rng::derive_run_seed(master_seed, run - 1);
 
         journal_.clear();
-        for (const auto &row : baseline.run(run, run_seed, journal_)) {
+        const auto scenario_start = Clock::now();
+        const auto results = baseline.run(run, run_seed, journal_, hooks);
+        notify_scenario_completed(hooks, baseline, run, scenario_start, results.size());
+
+        for (const auto &row : results) {
             sink(row);
         }
+        outcome.years_completed += results.size();
     }
 
-    return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+    if (hooks != nullptr && hooks->is_cancelled()) {
+        outcome.cancelled = true;
+    }
+    outcome.elapsed_ms = std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+    return outcome;
 }
 
-double Runner::run(Engine &baseline, Engine &intervention, unsigned int trial_runs,
-                   std::uint32_t master_seed, const ResultSink &sink) {
+Runner::Outcome Runner::run(Engine &baseline, Engine &intervention, unsigned int trial_runs,
+                            std::uint32_t master_seed, const ResultSink &sink,
+                            const RunHooks *hooks) {
     if (trial_runs < 1) {
         throw diag::InternalError("The number of trial runs must not be less than one.");
     }
@@ -303,8 +357,14 @@ double Runner::run(Engine &baseline, Engine &intervention, unsigned int trial_ru
     }
 
     const auto start = Clock::now();
+    Outcome outcome;
 
     for (unsigned int run = 1; run <= trial_runs; ++run) {
+        if (hooks != nullptr && hooks->is_cancelled()) {
+            outcome.cancelled = true;
+            break;
+        }
+
         const auto run_seed = rng::derive_run_seed(master_seed, run - 1);
 
         // The baseline runs first and fills the journal; the intervention then replays it. Both
@@ -312,8 +372,17 @@ double Runner::run(Engine &baseline, Engine &intervention, unsigned int trial_ru
         // between the two futures is the policy, not sampling noise.
         journal_.clear();
 
-        const auto baseline_results = baseline.run(run, run_seed, journal_);
-        const auto intervention_results = intervention.run(run, run_seed, journal_);
+        auto scenario_start = Clock::now();
+        const auto baseline_results = baseline.run(run, run_seed, journal_, hooks);
+        notify_scenario_completed(hooks, baseline, run, scenario_start, baseline_results.size());
+
+        // The intervention replays the baseline's journal year by year, so it cannot outrun it: a
+        // cancellation that stopped the baseline short stops the intervention at the same year,
+        // and the pair stays comparable.
+        scenario_start = Clock::now();
+        const auto intervention_results = intervention.run(run, run_seed, journal_, hooks);
+        notify_scenario_completed(hooks, intervention, run, scenario_start,
+                                  intervention_results.size());
 
         // Scenario order, then year order — the output's row order (ADR 0020).
         for (const auto &row : baseline_results) {
@@ -322,9 +391,14 @@ double Runner::run(Engine &baseline, Engine &intervention, unsigned int trial_ru
         for (const auto &row : intervention_results) {
             sink(row);
         }
+        outcome.years_completed += baseline_results.size() + intervention_results.size();
     }
 
-    return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+    if (hooks != nullptr && hooks->is_cancelled()) {
+        outcome.cancelled = true;
+    }
+    outcome.elapsed_ms = std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+    return outcome;
 }
 
 } // namespace hgps::sim

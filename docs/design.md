@@ -28,11 +28,18 @@ reproduce is not evidence.
 
 ## 2. Module layout
 
-Nine modules under `src/`, in dependency order. Nothing depends on anything to its right.
+Ten modules under `src/`, in dependency order. Nothing depends on anything to its right.
 
 ```
-core ← diagnostics ← random ← io ← config ← data ← model ← sim ← output ← app
+core ← diagnostics ← random ← io ← config ← data ← model ← sim ← output ← engine
+                                                                            ↑
+                                                                include/hgps/  ← app
 ```
+
+`engine` is the top of the library and the only module that implements the published API. `app` is
+the command-line host, and it is **not** part of the library: it links `hgps::engine` and sees
+`include/hgps/` alone, so an include of anything under `src/` from the CLI is a compile error rather
+than a review comment ([ADR 0032](decisions/0032-library-and-a-thin-cli.md)).
 
 More precisely (arrows = "may include"):
 
@@ -47,7 +54,9 @@ graph LR
     MODEL[model]
     SIM[sim]
     OUT[output]
-    APP[app]
+    ENG[engine]
+    API["include/hgps/ — the published API"]
+    APP[app — the CLI]
 
     DIAG --> CORE
     RAND --> CORE
@@ -61,8 +70,26 @@ graph LR
     MODEL --> RAND
     SIM --> MODEL
     OUT --> SIM
-    APP --> OUT
+    ENG --> OUT
+    ENG --> API
+    APP --> API
 ```
+
+### 2.0 The three targets
+
+| Target | What it is | Who links it |
+|---|---|---|
+| `hgps::engine` | the simulation. Public include path: `include/` only | the CLI, and any other host |
+| `hgps::internal` | an interface target adding `src/` to the include path | this project's tests and tools |
+| `hgps::cli` | the argument parser and the console reporter | `healthgps`, and `hgps_tests` |
+
+The split between the first two is what makes the boundary real: the tests opt into the internals by
+name, because most of them test one class or one loader, and nothing opts in by accident.
+`tests/app/cli_boundary_test.cpp` reads the CLI's sources and the published headers and checks what
+each includes — CMake enforces it today, and the test is there because a change to a target's include
+directories would silently stop enforcing it while everything went on working.
+
+The public API is four calls and three opaque handles; [docs/api.md](api.md) is its contract.
 
 | Module | Namespace | Responsibility | Must not |
 |---|---|---|---|
@@ -75,7 +102,8 @@ graph LR
 | `src/model` | `hgps::model` | The simulation's subject matter: `Person`, `Population`, `RuntimeContext`, the five modules (demographic, SES, risk factor, disease, analysis), the risk-factor models, the disease models. | write files |
 | `src/sim` | `hgps::sim` | Orchestration: `Scenario` (the baseline and the six interventions), the migration and adjustment journal, the `Engine` that runs one scenario over the horizon, the `Runner` that runs scenarios sequentially, `ModelResult`. | format output |
 | `src/output` | `hgps::output` | `ResultCsvWriter`, `RunMetadataJsonWriter`, `IndividualTrackingCsvWriter`. One owner per file, rows in a defined order. | be shared between threads |
-| `src/app` | `hgps::app` | `main`, command-line options, progress reporting, wiring. | contain model logic |
+| `src/engine` | `hgps::api`, `hgps::engine` | The published API's implementation: the four steps of a run (`session.cpp`), the module wiring (`build_modules.cpp`), the run manifest, the build stamp, and the translation between internal diagnostics and public ones. | write to a stream, or print |
+| `src/app` | `hgps::app` | The CLI: command-line options, the console reporter, `main`. Not part of the library. | contain model logic, or include anything outside `include/hgps/` |
 
 ### 2.1 Where the baseline's monoliths went
 
