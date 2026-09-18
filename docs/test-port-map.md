@@ -164,6 +164,14 @@ is now unported for want of a feature**. What remains unported is the event bus,
 lazy repository and the printed summary boxes, each of which tests a thing this implementation does not
 have by design, and each of which is listed above with the ADR that says why.
 
-Counts verified on 2026-09-18 with `hgps_tests --gtest_list_tests` (665 tests, 86 suites),
-`ctest --preset release -N` (668) and `python3 tests/equivalence/run_test.py` (30), against the
-baseline's `HealthGPS.Tests --gtest_list_tests` (471). None of them is counted by hand.
+Counts verified on 2026-09-18 with `hgps_tests --gtest_list_tests` (738 tests, 93 suites),
+`ctest --preset release -N` (741) and `python3 -m unittest discover -s tests/equivalence` (39),
+against the baseline's `HealthGPS.Tests --gtest_list_tests` (471). None of them is counted by hand.
+
+The growth from 665 to 738 is this run's, and none of it is a port, because the baseline has no
+counterpart for any of it: **26** for the compatibility flag
+([ADR 0041](decisions/0041-deliberate-deviations-are-switchable.md)) — 9 on the flag type, 5 end to
+end, 5 in the config loader, 4 on the command line and 3 on the food-labelling policy — **45** for
+the local server ([ADR 0042](decisions/0042-a-local-server-in-the-same-binary.md)), and **2** more
+in the library/host boundary test, which now reads the server's sources as well as the CLI's. The
+frontend's 48 are counted by `vitest` and are in neither total.
