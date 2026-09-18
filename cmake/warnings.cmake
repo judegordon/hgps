@@ -20,9 +20,17 @@
 # added only where the compiler knows it, so an older clang or a gcc does not see an unknown option.
 # It was found by building with a newer clang than the development one, which is also how two real
 # portability defects were found; see docs/build-notes.md.
+# -Wshadow-field-in-constructor, where the compiler has it.
+#
+# GCC's -Wshadow rejects a constructor parameter that shadows a member; clang's does not, and puts
+# that check behind -Wshadow-field-in-constructor (part of -Wshadow-all). The first CI run found two
+# such parameters in src/model/person.h, on GCC, after every local build had been clean for four
+# runs. Turning the flag on where clang understands it means the development compiler now says what
+# the Linux one would (docs/build-notes.md).
 include(CheckCXXCompilerFlag)
 check_cxx_compiler_flag(-Wno-missing-designated-field-initializers
                         HGPS_HAS_WNO_MISSING_DESIGNATED_FIELD_INITIALIZERS)
+check_cxx_compiler_flag(-Wshadow-field-in-constructor HGPS_HAS_WSHADOW_FIELD_IN_CONSTRUCTOR)
 
 function(hgps_target_options target)
     target_compile_options(${target} PRIVATE
@@ -38,6 +46,9 @@ function(hgps_target_options target)
         -ffp-contract=off)
     if(HGPS_HAS_WNO_MISSING_DESIGNATED_FIELD_INITIALIZERS)
         target_compile_options(${target} PRIVATE -Wno-missing-designated-field-initializers)
+    endif()
+    if(HGPS_HAS_WSHADOW_FIELD_IN_CONSTRUCTOR)
+        target_compile_options(${target} PRIVATE -Wshadow-field-in-constructor)
     endif()
     target_compile_features(${target} PUBLIC cxx_std_20)
 endfunction()

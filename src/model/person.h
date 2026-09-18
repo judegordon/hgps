@@ -38,9 +38,13 @@ class Person {
     static constexpr std::size_t unassigned_id = 0;
 
     Person() = default;
-    explicit Person(core::Gender gender) noexcept : gender{gender} {}
+    // The parameter is not named `gender`: GCC's -Wshadow rejects a constructor parameter that
+    // shadows a member, where clang needs -Wshadow-field-in-constructor to say the same thing.
+    // Both are on now (cmake/warnings.cmake).
+    explicit Person(core::Gender initial_gender) noexcept : gender{initial_gender} {}
     explicit Person(std::size_t id) noexcept : id_{id} {}
-    Person(core::Gender gender, std::size_t id) noexcept : gender{gender}, id_{id} {}
+    Person(core::Gender initial_gender, std::size_t id) noexcept
+        : gender{initial_gender}, id_{id} {}
 
     std::size_t id() const noexcept { return id_; }
     bool has_assigned_id() const noexcept { return id_ != unassigned_id; }
