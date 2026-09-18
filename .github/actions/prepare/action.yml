@@ -1,0 +1,79 @@
+# The part every CI job needs before it can configure CMake: the upstream examples beside the source
+# tree, Ninja, and a vcpkg that already holds the baseline commit vcpkg.json declares.
+#
+# It is a composite action rather than three copies of the same six steps because the three copies is
+# how a workflow drifts: the previous shape of ci.yml had the vcpkg bootstrap written out three times,
+# and a change to the pinned commit would have had to be made in all three.
+#
+# The job checks out the implementation itself, before this — a local action cannot be resolved until
+# the repository holding it is on disk.
+
+name: Prepare a build
+description: Check out the upstream examples beside the source tree, install Ninja, and bootstrap vcpkg.
+
+inputs:
+  vcpkg-commit:
+    description: The vcpkg commit to check out — vcpkg.json's builtin-baseline.
+    required: true
+  examples-repo:
+    description: The upstream examples repository.
+    required: true
+  examples:
+    description: Newline-separated example directories to sparse-check-out.
+    required: true
+  cache-id:
+    description: A name for this toolchain, so two compilers do not share one vcpkg binary cache.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # The tests resolve the upstream examples as a *sibling* of the source tree, so this path is not
+    # incidental: it reproduces the layout docs/build-notes.md describes and tests/CMakeLists.txt
+    # bakes into HGPS_UPSTREAM_EXAMPLES_DIR.
+    - name: Check out the upstream examples
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.examples-repo }}
+        path: hgps_main_examples
+        # 254 MB in full, 177 MB of which is one directory of stored results nothing here reads.
+        sparse-checkout: ${{ inputs.examples }}
+        sparse-checkout-cone-mode: true
+
+    - name: Install Ninja
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ "$RUNNER_OS" = "Linux" ]; then
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+        else
+          brew install ninja
+        fi
+
+    - name: Cache vcpkg
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ github.workspace }}/vcpkg
+          ~/.cache/vcpkg/archives
+        key: vcpkg-${{ inputs.cache-id }}-${{ inputs.vcpkg-commit }}-${{ hashFiles('hgps_new_rewrite/vcpkg.json') }}
+        restore-keys: |
+          vcpkg-${{ inputs.cache-id }}-${{ inputs.vcpkg-commit }}-
+
+    - name: Set up vcpkg
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ ! -x "${{ github.workspace }}/vcpkg/vcpkg" ]; then
+          # Fetching the one commit rather than cloning the history: the repository is large and the
+          # only commit that matters is the declared baseline. A cache hit skips all of this.
+          mkdir -p "${{ github.workspace }}/vcpkg"
+          cd "${{ github.workspace }}/vcpkg"
+          git init -q
+          git remote add origin https://github.com/microsoft/vcpkg.git
+          git fetch --depth 1 -q origin "${{ inputs.vcpkg-commit }}"
+          git checkout -q FETCH_HEAD
+          ./bootstrap-vcpkg.sh -disableMetrics
+        fi
+        echo "VCPKG_ROOT=${{ github.workspace }}/vcpkg" >> "$GITHUB_ENV"
