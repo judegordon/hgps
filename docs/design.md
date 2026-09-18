@@ -75,21 +75,32 @@ graph LR
     APP --> API
 ```
 
-### 2.0 The three targets
+### 2.0 The four targets
 
 | Target | What it is | Who links it |
 |---|---|---|
-| `hgps::engine` | the simulation. Public include path: `include/` only | the CLI, and any other host |
+| `hgps::engine` | the simulation. Public include path: `include/` only | the CLI, the server, and any other host |
 | `hgps::internal` | an interface target adding `src/` to the include path | this project's tests and tools |
+| `hgps::server` | the local JSON server over the library | `healthgps`, and `hgps_tests` |
 | `hgps::cli` | the argument parser and the console reporter | `healthgps`, and `hgps_tests` |
 
 The split between the first two is what makes the boundary real: the tests opt into the internals by
 name, because most of them test one class or one loader, and nothing opts in by accident.
-`tests/app/cli_boundary_test.cpp` reads the CLI's sources and the published headers and checks what
-each includes — CMake enforces it today, and the test is there because a change to a target's include
-directories would silently stop enforcing it while everything went on working.
+`tests/app/cli_boundary_test.cpp` reads **both hosts'** sources and the published headers and checks
+what each includes — CMake enforces it today, and the test is there because a change to a target's
+include directories would silently stop enforcing it while everything went on working.
 
-The public API is four calls and three opaque handles; [docs/api.md](api.md) is its contract.
+There are two hosts now, and the second one is the point of the first being a library: a contract
+with one implementor is a description of that implementor
+([ADR 0042](decisions/0042-a-local-server-in-the-same-binary.md)). Both are held to the same rule —
+the public API and their own headers, nothing else — and the server matters more, because the server
+is where somebody will one day want a number the API does not expose and reaching into `src/` for it
+would be one line.
+
+The public API is four calls and three opaque handles; [docs/api.md](api.md) is its contract, and
+[docs/server-api.md](server-api.md) is the HTTP contract layered on it. `web/` is a single-page app
+over that ([ADR 0043](decisions/0043-a-plain-typescript-frontend.md)); it is served as static files
+by the same binary, so the graphical host is one executable and one folder.
 
 | Module | Namespace | Responsibility | Must not |
 |---|---|---|---|
@@ -103,7 +114,8 @@ The public API is four calls and three opaque handles; [docs/api.md](api.md) is 
 | `src/sim` | `hgps::sim` | Orchestration: `Scenario` (the baseline and the six interventions), the migration and adjustment journal, the `Engine` that runs one scenario over the horizon, the `Runner` that runs scenarios sequentially, `ModelResult`. | format output |
 | `src/output` | `hgps::output` | `ResultCsvWriter`, `RunMetadataJsonWriter`, `IndividualTrackingCsvWriter`. One owner per file, rows in a defined order. | be shared between threads |
 | `src/engine` | `hgps::api`, `hgps::engine` | The published API's implementation: the four steps of a run (`session.cpp`), the module wiring (`build_modules.cpp`), the run manifest, the build stamp, and the translation between internal diagnostics and public ones. | write to a stream, or print |
-| `src/app` | `hgps::app` | The CLI: command-line options, the console reporter, `main`. Not part of the library. | contain model logic, or include anything outside `include/hgps/` |
+| `src/server` | `hgps::server` | The local JSON server: routes, the run registry and its event buffers, the CSV reduction for charting, and the conversion of public types to the shapes [docs/server-api.md](server-api.md) publishes. Not part of the library. | reach into `src/`, bind anywhere but loopback, or run two simulations at once |
+| `src/app` | `hgps::app` | The CLI: command-line options, `serve`'s options, the console reporter, `main`. Not part of the library. | contain model logic, or include anything outside `include/hgps/` and its own directory |
 
 ### 2.1 Where the baseline's monoliths went
 

@@ -31,12 +31,39 @@ cannot be built from an unordered container, and every reduction has a fixed ord
 the thread count. [docs/design.md](docs/design.md) §4 lists all fourteen clauses and the mechanism
 that enforces each one.
 
+## Three ways to use it
+
+The simulation is a **library**; everything else is a client of it
+([ADR 0032](docs/decisions/0032-library-and-a-thin-cli.md)). All three produce byte-identical
+output from the same inputs, and a test asserts that rather than claiming it.
+
+| | What it is | Start with |
+|---|---|---|
+| **Library** | `hgps::engine`, whose whole surface is `include/hgps/`. Load a configuration, resolve its data, build a run, execute it — with an event stream, a cancellation token and located diagnostics | [docs/api.md](docs/api.md) |
+| **Command line** | `healthgps --config FILE`. A thin client of the library: it parses arguments, subscribes to the events, prints, and chooses an exit code | [Running](#running), below |
+| **Graphical** | `healthgps serve --web web/dist`, then a browser. A JSON API over the library and a single-page app on top of it: edit a configuration against the published schema, start a run and watch it, read the results as tables and charts | [docs/server-api.md](docs/server-api.md) |
+
+```bash
+# The graphical host: build the frontend once, then one binary and one folder.
+(cd web && npm ci && npm run build)
+./out/build/release/src/healthgps serve --web web/dist
+#   → http://127.0.0.1:8080
+```
+
+`hgps serve` binds to **loopback only** and refuses anything else before opening the socket. There
+is no authentication, and that is only safe because it cannot be reached from another machine: a
+configuration names files to read and a folder to write
+([ADR 0042](docs/decisions/0042-a-local-server-in-the-same-binary.md)).
+
+`scripts/dev.sh` runs the engine and the frontend's dev server together, for working on the latter.
+
 ## Documentation
 
 | | |
 |---|---|
 | [docs/design.md](docs/design.md) | module layout, data flow, the determinism contract, the parallelism model, config v2, I/O formats |
 | [docs/api.md](docs/api.md) | the public C++ API: the four calls, the handles, the event stream, cancellation, what it throws |
+| [docs/server-api.md](docs/server-api.md) | the local server's JSON API: every endpoint, the event stream, and what it deliberately does not do |
 | [docs/decisions/](docs/decisions) | one Architecture Decision Record per design choice, with the alternatives that were rejected |
 | [docs/deviations.md](docs/deviations.md) | every behaviour that intentionally differs from the baseline, with the audit finding ID and the evidence |
 | [docs/build-notes.md](docs/build-notes.md) | how the baseline reference build was produced, and what its test suite reports |

@@ -200,26 +200,55 @@ defined order" ([ADR 0020](decisions/0020-output-single-owner-defined-row-order.
 in-memory result sink has to be designed so that it cannot become a second, differently ordered
 output path.
 
+## Baseline compatibility flags
+
+`LoadOptions::baseline_compat` and `Configuration::baseline_compat()` carry a set of named
+deviations to put back. With a flag on, the engine reproduces the baseline's behaviour exactly —
+bug and all — so the deviation's effect can be *measured* rather than argued from which
+out-of-tolerance cells look like it ([ADR 0041](decisions/0041-deliberate-deviations-are-switchable.md)).
+
+```cpp
+hgps::api::LoadOptions options;
+options.baseline_compat.set(hgps::api::CompatFlag::b24);
+```
+
+- Off by default, everywhere. The fixed behaviour is the one this project stands behind.
+- A flag is named after its deviation's ID in [docs/deviations.md](deviations.md) — `B-24` — so a
+  flag in a manifest leads straight to the row explaining what it restores. A test asserts every
+  flag has such a row.
+- The configuration document's `baseline_compat` array and this field are **unioned**; neither
+  overrides the other, because both are requests to restore a behaviour.
+- **Every run manifest records the set that was on**, present and empty for an ordinary run, so a
+  result file answers "was this produced with a deviation restored?" without anybody having to ask.
+- `BaselineCompat::known()`, `name_of` and `description_of` enumerate the flags, so a host lists
+  them rather than hard-coding them.
+- Turning one on changes nothing else: a compatibility run keeps the determinism contract.
+
 ## What is not here yet
 
-This API has one implementor — `src/app`, the CLI — and a contract with one implementor is a
-description of that implementor. The gaps below are the ones a *graphical* host would hit, listed
-here because they are properties of this document rather than of any host, and worked through with
-costs in [docs/backlog.md](backlog.md) item 1.
+This API now has **two** implementors — `src/app`, the CLI, and `src/server`, the local JSON server
+([ADR 0042](decisions/0042-a-local-server-in-the-same-binary.md)) — and the second one was built in
+part to find out which of the gaps below actually bite. Two of them do, and are noted as such.
+The rest are listed because they are properties of this document rather than of any host, and are
+worked through with costs in [docs/backlog.md](backlog.md).
 
 | | Missing | Consequence for a host |
 |---|---|---|
-| 1 | **Results in memory.** `execute` writes files; `RunSummary` lists their paths | a host draws its charts by parsing files the engine has just written |
+| 1 | **Results in memory.** `execute` writes files; `RunSummary` lists their paths | a host draws its charts by parsing files the engine has just written. **Now felt for real**: `GET /api/runs/{id}/summary` parses a CSV the engine wrote seconds earlier, in the same process |
 | 2 | **Per-year results in the event stream.** `YearCompleted` carries the year, the elapsed milliseconds and the population size, and no results | a run can be shown progressing but not shown *happening* |
 | 3 | **Progress inside a year.** Events and cancellation are both per-year. A year of `HLM_India` at full scale is about a minute | a progress bar that moves once a minute. The *cancellation* granularity is deliberate and should stay — see above — but the event need not be |
 | 4 | **Structured diagnostic arguments.** `code` and `Location` are structured; the message is prose with the numbers formatted into it | a config error can be located in a file but not turned into a field-level annotation with the offending value |
 | 5 | **Writing a configuration.** The loader reads config v2 and `tools/convert-config` writes it; there is no supported call for a host to modify a `Configuration` and save it | a host can run configurations but not edit them |
 | 6 | **Enumerating a data store.** `Run::description()` says what *this* run will do; nothing says what a pack *offers* — its countries, diseases and risk factors — before a run exists | a host cannot populate a chooser without a run to ask |
-| 7 | **Observable cancellation.** `cancel()` returns at once and the run stops at the end of its current year; there is no way to ask whether it has noticed | a Cancel button cannot honestly change state until `RunCompleted` |
+| 7 | **Observable cancellation.** `cancel()` returns at once and the run stops at the end of its current year; there is no way to ask whether it has noticed | a Cancel button cannot honestly change state until `RunCompleted`. **Now felt for real**: `POST /api/runs/{id}/cancel` returns 202 and the state change arrives on the event stream, which is honest and is more machinery in the client than an observable token would need |
 
 None of these is hard. The reason they are listed rather than built is that items 1 and 2 are one
-design decision about result ownership, and making it for a host that does not exist yet is how the
+design decision about result ownership, and making it for a host that did not exist yet is how the
 wrong answer gets locked in.
+
+**That host exists now**, and the decision is still not made, deliberately: the summary endpoint
+works by parsing a file, which makes the cost of the gap concrete instead of hypothetical. That is a
+better basis for the design than guessing was.
 
 ## Threading and determinism
 

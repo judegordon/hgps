@@ -15,97 +15,55 @@ Tags:
   or the data, and guessing would put an invented number into somebody else's fitted model.
 - `docs`
 
-The previous run's first three items — `StaticLinear`, `KevinHall`, the other five interventions —
-are done, and with them the FINCH surface end to end. This run closed the last three: population
-impact fraction, a CI workflow, and the factor store's lookup. **The model surface is complete**:
-nothing upstream implements is refused here any more.
+**This run closed the previous one's first two items and part of a third.** The graphical host
+exists — a local JSON server and a single-page app over it ([ADR 0042](decisions/0042-a-local-server-in-the-same-binary.md),
+[ADR 0043](decisions/0043-a-plain-typescript-frontend.md)) — and CI has run, which promoted GCC from
+"has never built this tree" to a required, green check. It also added one thing nobody asked for and
+the ruling did: every deliberate deviation is now switchable, so its effect is measured rather than
+argued ([ADR 0041](decisions/0041-deliberate-deviations-are-switchable.md)).
 
-So the ranking below changes shape. What is left is no longer "finish the model"; it is one large
-piece of new work — a graphical host, which is what the library split and the event stream were built
-for — and a tail of validation and cleanup. The GUI is first because it is the only item that needs
-*design* rather than execution, and because the API gaps it needs (item 2) are cheaper to close before
-something depends on the current shape than after.
+So the ranking changes shape again. What is left is: one question that belongs to whoever owns the
+model (interventions on Kevin Hall models), the performance item the profile keeps pointing at, the
+validation this project's own documents hedge about, and Windows. There is no large piece of new work
+at the top any more, which is the first time that has been true.
 
 ## Do these first
 
-### 1. A graphical host, and what the API still owes it — `scope`
+### 1. Interventions on the Kevin Hall model surface — `needs-ruling`
 
-**Value: high. Effort: large, and it is the first item here that is a project rather than a task.**
-[ADR 0032](decisions/0032-library-and-a-thin-cli.md) split the engine from the CLI so that something
-other than a terminal could drive it, [ADR 0033](decisions/0033-an-event-stream-the-simulation-cannot-see.md)
-gave it an event stream a host can render, and [ADR 0034](decisions/0034-a-run-manifest-beside-the-results.md)
-gave every run a manifest. Nothing uses any of it yet. A host would be the first real test of whether
-that API is the right shape, and `docs/api.md` is currently a contract with one implementor.
+**Value: high. Effort: none here, and that is the point.** It was item 8; it is first now because
+everything above it is done and because it is the largest thing this build refuses that a user could
+reasonably want.
 
-**What a GUI needs from `hgps::engine` that is not there.** This list is the substance of the item;
-the widgets are the easy half.
+An intervention selected on the `StaticLinear`/`KevinHall` surface has **no effect at all** in the
+baseline, and the run reports success: `Scenario::apply` has exactly one call site in the whole
+upstream tree, in the dynamic hierarchical linear model, and neither `static_linear_model.cpp` nor
+`kevin_hall_model.cpp` calls it (deviation **B-25**). So `KevinHall_FINCH` with `food_labelling`
+active produces output byte-identical to the same run with `simple` active.
 
-| | What is missing | Why a host needs it | Rough cost |
-|---|---|---|---|
-| 1 | **Results in memory.** `execute` writes CSVs and `RunSummary` lists the paths. A host that wants to draw a chart has to parse files the engine just wrote | every chart, every table, every live-updating view | medium — and it needs care: the output contract is "one owner per file, rows in a defined order" ([ADR 0020](decisions/0020-output-single-owner-defined-row-order.md)), and an in-memory sink must not become a second, differently ordered output path |
-| 2 | **Per-year results in the event stream.** `YearCompleted` carries the year, the elapsed milliseconds and the population size — enough for a progress bar, nothing for a live chart | showing a run as it happens, which is most of why a GUI is better than a CLI | medium, and it is item 1's design decided once rather than twice |
-| 3 | **Progress inside a year.** Cancellation and events are both per-year by design, and a year of `HLM_India` is 60 seconds at full scale. A progress bar that moves once a minute is a spinner | any run larger than the reference examples | small for the event; the *cancellation* granularity is deliberate ([docs/api.md](api.md)) and should stay per-year |
-| 4 | **A machine-readable `Diagnostic`.** The code and location are structured, but the message is a prose string with numbers in it. A host that wants to underline the offending line in an editor has `Location`; one that wants to offer "fix this for me" has a sentence | showing config errors in a form editor rather than a log pane | small–medium: it needs the arguments carried beside the formatted message |
-| 5 | **Config *writing*.** `tools/convert-config` writes config v2 and the loader reads it; there is no supported way for a host to modify a configuration and save it. A GUI is mostly a config editor | the whole editing half of a GUI | medium, and it wants the schema to drive it ([item 11](#11-a-schema-for-the-model-definition-files--docs)) |
-| 6 | **Enumerating what a data pack offers.** `Run::description()` answers what *this* run will do. A host building a config needs the other direction: which countries, diseases and risk factors the store has, before a run exists | every dropdown in the editor | small: the index is already parsed and validated |
-| 7 | **Cancellation that is observable.** `CancellationToken::cancel()` returns immediately and the run stops at the end of its current year. A host has no way to ask "has it noticed yet?" without waiting for `RunCompleted` | a Cancel button that can grey itself out honestly | small |
-| 8 | **A version on the API.** [docs/api.md](api.md) says there is none, which is correct while nothing depends on it. A GUI is the thing that starts depending on it | not breaking the host on every engine change | small, and it is a decision rather than code |
+This build **refuses** such a configuration at load time rather than running it silently, with a
+located issue naming the intervention, how many impacts it declares and the dynamic model file. That
+is the right behaviour given the choice between "silently do nothing" and "say so"; it is not the
+right behaviour if what upstream wants is for the policy to apply.
 
-Items 1 and 2 are one design; 3, 6 and 7 are small and independent; 4 and 5 are the ones that decide
-whether the GUI can be a *config editor* or only a *run viewer*, which is the real scope question and
-belongs to whoever wants the GUI rather than here.
+**The question that has to be answered elsewhere**: on the Kevin Hall surface, a policy that shifts
+a nutrient has to propagate through the energy-balance model, and *where* it is applied changes the
+answer — before the balance runs, after it, or to the intake targets. That is a modelling decision
+with a fitted model behind it, and guessing would put an invented mechanism into somebody else's
+work. Until it is answered, four of the six upstream examples can only be run with `simple`.
 
-**What it does not need.** Threading (the engine is process-wide single-run by design and says so),
-determinism work (byte-identical at any thread count already), or a new output format.
+See [docs/deviations.md](deviations.md) B-25 and `tests/config/intervention_reach_test.cpp`.
 
-### 2. Make the GCC build a required check — `platform`
+### 2. Resolve names to indices at the call site — `cleanup`
 
-**Value: medium-high. Effort: unknown until it is run once.** `.github/workflows/ci.yml` builds and
-tests four presets on ubuntu-latest and macos-latest, runs the harness's own tests, and runs the
-equivalence comparison against both checked-in references — so the thing this item used to ask for
-exists. What is left is the compiler.
+**Value: medium-high. Effort: medium, and it touches the model loaders.** Unchanged from the
+previous run except in rank: it is the largest remaining performance item and the profile has
+pointed at it for two runs.
 
-Every build this project has ever done is clang. The warning set is `-Werror` with `-Wconversion`,
-`-Wsign-conversion`, `-Wold-style-cast` and `-Wdouble-promotion`, and a second compiler *family* has
-never seen it. Building with a newer clang than the development one found two real defects and one
-style disagreement ([docs/build-notes.md](build-notes.md)), which is a fair guide to what GCC will
-find.
-
-So the two GCC entries in the build matrix carry `experimental: true`, which makes them
-`continue-on-error`: the information appears on every run without a red tick in a commit that cannot
-act on it. Promoting them means deleting that flag, reading what GCC says and fixing it, which cannot
-be estimated before seeing it — hence this item rather than a guess.
-
-**Nothing in this repository has ever been built by GCC, or on Linux, or by CI.** The workflow was
-written this run and validated by reading it against `scripts/check.sh` step by step, because neither
-`act` nor Docker is installed on the development host ([docs/build-notes.md](build-notes.md)). The
-first real run of it is also the first evidence that it works, and the honest expectation is that
-something in it is wrong.
-
-### 3. A runnable Kevin Hall example, which needs upstream — `needs-ruling`
-
-**Value: high. Effort: none here.** Population impact fraction is implemented
-([ADR 0038](decisions/0038-population-impact-fraction.md)) and `KevinHall_PIF` loads completely: config,
-both model files, the registry, 69 fraction tables, both scenarios' modules. It then stops in its first
-simulated year, on `KevinHall_India`'s defect, because it is the same data — `India.DataFile.csv` and
-both weight-quantile files are byte-for-byte identical between the two examples, and both put `Weight`'s
-lower bound at 3.319358 kg, above what the curve produces for the lightest newborns. **The baseline dies
-in the same place.**
-
-So the whole Kevin Hall + India data family — `KevinHall_India`, `KevinHall_PIF` and all twelve of the
-latter's alternatives — cannot be run by either implementation, and no code change here can fix it:
-raising the curve or lowering the bound would both be inventing a number for somebody else's fitted
-model. This is item 6's question asked again from a second direction, and answering it would unblock
-two examples rather than one, plus the only PIF equivalence comparison there could be.
-
-### 4. Resolve names to indices at the call site — `cleanup`
-
-**Value: medium. Effort: medium, and it touches the model loaders.**
 [ADR 0037](decisions/0037-index-keyed-risk-factor-store.md) made `Person::risk_factors` index-keyed
 and [ADR 0040](decisions/0040-a-bounded-search-for-the-long-vectors.md) fixed the lookup that left
-behind — `KevinHall_FINCH` is 1.54× and then a further 1.44× faster, and the output is byte-identical
-across both. **The first half of this item is therefore done**; what is left is the half the profile
-said was bigger.
+behind — `KevinHall_FINCH` is 1.54× and then a further 1.44× faster, byte-identical across both.
+**The first half of this item is done**; what is left is the half the profile said was bigger.
 
 **About 31% of the FINCH profile is names being resolved at the call site.** The store no longer
 compares strings; its callers still hand it a `core::Identifier`, which costs a hash probe, and some
@@ -122,7 +80,23 @@ the first attempt at ADR 0037 within minutes: run both examples before and after
 result files **byte for byte**. A statistical comparison over twenty seeds calls a last-bit
 difference agreement.
 
-### 5. Individual-level tracking output — `scope`
+### 3. A runnable Kevin Hall example, which needs upstream — `needs-ruling`
+
+**Value: high. Effort: none here.** Population impact fraction is implemented
+([ADR 0038](decisions/0038-population-impact-fraction.md)) and `KevinHall_PIF` loads completely: config,
+both model files, the registry, 69 fraction tables, both scenarios' modules. It then stops in its first
+simulated year, on `KevinHall_India`'s defect, because it is the same data — `India.DataFile.csv` and
+both weight-quantile files are byte-for-byte identical between the two examples, and both put `Weight`'s
+lower bound at 3.319358 kg, above what the curve produces for the lightest newborns. **The baseline dies
+in the same place.**
+
+So the whole Kevin Hall + India data family — `KevinHall_India`, `KevinHall_PIF` and all twelve of the
+latter's alternatives — cannot be run by either implementation, and no code change here can fix it:
+raising the curve or lowering the bound would both be inventing a number for somebody else's fitted
+model. This is item 5's question asked again from a second direction, and answering it would unblock
+two examples rather than one, plus the only PIF equivalence comparison there could be.
+
+### 4. Individual-level tracking output — `scope`
 
 **Value: medium. Effort: low-medium.** `output.individual_tracking` is parsed, validated and
 carried in `config::IndividualTracking`, and nothing writes the file. The baseline's
@@ -133,7 +107,7 @@ counter rather than the earlier rewrite's slot reuse
 
 ## Worth doing soon
 
-### 6. `HLM_India` at the cohort it ships — `validation`
+### 5. `HLM_India` at the cohort it ships — `validation`
 
 **Value: medium. Effort: medium, and all of it is machine time.** `HLM_India` is now compared against
 the baseline at 20 and 60 seeds — but at `size_fraction` 1e-5, which is **12,406 people against the
@@ -146,12 +120,12 @@ specific rather than hypothetical: the emptying-band exclusion is **1,641 bands 
 against 785 on `HLM_France`, and at 1.24 million almost none of those bands would empty at all — so
 the full-scale comparison would exclude far less and test more; and a rare disease that gives 0, 1 or
 2 cases at this cohort size gives hundreds at the shipped one, which moves several of the comparisons
-off the lattice that item 12 is about.
+off the lattice that item 10 is about.
 
 So this is worth doing once, on a machine that can be left alone for a few days, and the stored
 reference would be large — which is item 10.
 
-### 7. A second country for the FINCH surface — `validation`, and it needs upstream
+### 6. A second country for the FINCH surface — `validation`, and it needs upstream
 
 **Value: high. Effort: unknown, and not all of it is here.** The FINCH equivalence evidence is one
 pack, one country. The obvious second is `KevinHall_India`, which uses the same `StaticLinear` and
@@ -167,61 +141,7 @@ Nothing here can fix that: raising the curve or lowering the bound would be inve
 somebody else's fitted model. What this item needs is upstream to say which of the two is wrong.
 Until then the FINCH surface has one country, and that is the largest single gap in the validation.
 
-### 8. Apply interventions on Kevin Hall models — `needs-ruling`
-
-**Value: unknown, and it is not this project's call. Effort: small to wire, unbounded to justify.**
-In the whole baseline, `Scenario::apply` — the call that offers a person and a risk factor to the
-active policy — has one call site, in `dynamic_hierarchical_linear_model.cpp:110`. The `StaticLinear`
-and `KevinHall` models never call it, so **every intervention scenario is inert on that surface**:
-`marketing` and `simple` produce byte-identical output there, in both implementations
-([docs/equivalence.md](equivalence.md)).
-
-**What this run did about it.** Not implement it. A config whose active intervention declares impacts
-the configured dynamic model would never apply is now **rejected at load time**, naming both
-([ADR 0035](decisions/0035-refuse-an-intervention-no-model-applies.md), deviations B-25). An
-intervention with an empty impact list — which is what all four Kevin Hall examples ship — is
-accepted with a warning. So the silent-no-effect run is gone; the feature is not there.
-
-**What the upstream authors' intent appears to be, from the evidence rather than from asking.** Three
-things point the same way, and one points the other.
-
-Pointing at "deliberate":
-
-- `KevinHall_FINCH` ships `simple` with an **empty** `impacts` list, and so do `KevinHall_India`,
-  `KevinHall_PIF` and `Dummy_disease_test`. Somebody who expected the mechanism to work and filled in
-  coefficients would have noticed it doing nothing; somebody who knew it was inert would ship it
-  empty, which is what they did. Four examples out of four.
-- That surface has its own policy mechanism and it does work: `modelling.policy_start_year`, from
-  which `StaticLinear` applies the S1 policy-effect coefficients and the residual policy covariance to
-  the intervention scenario. The baseline's two FINCH scenarios are identical in 2022 and 2023 and
-  differ in 2,476 of 4,600 reduced series in 2024. A per-factor fitted policy effect is a
-  better-founded thing than an age-banded constant shift, and having built the former there is a
-  reason not to wire up the latter.
-- `KevinHall_PIF` is a third mechanism again — a population impact fraction multiplying disease
-  incidence — and it also does not go through `Scenario::apply`. Two of the three policy mechanisms
-  upstream has built since the HLM surface bypass the scenario object entirely.
-
-Pointing at "an oversight":
-
-- The `interventions` block is still parsed, validated and carried for those configs, and
-  `active_type_id` still selects a scenario object that is constructed and then never consulted. If
-  the mechanism were deliberately out of scope for that surface, the natural thing would have been to
-  refuse the key — which is what this build now does.
-
-**What it would take.** Wiring is one call in `StaticLinearModel::update_risk_factors` and one in
-`KevinHallModel::update_risk_factors`, at the point where each writes a factor value. The hard part is
-not the call: it is deciding **where** in the chain it goes on a surface where the factors are
-food-group intakes that feed nutrients that feed an energy balance that produces weight. An age-banded
-shift to `EnergyIntake` is not the same intervention as the same shift to `FoodCarbohydrate`, and
-nothing in the data says which upstream means. It also changes results, so it needs a deviation entry,
-an ADR, and both equivalence references re-run.
-
-**So this is tagged `needs-ruling` rather than estimated.** The question for upstream is: on the
-`StaticLinear`/`KevinHall` surface, should `running.interventions` do anything, and if so, at which
-point in the food → nutrient → energy → body chain does an impact apply? Until there is an answer,
-refusing the config is the honest behaviour, and it is what is implemented.
-
-### 9. A fallback donor for immigration into an empty band — `correctness`
+### 7. A fallback donor for immigration into an empty band — `correctness`
 
 **Value: low-medium. Effort: low.** When an age-sex band is empty there is nobody to clone an
 immigrant from, so both implementations skip it and the cohort falls short of the demographic
@@ -235,7 +155,7 @@ that misses its own target. The baseline has a nearest-age search in its demogra
 achievable, at the cost of nudging the age distribution. It changes results, so it needs a
 deviation entry, an ADR and a re-run of both references.
 
-### 10. More seeds, and a smaller stored reference — `validation`
+### 8. More seeds, and a smaller stored reference — `validation`
 
 **Value: low-medium. Effort: low.** Both references are 20 seeds, confirmed at 60 and then
 discarded. Keeping the 60-seed references would be about 12 MB gzipped. The alternative is to
@@ -243,7 +163,7 @@ store the reduction rather than the raw results — the harness reduces to (scen
 variable) before it compares anything, and the reduction is two orders of magnitude smaller — at
 the cost of not being able to change the reduction without a re-run.
 
-### 11. Windows — `platform`
+### 9. Windows — `platform`
 
 **Value: unknown. Effort: medium.** Not targeted
 ([ADR 0013](decisions/0013-platforms-linux-and-macos.md)). The code avoids PSTL and
@@ -253,7 +173,7 @@ worth doing if someone needs it.
 
 ## Smaller things
 
-### 12. The lattice detector should classify on the numerator — `validation`
+### 10. The lattice detector should classify on the numerator — `validation`
 
 **Value: medium-high. Effort: low-medium, and the measurement is already taken.** The equivalence
 harness compares a quantile of a **lattice-valued** series with an exact test of the counts rather
@@ -281,7 +201,7 @@ excludes is not evidence, which is the same rule this project applied to the one
 residual ([docs/equivalence.md](equivalence.md), "The threshold was not changed"). The detector
 either measures the right quantity or it does not.
 
-### 13. A schema for the model definition files — `docs`
+### 11. A schema for the model definition files — `docs`
 
 **Value: medium. Effort: low.** `schemas/v2/` covers the config. The static and dynamic model
 files have no published schema, which is why their member names were wrong for a week in the
@@ -290,14 +210,14 @@ and its R row-index columns. The shapes are documented only in `src/config/model
 the three loader test files. Write them, and extend `schema_agreement_test.cpp` to cover them the
 way it covers the config.
 
-### 14. Sector, and `demographic_models` — `scope`
+### 12. Sector, and `demographic_models` — `scope`
 
 **Value: low. Effort: low.** `person.sector` (urban/rural) is assigned nowhere; the channel
 appears if the mapping declares the factor. `modelling.demographic_models` is carried through as
 opaque JSON, deliberately — its shape belongs to the model family that reads it — and no model
 family reads it yet.
 
-### 15. The fixture pack's top-age artefact — `validation`
+### 13. The fixture pack's top-age artefact — `validation`
 
 **Value: low. Effort: low.** The synthetic pack's population table stops at the same age as the
 config's `age_range`, so anyone reaching the top age leaves the cohort and the pack's simulated
@@ -305,13 +225,13 @@ death rate runs above what its mortality table implies. Recorded in the pack's o
 Extending the pack's age range by a few years above the configured one would remove the artefact;
 nothing depends on it, because no test reads the pack's death rates as a check on anything.
 
-### 16. Report four things upstream — `docs`
+### 14. Report four things upstream — `docs`
 
 **Value: low here, high upstream. Effort: low.** Four findings belong to the people who own the
 data and the baseline, and telling them is not done:
 
 1. **`KevinHall_India` cannot be run by its own baseline** — its `Weight` lower bound is above what
-   its weight quantile curve produces (item 6), and its `new_config.json` contradicts itself
+   its weight quantile curve produces (item 3), and its `new_config.json` contradicts itself
    between the deprecated root `trend_type` and `project_requirements.trend.type`, which the
    baseline's own validator refuses.
 2. **An intervention scenario is inert on the FINCH model surface** (item 7): `Scenario::apply` has

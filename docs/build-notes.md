@@ -259,7 +259,7 @@ local scripts it stands in for:
 That is not the same as a green run, and it is not claimed to be. **The first time this workflow
 executes will be the first evidence that it works**, and the honest expectation is that something in
 it is wrong — most likely in the GCC entries, which is why they are `continue-on-error`
-([docs/backlog.md](backlog.md) item 2).
+(it was [docs/backlog.md](backlog.md) item 2 at the time, and is done).
 
 What changed from the shape the previous session left: GCC moved **into the build matrix** as a
 compiler axis on Linux rather than sitting in a separate job, and the three verbatim copies of the
@@ -324,7 +324,8 @@ tests, and three of the five were **portability defects invisible to the only co
 built it.** The fourth run's summary listed "CI has never run" and "GCC has never built this tree"
 among the things a reader should be sceptical about. Both are now false, and the second one is the
 more useful: **GCC on Linux is green**, so the `experimental: true` flag on those matrix entries has
-done its job and is a candidate for removal ([docs/backlog.md](backlog.md)).
+done its job: the flag is a candidate for removal, and removing it is now a one-line change rather
+than an unknown.
 
 ### What is still not tested by CI
 
