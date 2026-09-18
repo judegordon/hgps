@@ -216,12 +216,14 @@ because a different test had interned the name first.
 Every other number in this document is macOS and Apple clang, on one laptop, and that has been under
 *what a reader should be sceptical about* since the document existed. A CI job now runs
 `scripts/measure.sh` — the same script a person runs — on the Linux runner and uploads its JSON.
-Three runs of each example, clang, release, `ubuntu-latest`:
+Three runs of each example, clang, release, `ubuntu-latest`. These are from run **35386188262**,
+the one this document's other numbers were finalised against; the job runs on every push and its
+numbers move:
 
 | | Wall, best of 3 | Median | CPU, best | Peak memory |
 |---|---:|---:|---:|---:|
-| `HLM_France` | 3.03 s | 3.06 s | 3.02 s | **30.1 MiB** |
-| `KevinHall_FINCH` | 12.44 s | 12.48 s | 12.43 s | **64.9 MiB** |
+| `HLM_France` | 2.93 s | 2.96 s | 2.92 s | **30.2 MiB** |
+| `KevinHall_FINCH` | 11.98 s | 12.13 s | 11.97 s | **64.9 MiB** |
 
 **Read these as indicative only.** A GitHub-hosted runner is a shared virtual machine with
 neighbours, and this document already records a 20% measurement error from Spotlight indexing on a
@@ -230,16 +232,16 @@ build, because a regression test on these would fail on the weather.
 
 Two things in them are worth having anyway, and both survive the noise.
 
-**The ratio between the two examples does.** FINCH is 4.11× France on the Linux runner and 3.52× on
+**The ratio between the two examples does.** FINCH is 4.09× France on the Linux runner and 3.52× on
 the laptop, taking best-of-run against best-of-run on the same shipped configs — the same shape of
 workload on machines that differ by about two and a half in absolute speed, and as close as two
 numbers carrying this much noise are going to get. That is the thing a single job can say.
 
-**And the memory is lower on Linux than on macOS**, by 29% on France (30.1 against 42.7 MiB) and 17%
-on FINCH (64.9 against 78 MiB). The same binary, the same inputs, the same allocations: what differs
-is glibc's allocator against libmalloc and how each returns pages. It is not a property of this code
-and it is not worth chasing; it is worth knowing before anybody quotes one of these figures as *the*
-memory this program uses.
+**And the memory is lower on Linux than on macOS**, by 29% on France (30.2 against 42.7 MiB) and 17%
+on FINCH (64.9 against 78.2 MiB). The same binary, the same inputs, the same allocations: what
+differs is glibc's allocator against libmalloc and how each returns pages. It is not a property of
+this code and it is not worth chasing; it is worth knowing before anybody quotes one of these
+figures as *the* memory this program uses.
 
 ### Loading
 

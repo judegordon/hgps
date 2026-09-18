@@ -222,11 +222,11 @@ measured rather than suspected, and it moved [docs/backlog.md](backlog.md) item 
 things*.
 
 **Linux, for the first time**, as an indicative figure rather than a claim: a CI job runs
-`scripts/measure.sh` on `ubuntu-latest` and uploads its JSON — `HLM_France` 3.03 s and
-`KevinHall_FINCH` 12.44 s, best of three, with peak memory 29% and 17% *lower* than macOS on the
+`scripts/measure.sh` on `ubuntu-latest` and uploads its JSON — `HLM_France` 2.93 s and
+`KevinHall_FINCH` 11.98 s, best of three, with peak memory 29% and 17% *lower* than macOS on the
 same inputs. A GitHub runner is a shared virtual machine, so nothing compares it against a stored
-number or can fail the build. What survives the noise is the ratio between the two examples: 4.11×
-on the runner against 3.52× on the laptop.
+number or can fail the build, and the figures move from push to push. What survives the noise is
+the ratio between the two examples: 4.09× on the runner against 3.52× on the laptop.
 
 **The check that matters is byte identity**, not a statistical comparison over twenty seeds, which
 would call a last-bit difference agreement. It is also the check that did not find defect 7 above.
@@ -235,7 +235,52 @@ would call a last-bit difference agreement. It is also the check that did not fi
 
 Fifteen jobs, two of them new this run.
 
-<!--CI-->
+Run **35386188262** on `ec075f2`, every entry read with `gh run view` rather than from the run's
+own summary. **15 of 15 success.**
+
+| Job | Result | Time |
+|---|---|---:|
+| `linux · clang · release` | **success** | 5m54s |
+| `linux · clang · debug` | **success** | 10m35s |
+| `linux · clang · asan-ubsan` | **success** | 43m13s |
+| `linux · clang · tsan` | **success** | 42m07s |
+| `linux · gcc · release` | **success** | 5m24s |
+| `linux · gcc · debug` | **success** | 16m20s |
+| `macos · appleclang · release` | **success** | 3m56s |
+| `macos · appleclang · debug` | **success** | 16m01s |
+| `macos · appleclang · asan-ubsan` | **success** | 34m12s |
+| `macos · appleclang · tsan` | **success** | **88m08s** |
+| `equivalence · HLM_France · 20 seeds` | **success** | 7m16s |
+| `equivalence · KevinHall_FINCH · 20 seeds` | **success** | 5m06s |
+| `web · typecheck, test, build` | **success** | 0m09s |
+| `web · end-to-end` | **success** | 3m02s |
+| `performance · linux · indicative` | **success** | 5m42s |
+
+The two GCC entries are required this run, so those two rows are the first that could have failed
+the build rather than been waved through.
+
+**Nine seconds for the frontend job is real, not a skipped step.** `npm ci` installs 44 packages in
+two seconds from the lockfile cache, `tsc --noEmit` and 48 vitest tests take 432 ms, and
+`vite build` transforms 16 modules in 58 ms. That is what a frontend with no framework in it costs
+([ADR 0043](decisions/0043-a-plain-typescript-frontend.md)); the browser tests are the three
+minutes in the row below it.
+
+**The same tree locally**, `scripts/check.sh` with nothing skipped:
+
+| | Result | Time |
+|---|---|---:|
+| release | **848 / 848** | 34 s |
+| debug | **848 / 848** | 336 s |
+| asan-ubsan | **848 / 848** | 1,026 s |
+| tsan | **848 / 848** | 2,529 s |
+| frontend, type-check and unit | **48 / 48** in 5 files | under a second |
+| frontend, end to end in a browser | **19 / 19** | 6.6 s |
+| equivalence, `HLM_France` | **31,546** comparisons, **0** out of tolerance | — |
+| equivalence, `KevinHall_FINCH` | **22,616** comparisons, **0** out of tolerance | — |
+
+Those last two counts are the ones the numerator detector produces, and they are the same numbers
+the re-score table in [docs/equivalence.md](equivalence.md) records — reproduced here by a run that
+was not looking for them, and by CI independently.
 
 ## The recommended next run
 
@@ -265,14 +310,26 @@ Worth its own section, because it is the largest consequence of this run and it 
 anybody would have guessed.
 
 Doubling every test that runs a configuration doubled the *simulations* the suite runs, and under
-ThreadSanitizer a simulation is seconds rather than a fifth of one. Of **2,272 seconds** of local
-TSan test time, **2,219 are the 184 `Packs/` tests** — every other test in the suite rounds to zero
-at CTest's one-second resolution. The `macos · appleclang · tsan` CI job went from **48m28s** before
-this run to about **seventy minutes** after it.
+ThreadSanitizer a simulation is seconds rather than a fifth of one. The `macos · appleclang · tsan`
+CI job went from **48m28s** before this run to **88m08s** on the final run, and the tsan preset's
+2,529 seconds of local test time divide like this:
 
-**It is not the stress test.** That one had an explicit two-minute budget and comes to **53 seconds,
-2.3% of TSan's test time.** The growth belongs to the fixture pack, which is the thing that found
-three of the nine findings, so it is a cost worth having and worth naming.
+| | Tests | Time | Share |
+|---|---:|---:|---:|
+| `Packs/` — the parameterised suite | 184 | **1,975 s** | **78%** |
+| the harness's two self-checks | 2 | 501 s | 20% |
+| everything else | 662 | 51 s | 2% |
+
+**It is not the stress test.** That one had an explicit two-minute budget and its six entries come
+to **46 seconds, 1.8% of TSan's test time** — well inside the budget. The growth belongs to the
+fixture pack, which is the thing that found three of the nine findings, so it is a cost worth having
+and worth naming.
+
+**An earlier version of this section had the split wrong**, and the correction is the reason the
+number above is a measurement rather than a recollection: it said 2,219 of 2,272 seconds were the
+`Packs/` tests and that every other test rounded to zero. The final run says 1,975 of 2,529, and
+that the two `EquivalenceHarness` self-checks are 251 seconds each — a fifth of the preset, and not
+close to zero. The conclusion survives and the arithmetic behind it did not.
 
 The mitigation is `ctest -j` on the sanitizer presets — these tests are almost all single-threaded
 and run serially today. It is not done here because changing how CI runs its tests at the end of a
