@@ -179,11 +179,15 @@ the whole FINCH surface cost an example that uses none of it nothing measurable.
 - **The comparison's floor.** The baseline writes six significant digits, so no comparison can be
   tighter than about 10⁻⁵ relative. Several of these models' aggregates are nearly deterministic,
   so for those the test *is* that floor.
-- **The FINCH intervention definitions are not Finland's.** The pack ships one policy and it is
-  empty, so the five age-banded policies are compared using HLM_France's own definitions with the
-  active period and one factor name substituted. Both implementations get the identical definition,
-  so the comparison is sound — but it is a comparison of two programs, not a statement about Finnish
-  policy.
+- **The five age-banded policies are compared on one example, not two.** They are compared against
+  the baseline on `HLM_France`, where each produces a genuinely different future — about 2,100 of
+  3,854 reduced series move — and all five agree. On `KevinHall_FINCH` they cannot be compared at
+  all, because nothing on that surface consults them (finding 2), so what those five runs show is
+  only that both implementations agree they do nothing.
+- **The harness is no longer a simple thing, and it decides the headline result.** It now carries
+  an emptying-band exclusion, a printed-precision floor, a lattice rule and an exact test, and two
+  of those rules were wrong at some point in this run. They have 26 tests now, which is better than
+  nothing and is not the same as being right.
 - **macOS only, so far.** The code targets Linux and macOS and avoids what would break on either,
   but every measurement here is from one Apple M5 and there is no CI. That is now the first item in
   the backlog.
