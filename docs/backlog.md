@@ -185,22 +185,10 @@ Still only worth doing if someone needs it.
 
 ## Smaller things
 
-### 10. Make the GCC entries required — `platform`
+### 10. Make the GCC entries required — `platform` — **done**
 
-**Value: medium. Effort: one line, now.** The two GCC entries in the CI matrix carry
-`experimental: true`, which makes them `continue-on-error`. That flag was put there because nothing
-knew what GCC would say about a warning set — `-Werror` with `-Wconversion`, `-Wsign-conversion`,
-`-Wold-style-cast` and `-Wdouble-promotion` — that only clang had ever seen, and a red tick in a
-commit that cannot act on it is a red tick nobody reads.
-
-**Now something knows: GCC is green**, on both presets, after the four build defects CI found were
-fixed ([docs/build-notes.md](build-notes.md)). So the flag has done its job and its reason has
-expired. Deleting it makes a GCC regression fail the build instead of being reported quietly, which
-is the whole point of having the entries.
-
-The only argument for keeping it is that GCC has been green for exactly one run. That is an argument
-for doing this at the start of the next run rather than at the end of this one, not for leaving it
-indefinitely.
+Done this run. `experimental: true` is gone from both GCC entries, so a GCC regression fails the
+build instead of being reported quietly.
 
 ### 11. The lattice detector should classify on the numerator — `validation`
 

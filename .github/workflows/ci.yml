@@ -15,13 +15,13 @@
 #   * **`HLM_India` is not compared here.** Its comparison is at a reduced `size_fraction` and its
 #     reference is not checked in (docs/equivalence.md); running it would be forty minutes a job.
 #
-# Why GCC is in the matrix but not required: every build this project has ever done is clang, and the
-# warning set is -Werror with -Wconversion, -Wsign-conversion, -Wold-style-cast and -Wdouble-promotion.
-# Building this tree with a *newer clang* found two real defects and one style disagreement
-# (docs/build-notes.md), which is a fair guide to what a second compiler family will find. The GCC
-# entries therefore carry `experimental: true`, which makes them `continue-on-error`: the information
-# appears on every run without a red tick in a commit that cannot act on it. docs/backlog.md item 1 is
-# removing that flag, and it is the first thing to do with a Linux machine.
+# GCC is required, and was not until this run. The two GCC entries carried `experimental: true` —
+# `continue-on-error` — because nothing knew what a second compiler family would say about a warning
+# set (-Werror with -Wconversion, -Wsign-conversion, -Wold-style-cast and -Wdouble-promotion) that
+# only clang had ever seen, and a red tick in a commit that cannot act on it is a red tick nobody
+# reads. It said four things, all of them real defects, all fixed (docs/build-notes.md); GCC has been
+# green on both presets since. The flag has done its job, so a GCC regression now fails the build
+# instead of being reported quietly, which is the whole reason for having the entries.
 
 name: CI
 
@@ -58,7 +58,6 @@ jobs:
   build:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.experimental == true }}
     strategy:
       # One preset failing should not hide what the others would have said.
       fail-fast: false
@@ -68,8 +67,8 @@ jobs:
           - {name: "linux · clang · debug",        os: ubuntu-latest, preset: debug,       cc: clang, cxx: clang++, id: linux-clang}
           - {name: "linux · clang · asan-ubsan",   os: ubuntu-latest, preset: asan-ubsan,  cc: clang, cxx: clang++, id: linux-clang}
           - {name: "linux · clang · tsan",         os: ubuntu-latest, preset: tsan,        cc: clang, cxx: clang++, id: linux-clang}
-          - {name: "linux · gcc · release",        os: ubuntu-latest, preset: release,     cc: gcc,   cxx: g++,     id: linux-gcc, experimental: true}
-          - {name: "linux · gcc · debug",          os: ubuntu-latest, preset: debug,       cc: gcc,   cxx: g++,     id: linux-gcc, experimental: true}
+          - {name: "linux · gcc · release",        os: ubuntu-latest, preset: release,     cc: gcc,   cxx: g++,     id: linux-gcc}
+          - {name: "linux · gcc · debug",          os: ubuntu-latest, preset: debug,       cc: gcc,   cxx: g++,     id: linux-gcc}
           - {name: "macos · appleclang · release",     os: macos-latest, preset: release,    id: macos-appleclang}
           - {name: "macos · appleclang · debug",       os: macos-latest, preset: debug,      id: macos-appleclang}
           - {name: "macos · appleclang · asan-ubsan",  os: macos-latest, preset: asan-ubsan, id: macos-appleclang}
