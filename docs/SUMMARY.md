@@ -17,9 +17,10 @@ own data pack — which the baseline also stops on, in the same place.
   one, and **the 35 the baseline skips now run**: [docs/test-port-map.md](test-port-map.md) says
   where each went.
 - **Two statistical equivalence comparisons against the baseline, both at zero failures.**
-  33,732 comparisons on `HLM_France` and 23,432 on `KevinHall_FINCH`, each at 20 seeds and again at
-  60, plus one run per intervention for each of the other five policies. There is **no failure
-  budget**: `scripts/check.sh` fails on any out-of-tolerance comparison.
+  31,468 comparisons on `HLM_France` and 22,679 on `KevinHall_FINCH`, each at 20 seeds and again at
+  60, plus one run per intervention for each of the other five policies on each example. There is
+  **no failure budget**: `scripts/check.sh` fails on any out-of-tolerance comparison, and the
+  harness now has 26 tests of its own, because a mistake in it says PASS.
 - **31 ADRs**, one per design decision, each with the alternatives rejected.
 - **37 recorded deviations** from the baseline — 19 fixed defects that change the numbers, 10
   design differences that change results or output, 8 internal ones that change nothing — each with
@@ -71,10 +72,16 @@ machine, because the fixture path they derive from `__FILE__` does not exist in 
 data repository (audit B-11). Running them for the first time is how four of this run's defects
 were found.
 
-**End to end.** Two examples, two model families, six intervention scenarios, 20 seeds each and
-60 for the two primary runs. Every comparison within tolerance, and the worst of them uses 90% of
-its allowance — which matters, because a set of comparisons clustered at 0.99× would mean the
-thresholds were doing the work rather than the code.
+**End to end.** Two examples, two model families, six intervention scenarios, 20 seeds each and 60
+for the two primary runs. Every comparison within tolerance, and the worst numeric one uses 96% of
+its allowance while the great majority sit far below — which matters, because a set of comparisons
+clustered at 0.99× would mean the thresholds were doing the work rather than the code.
+
+One qualification the comparison itself uncovered, and it narrows what the intervention runs show:
+on the FINCH surface **no** intervention scenario has any effect, in either implementation, because
+nothing there calls `Scenario::apply`. So the five policies' own rules are compared against the
+baseline on `HLM_France`, and on `KevinHall_FINCH` what is compared is that both implementations
+agree they do nothing. Finding (2) below has the measurement.
 
 **Determinism.** Byte-identical output across repeats, across thread counts, and for **each of the
 six interventions** — asserted by `tests/sim/reproducibility_test.cpp`, not just claimed.
@@ -107,33 +114,51 @@ the whole FINCH surface cost an example that uses none of it nothing measurable.
    the right direction, on a quantity that looks calibrated either way. Neither is visible in any
    unit test and neither would have been found by reading the code.
 
-2. **The FINCH example's `simple` intervention has an empty impact list.** Its policy is somewhere
-   else entirely: `policy_start_year: 2024`, and from that year the static linear model applies the
-   S1 policy-effect coefficients and residual policy covariance. Anyone who assumed the
-   `interventions` block was the policy would have compared a scenario against a copy of itself and
-   called it a pass. The stored reference is what says otherwise: the baseline's two scenarios are
-   identical in 2022 and 2023 and differ in 2,476 of 4,600 reduced series in 2024.
+2. **An intervention scenario does nothing at all on the FINCH model surface**, in either
+   implementation. `Scenario::apply` — the call that offers a person and a risk factor to the
+   active policy — has exactly one call site in the whole baseline,
+   `dynamic_hierarchical_linear_model.cpp:110`; neither `static_linear_model.cpp` nor
+   `kevin_hall_model.cpp` calls it. So running `KevinHall_FINCH` with `marketing` active gives
+   output byte-identical to running it with `simple` active, which is what the measurement shows.
+   It explains why the example ships `simple` with an **empty impact list** — filling it would
+   change nothing — and it means a config can select `food_labelling` on a Kevin Hall model today
+   and get a run with no error and no effect. FINCH's policy is elsewhere: `policy_start_year:
+   2024`, from which the static linear model applies the S1 policy-effect coefficients and residual
+   policy covariance, and that mechanism *does* work — the baseline's two scenarios are identical
+   in 2022 and 2023 and differ in 2,476 of 4,600 reduced series in 2024.
 
-3. **The FINCH static model names two files the pack does not contain.** It ships seven variants of
+   This one was found by checking that the comparison was testing what it claimed to. It would have
+   passed, silently, either way.
+
+3. **A quantile of a lattice-valued series cannot be compared numerically, and more seeds made that
+   worse rather than better.** The 60-seed FINCH confirmation failed where the 20-seed run passed —
+   18 comparisons, every one a median of a rare cancer. A count over a denominator lives on a
+   lattice, so its median is a lattice point; the allowance shrinks as 1/√n while the lattice step
+   does not. At 20 seeds the allowance was larger than one step and it passed; at 60 it is smaller
+   and it cannot. The distributions themselves were indistinguishable — Fisher's exact test gives
+   p = 0.27 on the worst of them. A test that gets worse with more evidence is not measuring what
+   it claims, and [docs/equivalence.md](equivalence.md) has what replaced it.
+
+4. **The FINCH static model names two files the pack does not contain.** It ships seven variants of
    each, `S1_` to `S7_`, one per modelled policy scenario, and the example as shipped fails at load
    in the baseline. That is audit D-02, and the fix is a converter option rather than an edit to
    somebody else's example ([ADR 0030](decisions/0030-policy-scenario-selection-for-the-broken-finch-example.md)).
 
-4. **`std_income` is a column the baseline emits and never fills** (B-22). Two loops each skip
+5. **`std_income` is a column the baseline emits and never fills** (B-22). Two loops each skip
    `income` on the ground that the other one handles it. Every value is exactly zero, in every
    band, every year, every run.
 
-5. **`two_stage.use_logistic` is read and never consulted** (B-23). The FINCH pack sets it `false`,
+6. **`two_stage.use_logistic` is read and never consulted** (B-23). The FINCH pack sets it `false`,
    ships the logistic file anyway, and is fitted to the behaviour with the first step *on* — the
    first step changes `mean_redmeat` by 30%. So the file has to decide, and the disagreement is
    reported rather than resolved silently.
 
-6. **The food-labelling policy can apply its impact more than once** (B-24). It marks somebody it
+7. **The food-labelling policy can apply its impact more than once** (B-24). It marks somebody it
    has just affected with `try_emplace`, which does nothing when they are already in its book as
    unaffected, so a person who failed an early coverage draw and passed a later one is offered the
    impact again every remaining year of the window.
 
-7. **A background indexer is worth 20% of the wall time.** The first attempt at this run's
+8. **A background indexer is worth 20% of the wall time.** The first attempt at this run's
    performance figures put `HLM_France` at 3.38 s — over budget — while Spotlight was indexing the
    working directories. It is in [docs/performance.md](performance.md) with the cause, because the
    next person to measure this will hit it too.
