@@ -36,7 +36,12 @@
 # runs. Turning the flag on where clang understands it means the development compiler now says what
 # the Linux one would (docs/build-notes.md).
 include(CheckCXXCompilerFlag)
-check_cxx_compiler_flag(-Wno-missing-designated-field-initializers
+# The POSITIVE spelling is what gets probed, and that is the whole point: GCC accepts any -Wno-<x>
+# it has never heard of, and only complains if some other diagnostic is emitted. So probing
+# -Wno-missing-designated-field-initializers answers "yes" on GCC, the narrow flag is added, it does
+# nothing, and the fallback below is never reached — which is exactly what the second CI attempt
+# did. Probing -Wmissing-designated-field-initializers is answered honestly by everybody.
+check_cxx_compiler_flag(-Wmissing-designated-field-initializers
                         HGPS_HAS_WNO_MISSING_DESIGNATED_FIELD_INITIALIZERS)
 check_cxx_compiler_flag(-Wshadow-field-in-constructor HGPS_HAS_WSHADOW_FIELD_IN_CONSTRUCTOR)
 
