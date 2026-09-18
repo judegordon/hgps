@@ -76,6 +76,24 @@ less on both examples, by 5× on France and by 18× on FINCH.
 France costs more to load than FINCH in both implementations for one reason: its `static_model.json`
 is 18.8 MB against FINCH's 12 KB, because the FINCH model keeps its tables in CSVs beside it.
 
+### The one that is not small
+
+`HLM_India` is the largest thing this build runs: 35 diseases, 11 risk factors and a cohort of
+**1,240,613** over 2010–2050, both scenarios, one thread.
+
+| | Wall | CPU | Peak memory |
+|---|---:|---:|---:|
+| This build | 2,535 s (42 min) | 2,496 s | 2,555 MiB |
+
+That is 199 times `HLM_France`'s cohort for 900 times its wall time, so it is not linear — the
+disease module's per-person, per-disease work grows with the cohort while the 35-disease relative
+risk tables make each person's share of it six times France's. It is not compared against the
+baseline ([docs/equivalence.md](equivalence.md)), and one run of it at twenty seeds in each
+implementation would be about a day, which is the real reason it is not.
+
+Recorded because "it runs" is worth qualifying: this is the example where the index-keyed store in
+[docs/backlog.md](backlog.md) would be worth an hour of anybody's time rather than a footnote.
+
 ### Where FINCH's 195 MiB is
 
 FINCH loads 19.5 MiB and peaks at 195. That is not accumulation over the horizon, and it is worth

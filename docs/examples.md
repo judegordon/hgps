@@ -74,6 +74,12 @@ HLM_India       35 diseases, 11 risk factors, cohort of 1,240,613, 2010–2050
 KevinHall_FINCH 15 diseases, 34 risk factors, cohort of     6,817, 2022–2032
 ```
 
+"Runs" means both scenarios, start to finish, with a result file at the end — checked by running
+them, not by `--dry-run`. `HLM_India` is the one to be ready for: its cohort is 199 times
+`HLM_France`'s, and on the machine [docs/performance.md](performance.md) describes it takes
+**42 minutes and 2.4 GiB**, against France's 2.8 seconds and 57 MiB. It produces the same 16,565
+rows, because the output is per (year, sex, age band) and not per person.
+
 `KevinHall_India` gets further than any of the three that stop — its config, its model files, its
 data and both scenarios' modules all load, and it reports `7 diseases, 17 risk factors, cohort of
 14,171 people, 2022–2026` under `--dry-run`. It stops in the first simulated year, and the reason
