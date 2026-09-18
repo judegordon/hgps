@@ -12,10 +12,10 @@ model surface implemented, three examples compared against the baseline, and thr
 as a library, from a command line, and from a browser.
 
 **This run added no feature.** Every one of its tasks was a way of making the existing tree harder to
-fool, and the point of it is the count at the bottom of this section: **nine defects**, every one of
-them found by something new here rather than by a person reading the code.
+fool, and the point of it is the count at the bottom of this section: **nine defects**, seven of them
+found by something that was not there before.
 
-Three things did the finding.
+Three things did most of the finding.
 
 - **A second synthetic configuration**, differing from the first in every way a program might have
   assumed it did not, with every test that runs a configuration parameterised over both. The
@@ -38,7 +38,7 @@ Three things did the finding.
 | Source | `src/` 153 files; `tests/` 71 files; 44,978 lines of C++ between them; `web/src/` 18 files and `web/e2e/` 6, 3,039 lines |
 | Documents | 13, plus **45 ADRs** |
 | CI | **15 jobs** — see below |
-| Defects found this run | **9**, of which 8 by the three mechanisms above and 1 by a unit test |
+| Defects found this run | **9** — five by the three mechanisms above, one by re-scoring the stored references, one by a unit test, two by reading |
 
 ## The ten tasks, and how each ended
 
@@ -57,8 +57,10 @@ Three things did the finding.
 
 ## The nine defects, and what found each
 
-The point of the run, in one table. **None of these was found by reading the code**, which is the
-difference between this run and the one before it.
+The point of the run, in one table. **Seven of the nine were found by something running**, which is
+the difference between this run and the one before it — that one found nine defects in its new code
+and none of them by a test. Two of these were still found by reading, and they are marked as such,
+because a summary that claimed otherwise would be doing the thing this project keeps catching.
 
 | | Defect | Found by |
 |---|---|---|
