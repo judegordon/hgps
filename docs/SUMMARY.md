@@ -60,8 +60,8 @@ one nobody asked for, and it came out of the first task:
 Findings 2, 3 and 4 are one thing seen from three sides, and the thing is worth stating plainly:
 **a whole output file family has been written by this build for as long as it has written them,
 with nothing checking it against anything.** The comparison that this project trusts reduces one
-file per run; the tests that
-run configurations use packs that cannot produce the others. What fixed finding 2 was four lines;
+file per run; the tests that run configurations use packs that cannot produce the others. What
+fixed finding 2 was four lines;
 what finding 3 needs is a comparison, which is why it is [docs/backlog.md](backlog.md) item 2 rather
 than more four-line fixes.
 
@@ -97,9 +97,8 @@ list.
 and the series' shape followed the underlying quantity, which is why it never looked wrong. What it
 broke was the level of a number a reader sees.
 
-**And nothing was added to [docs/deviations.md](deviations.md) or to the list of baseline findings
-in
-[docs/briefing.md](briefing.md)**, deliberately: both of those record places where this build
+**And nothing was added to [docs/deviations.md](deviations.md), or to the list of baseline findings
+in [docs/briefing.md](briefing.md)**, deliberately: both of those record places where this build
 differs from the baseline on purpose, and this was not one. What went into the briefing instead is
 the thing upstream would want to know — that the comparison reads one file per run, so their
 stratified output has never been checked against ours.
@@ -222,8 +221,7 @@ of 3,926,215 each, identical before and after. That one is twenty-five minutes a
 example where a constant factor is paid 1.24 million times a year.
 
 **The first version of it cost `HLM_France` 5.4 MiB of peak memory**, by resolving the income strata
-eagerly for every category the layout declares rather than on first sighting — vectors nobody was
-in,
+eagerly for every category the layout declares rather than on first sighting — vectors nobody was in,
 allocated once a year. Measured, then fixed. It is in this summary because the only reason it was
 caught is that the A/B carries a peak-memory column, and a performance change that quietly trades
 memory for time should have to say so.
