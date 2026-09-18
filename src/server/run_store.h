@@ -130,6 +130,16 @@ class RunStore {
   public:
     explicit RunStore(std::filesystem::path root);
 
+    /// @brief Joins the run thread if one is still owned. Nothing is cancelled here — a caller
+    ///        that wants the run to stop asks it to; this only refuses to destroy a joinable
+    ///        thread, which would call std::terminate.
+    ~RunStore();
+
+    RunStore(const RunStore &) = delete;
+    RunStore &operator=(const RunStore &) = delete;
+    RunStore(RunStore &&) = delete;
+    RunStore &operator=(RunStore &&) = delete;
+
     const std::filesystem::path &root() const noexcept { return root_; }
 
     /// @brief A new run id: time-ordered, so a listing sorts without parsing a date, and unique
@@ -142,6 +152,10 @@ class RunStore {
     std::shared_ptr<RunRecord> begin(const std::string &id, const std::string &example);
 
     /// @brief Releases the active slot. The record stays reachable by id.
+    ///
+    /// Called **from the run's own thread**, as its last act, so it must not join or detach that
+    /// thread — a thread cannot join itself. It clears the slot and nothing else; the thread is
+    /// owned by the store and joined by `join_active` or by the next `adopt_thread`.
     void finish(const std::string &id);
 
     /// @brief Releases the slot and forgets the run entirely, removing its empty directory.
@@ -160,9 +174,17 @@ class RunStore {
     ///        in-process record already covers. Newest first.
     nlohmann::json list() const;
 
-    /// @brief Waits for the active run's thread, if any. For shutdown and for tests.
+    /// @brief Waits for the run thread, if any. For shutdown and for tests.
+    ///
+    /// Safe to call from any thread but the run's own. Nothing here cancels; a caller that wants
+    /// the run to stop first sets its cancellation token.
     void join_active();
 
+    /// @brief Takes ownership of a run's thread, joining the previous one first.
+    ///
+    /// The previous run released the slot as its last act, so it is on the point of returning and
+    /// the join is immediate. Joining rather than detaching is what makes `join_active` mean
+    /// something at shutdown.
     void adopt_thread(std::thread thread);
 
   private:

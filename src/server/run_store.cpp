@@ -223,6 +223,8 @@ RunStore::RunStore(std::filesystem::path root) : root_{std::move(root)} {
     std::filesystem::create_directories(root_, error);
 }
 
+RunStore::~RunStore() { join_active(); }
+
 std::string RunStore::next_id() const {
     const auto now = std::chrono::system_clock::now();
     const auto seconds = std::chrono::system_clock::to_time_t(now);
@@ -255,18 +257,12 @@ std::shared_ptr<RunRecord> RunStore::begin(const std::string &id, const std::str
 }
 
 void RunStore::finish(const std::string &id) {
-    std::thread previous;
-    {
-        const std::lock_guard lock{mutex_};
-        if (active_ != nullptr && active_->id() == id) {
-            active_.reset();
-        }
-        // The finished run's thread is detached from the store here rather than joined, because
-        // `finish` is called from that thread. Joining self would deadlock.
-        previous = std::move(worker_);
-    }
-    if (previous.joinable()) {
-        previous.detach();
+    // Called from the run's own thread, as its last act. It clears the slot and touches `worker_`
+    // not at all: a thread cannot join itself, and detaching it here would make `join_active`
+    // return while the run was still unwinding.
+    const std::lock_guard lock{mutex_};
+    if (active_ != nullptr && active_->id() == id) {
+        active_.reset();
     }
 }
 
@@ -310,11 +306,17 @@ std::shared_ptr<RunRecord> RunStore::active() const {
 }
 
 void RunStore::adopt_thread(std::thread thread) {
-    const std::lock_guard lock{mutex_};
-    if (worker_.joinable()) {
-        worker_.detach();
+    std::thread previous;
+    {
+        const std::lock_guard lock{mutex_};
+        previous = std::move(worker_);
+        worker_ = std::move(thread);
     }
-    worker_ = std::move(thread);
+    // Outside the lock, and joined rather than detached: the previous run released the slot as its
+    // last act — which is what let this one start — so it is on the point of returning.
+    if (previous.joinable()) {
+        previous.join();
+    }
 }
 
 void RunStore::join_active() {

@@ -161,7 +161,22 @@ class Server::Impl {
 
     bool serve() { return server_.listen_after_bind(); }
 
-    void stop() { server_.stop(); }
+    void stop() {
+        server_.stop();
+
+        // And the run, if one is going. Without this, stopping the server detaches a thread that
+        // is still writing a result file and then returns from main — so Ctrl-C during a run could
+        // truncate its output, which is the one thing this project's output contract cannot
+        // tolerate.
+        //
+        // Cancelling rather than waiting for the horizon: the engine stops at the end of the year
+        // it is in and closes its files, so a cancelled run is a *prefix* of the run that would
+        // have happened (docs/api.md). That is exactly what Ctrl-C should mean.
+        if (const auto active = runs_.active(); active != nullptr) {
+            active->cancel();
+        }
+        runs_.join_active();
+    }
 
     std::uint16_t port() const noexcept { return port_; }
 

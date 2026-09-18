@@ -618,6 +618,56 @@ TEST(ServerApi, AStartedServerCanSimplyBeDropped) {
     SUCCEED();
 }
 
+TEST(ServerApi, StoppingTheServerDoesNotAbandonARunMidWrite) {
+    // Without this, stopping the server detached a thread that was still writing a result file and
+    // then returned from main — so Ctrl-C during a run could truncate its output, which is the one
+    // thing this project's output contract cannot tolerate. `stop()` cancels the run and waits, so
+    // what is left on disk is a *prefix* of the run that would have happened, with its files
+    // closed (docs/api.md).
+    const auto runs = hgps::test::scratch_dir("api_stop_runs");
+    const auto configs = hgps::test::scratch_dir("api_stop_configs");
+    const auto recursive = std::filesystem::copy_options::recursive |
+                           std::filesystem::copy_options::overwrite_existing;
+    std::filesystem::copy(hgps::test::synthetic_model_dir(),
+                          configs / ServedFixture::kExample, recursive);
+    std::filesystem::copy(hgps::test::synthetic_data_dir(), configs / "data", recursive);
+
+    hgps::server::Options options;
+    options.host = "127.0.0.1";
+    options.port = 0;
+    options.runs_root = runs;
+    options.config_roots = {configs};
+
+    std::string id;
+    {
+        hgps::server::Server server{options};
+        const auto port = server.start();
+        ASSERT_NE(0, port);
+
+        httplib::Client client{"127.0.0.1", port};
+        const nlohmann::json body{{"example", ServedFixture::kExample}};
+        const auto created = client.Post("/api/runs", body.dump(), "application/json");
+        ASSERT_TRUE(created);
+        ASSERT_EQ(201, created->status) << created->body;
+        id = json_body(created).at("id").get<std::string>();
+
+        // Stopped straight away, whether or not the run has finished. Either way it must not be
+        // left running past this point.
+        server.stop();
+    }
+
+    // The run's manifest either exists and is complete JSON, or the run never got that far. What
+    // must not happen is a half-written one.
+    const auto manifest = runs / id / "result_manifest.json";
+    if (std::filesystem::is_regular_file(manifest)) {
+        std::ifstream stream{manifest};
+        nlohmann::json document;
+        ASSERT_NO_THROW(stream >> document) << "the manifest was left half-written";
+        EXPECT_TRUE(document.contains("run"));
+    }
+    SUCCEED();
+}
+
 TEST(ServerApi, ANonLoopbackHostIsRefusedWithAReason) {
     for (const auto *host : {"0.0.0.0", "192.168.1.10", "example.com", "::"}) {
         const auto refusal = hgps::server::loopback_refusal(host);
