@@ -274,7 +274,7 @@ them by number.
 | Was | | |
 |---|---|---|
 | **2** | The weight-category columns are counts and both reductions treat them as means | done, and it was **not** a deviation from the baseline: the baseline emits head counts and so does this build, so the defect was in this project's own two reductions and in the income series that never filled the four columns at all. No compatibility flag — ADR 0041's flag is for a deliberate difference from the baseline, and there was none here. All four stored references regenerated against the baseline binary ([docs/equivalence.md](equivalence.md)) |
-| **9** | `DataSeries` keyed by channel name | done; the analysis module resolves its channels once a year instead of per person per year, byte-identical on all three runnable examples ([docs/performance.md](performance.md)) |
+| **9** | `DataSeries` keyed by channel name | done; the analysis module resolves its channels once a year instead of per person per year, byte-identical on `HLM_France` and `KevinHall_FINCH`, and on `HLM_India` at the cohort it ships ([docs/performance.md](performance.md)) |
 
 ## Explicitly not planned
 

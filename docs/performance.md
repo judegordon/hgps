@@ -288,6 +288,15 @@ What is left of it is not in this file: the largest named callers now are the de
 an `Identifier` built from a concatenation — and the Kevin Hall model's expected values, which is
 where the next reading of this profile would start.
 
+**And the output did not change.** Not statistically: *byte for byte*, on all three runnable
+examples and on every CSV each of them writes — the result file and three income-stratified ones on
+`HLM_France`, five files on `KevinHall_FINCH`, and four on `HLM_India` **at the cohort it ships**,
+1,240,613 people over 2010–2050, 16,650,850 bytes of result CSV and three 3,926,215-byte stratum
+files. India is twenty-five minutes a side and is the reason to do it: it is where a constant factor
+is paid 1.24 million times a year, so it is the example most likely to expose a change that reordered
+an accumulation. The income-stratified files matter here for a second reason this run: they are the
+files whose weight columns changed, so comparing them is what says the two changes did not interfere.
+
 ### Linux, for the first time
 
 Every other number in this document is macOS and Apple clang, on one laptop, and that has been under
