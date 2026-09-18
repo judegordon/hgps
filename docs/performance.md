@@ -52,8 +52,15 @@ time, 3.2× less CPU work, 37% less memory**; on the FINCH surface **3.5× faste
 2.5× less memory** — running its two scenarios one after the other, on one thread, against a
 baseline that runs them concurrently.
 
-**The middle row is this run's change and nothing else**, so the two bottom rows of each table are
-the A/B that *Names resolved at the call site* reports below, measured in the same session as the
+**These three rows are one session, and that session is the sixth run's.** The seventh run's change —
+*The analysis module's channels, resolved once a year*, below — makes both examples faster again, and
+its A/B is reported there against the **shipped** configurations rather than these derived ones: 1.26
+→ 1.03 s on `HLM_France` and 4.60 → 3.47 s on `KevinHall_FINCH`. It is not spliced into this table,
+because a row measured in a different session against a baseline row measured in this one would be
+the kind of number this document exists to avoid.
+
+**The middle row is the sixth run's change and nothing else**, so the two bottom rows of each table
+are the A/B that *Names resolved at the call site* reports below, measured in the same session as the
 baseline row rather than spliced in from another one. The earlier comparison — this build before and
 after the index-keyed store — used to be the middle row here; it has its own table in *What the
 index-keyed store bought*, because the binary it needs no longer exists and re-measuring it in this
