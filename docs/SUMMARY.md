@@ -29,11 +29,11 @@ Three things happened, in the order the run found them.
 
 | | |
 |---|---:|
-| Tests, C++ | **737** in 93 suites — 740 CTest entries — passing under release, debug, ASan+UBSan and TSan |
+| Tests, C++ | **738** in 93 suites — 741 CTest entries — passing under release, debug, ASan+UBSan and TSan |
 | Tests, the equivalence harness's own | **39** (was 30) |
 | Tests, the frontend | **48** |
 | Comparisons against the baseline this run | **131,061**, **0** out of tolerance |
-| Source | `src/` 153 files, 27,670 lines; `tests/` 67 files, 15,800 lines; `web/src/` 13 files, 2,357 lines |
+| Source | `src/` 153 files; `tests/` 67 files; 43,576 lines of C++ between them; `web/src/` 13 files, 2,357 lines |
 | Documents | 12, plus **43 ADRs** |
 | CI | **13 jobs**, green on every matrix entry |
 
@@ -44,7 +44,7 @@ Three things happened, in the order the run found them.
 | 1 | Orientation, cleanup, CI triage | **Done.** No stale processes of this project's were running. CI's five failure causes are in [docs/build-notes.md](build-notes.md), each fixed in its own commit. |
 | 2 | A compatibility flag for B-24, the harness's deviation-impact section, reruns, an ADR | **Done**, and the reruns say more than they were asked to. [ADR 0041](decisions/0041-deliberate-deviations-are-switchable.md). |
 | 3 | Review the existing exclusions against that rule | **Done.** None converted, with the reasoning written down — and the review found a hole in one of them that was worth more than a conversion. |
-| 4 | The local server: design, implementation, tests | **Done.** [docs/server-api.md](server-api.md), [ADR 0042](decisions/0042-a-local-server-in-the-same-binary.md), **44 tests** — 25 over a real socket, 3 for byte identity against the CLI, 10 for the reduction, 6 for the command line. |
+| 4 | The local server: design, implementation, tests | **Done.** [docs/server-api.md](server-api.md), [ADR 0042](decisions/0042-a-local-server-in-the-same-binary.md), **45 tests** — 26 over a real socket, 3 for byte identity against the CLI, 10 for the reduction, 6 for the command line. |
 | 5 | The frontend: four screens | **Done**, all four. [ADR 0043](decisions/0043-a-plain-typescript-frontend.md). 27 kB of JavaScript, 48 tests. |
 | 6 | A CI job for the frontend | **Done**, and green. |
 | 7 | Docs, ADRs, backlog, this file | **Done.** |
@@ -206,7 +206,16 @@ server would not be a host of this engine but a fork of it.
    disabled, because `starting` was cleared in a `finally` that ran after the render. None of the 44
    server tests would have caught the first; the second now has a test that would.
 
-4. **Three more server defects came out of reading it back, not from running it.** All three are
+4. **Pointing the server at the real examples, rather than the fixture, found another.**
+   `GET /api/runs/{id}` reported `"manifest": null` for every one of them, and the history would
+   have lost them all on a restart: the manifest is named after `output.file_name`, which the
+   *configuration* decides, and the name the synthetic fixture happens to produce was hard-coded in
+   three places. **All 44 server tests passed**, because all 44 used the fixture. It is the same
+   shape as finding 7 below — the second time in this run that an unrepresentative fixture hid
+   something — and the more uncomfortable of the two, because there the test failed and here every
+   test passed.
+
+5. **Three more server defects came out of reading it back, not from running it.** All three are
    lifetime or concurrency faults that no endpoint test would provoke: two clients validating the
    *same* document picked the same scratch filename, so the first to finish deleted the file the
    second was still loading; a server started and then simply dropped called `std::terminate`,
@@ -218,17 +227,17 @@ server would not be a host of this engine but a fork of it.
    unwinding. **The tests were written after the fixes and would not have found them**, which is
    worth saying rather than implying otherwise.
 
-5. **A CSV row ending in a comma was silently dropped.** `std::getline(stream, field, ',')` stops at
+6. **A CSV row ending in a comma was silently dropped.** `std::getline(stream, field, ',')` stops at
    the last separator, so the row's field count disagreed with the header and the whole row went. A
    missing year in a chart, not a wrong number — which is the worse shape for a parsing bug to take.
    Found by a test written for something else.
 
-6. **The compat flag's first end-to-end test failed, correctly.** The synthetic fixture's policy ran
+7. **The compat flag's first end-to-end test failed, correctly.** The synthetic fixture's policy ran
    for two years and the defect needs three: one to fail a draw in, one to pass in, and one to be
    wrongly offered it again in. The test was wrong about the fixture, not the code — and a test that
    had passed for the wrong reason would have been worse than a failing one.
 
-7. **Having a second implementor changed what the API's gaps mean.** Two of the seven
+8. **Having a second implementor changed what the API's gaps mean.** Two of the seven
    [docs/api.md](api.md) lists are now *felt* rather than predicted: the summary endpoint parses a
    CSV the engine wrote seconds earlier in the same process, and cancel is a `202` plus an event.
    Neither is closed, deliberately — the cost is concrete now, which is a better basis for the design
@@ -238,10 +247,11 @@ server would not be a host of this engine but a fork of it.
 
 - **The frontend has no end-to-end test.** Its unit tests cover the four places a mistake is silent,
   and its correctness rests on the server's byte-identity test. Three defects were found by a person
-  opening it in a browser, which is not a repeatable process — and three more, all of them lifetime
-  or concurrency faults in the server, were found by reading the code back afterwards. Both of those
-  are worse than a test suite finding them, and the tests that now cover them were written after the
-  fact.
+  opening it in a browser, three more — lifetime and concurrency faults in the server — by reading
+  the code back afterwards, and one more by pointing the server at the real examples instead of the
+  synthetic fixture. **Seven defects, none found by a test.** The tests that now cover them were
+  written afterwards, and the last one is the most uncomfortable: 44 passing server tests all used a
+  fixture whose output happens to be named the one way the code assumed.
 - **India was compared at a hundredth of its cohort**, 12,406 people rather than 1,240,613. Nothing
   in the India result is evidence about the example as shipped.
 - **Population impact fraction has never met the baseline.** Only the synthetic pack exercises it end
