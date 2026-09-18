@@ -22,8 +22,8 @@
     19,
     20
   ],
-  "baseline_config_sha256": "bf19f4a627613a82ba468010dfc960f58927022ad70644ad1baaaff7f8a66d41",
-  "new_config_sha256": "537487086a6e92a9494da42707ee66580dc9afde7142e9a8de3a6a595d5e4e11",
+  "baseline_config_sha256": "5e3fda9f74b70bb384f81ab59bfe118499f679698455dafa9c0850c91c1c1598",
+  "new_config_sha256": "f2c21327913cfccd14a1791536185a1a5e726b9779d9665f1edef01dcb321ab5",
   "intervention": "simple",
   "stop_time_override": null,
   "size_fraction_override": 1e-05,
@@ -19035,5 +19035,6 @@
       100
     ]
   ],
-  "written_utc": "2026-09-18T09:34:28Z"
+  "written_utc": "2026-09-18T09:34:28Z",
+  "config_hash_note": "over the derived config with the seed removed and input paths left relative, so the hash identifies the scenario and not the machine the reference was written on"
 }

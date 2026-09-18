@@ -52,12 +52,20 @@ separately, one run each — see *One intervention at a time*, below.
 
 **The configs.** The baseline gets the upstream v1 config it was written for; this build gets the
 converted v2 config. They are not the same file, so the harness records the SHA-256 of each with
-the seed removed, and stores it beside the reference output. For the runs reported here:
+the seed removed **and its input paths left relative**, and stores it beside the reference output.
+
+The paths are left relative deliberately, and they were not always: until this run the hash was
+taken over the absolutised config, so it carried the checkout's directory and a stored reference
+could be found only on the machine that wrote it. Nothing noticed until CI ran the harness for the
+first time, recomputed a different hash, found no reference and went looking for a baseline binary
+that CI does not build. The four checked-in references were renamed to their new keys — the
+contents are the baseline's reduced output and do not depend on any path — and
+[docs/build-notes.md](build-notes.md) records it among the CI failures.
 
 | | baseline config | this build's config |
 | --- | --- | --- |
-| `HLM_France` | `6cea2a8ad468e34daa9ff5a3fb4592a7b2ce571100a3d7f2b8f91c12bb8392cd` | `b047ee3136241db69a3d4dcb93c149dc1866c16b639d8d6e94a629ad5d4fc444` |
-| `KevinHall_FINCH` | `a850e8a9f739b318ee8e3926355c65c4fefdc255a6c45df4f740631b932899be` | `685c8b8f5c9ee017c4ca99b150522766c67aa8cd9d3f658f9fcf863a5f1130d8` |
+| `HLM_France` | `fda785fed5bc0b9636bbbf52cd2924080b698b0ec6378bc82f2a8e491d4b5bf7` | `8278eaac…` |
+| `KevinHall_FINCH` | `abe1f3a0f07f76125d5bc791bd9da73ac48d16f03a9fb725eaa9e50117fc7a8f` | `4654ee92…` |
 
 The two configs are equivalent by construction: the converter's defaults for
 `project_requirements` are the baseline's own struct defaults, checked against

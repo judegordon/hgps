@@ -2,8 +2,11 @@
 
 Two stored reductions of the **baseline's** output, so that the `HLM_India` comparison can be
 reproduced without building or running the baseline. Each is keyed by the SHA-256 of the derived
-baseline config with the seed removed, which is why the file names are hashes: a reference cannot be
-matched to a config it did not come from.
+baseline config with the seed removed **and its input paths left relative**, which is why the file
+names are hashes: a reference cannot be matched to a config it did not come from. The paths are left
+relative deliberately — an absolutised config carries the checkout's location, and a reference keyed
+by that can only be found on the machine that wrote it, which is what the first CI run to reach this
+step discovered (docs/build-notes.md).
 
 **Both are at `--size-fraction 1e-5`, which is one hundredth of the cohort this example ships.** That
 is part of the derived config and therefore part of the hash, so a full-scale run will not find these
@@ -11,8 +14,8 @@ and will fall back to running the baseline rather than comparing against the wro
 
 | Hash | Intervention | Seeds | Bands excluded | Result |
 |---|---|---:|---:|---|
-| `bf19f4a6…` | `simple` | 20 | 1,641 | 0 of 67,885 out of tolerance |
-| `e58181ab…` | `food_labelling` (the example's own) | 20 | 1,657 | 3 of 68,083 — deviation **B-24** |
+| `5e3fda9f…` | `simple` | 20 | 1,641 | 0 of 67,885 out of tolerance |
+| `ffe878d7…` | `food_labelling` (the example's own) | 20 | 1,657 | 3 of 68,083 — deviation **B-24** |
 
 Reproduce either with:
 

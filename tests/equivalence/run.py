@@ -258,7 +258,7 @@ def intervention_overlay(example_name: str) -> dict:
 
 def derive_config(source: Path, seed: int, output_folder: Path, intervention: str | None,
                   stop_time: int | None, is_baseline: bool, overlay: dict | None = None,
-                  size_fraction: float | None = None) -> dict:
+                  size_fraction: float | None = None, absolute: bool = True) -> dict:
     document = json.loads(source.read_text())
 
     # The baseline reads a seed array; config v2 requires a scalar.
@@ -286,7 +286,14 @@ def derive_config(source: Path, seed: int, output_folder: Path, intervention: st
     # the result file is found by looking rather than by name.
     document["output"]["file_name"] = "result_{TIMESTAMP}.json"
 
-    absolutise(document, source.parent)
+    # `absolute=False` is for the hash that keys a stored reference, and nothing else. The
+    # derived config a run actually uses needs absolute paths, because it does not live beside the
+    # files it names — but those paths contain the checkout's location, and a reference keyed by
+    # them can only ever be found on the machine that wrote it. The first CI run to reach this step
+    # said so: it recomputed a different hash, found no reference, and went looking for a baseline
+    # binary that CI deliberately does not build.
+    if absolute:
+        absolutise(document, source.parent)
     return document
 
 
@@ -1041,9 +1048,11 @@ def main() -> int:
         overlay = intervention_overlay(name)
 
         def hash_of(source: Path, is_baseline: bool) -> str:
+            # Deliberately not absolutised: see derive_config. The seed is removed so the hash
+            # identifies the scenario rather than one run of it.
             document = derive_config(source, 0, Path("/results"), example.intervention,
                                      arguments.stop_time, is_baseline, overlay,
-                                     arguments.size_fraction)
+                                     arguments.size_fraction, absolute=False)
             document["running"].pop("seed", None)
             return sha256_of(json.dumps(document, sort_keys=True))
 

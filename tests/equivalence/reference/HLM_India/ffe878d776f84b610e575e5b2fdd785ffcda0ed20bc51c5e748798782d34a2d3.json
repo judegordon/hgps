@@ -22,8 +22,8 @@
     19,
     20
   ],
-  "baseline_config_sha256": "e58181abb2697ee005a808549630a69456598b20082678015cfbc3d94260fc61",
-  "new_config_sha256": "4a2deccdb8d742d07cbeedfc81ba71aca902f2f37cbc03edec127fc7fecdd065",
+  "baseline_config_sha256": "ffe878d776f84b610e575e5b2fdd785ffcda0ed20bc51c5e748798782d34a2d3",
+  "new_config_sha256": "b7f80cf903e4ac9394aeb14b960607a02608a24b7f2110ceea59f406155cdb41",
   "intervention": "food_labelling",
   "stop_time_override": null,
   "size_fraction_override": 1e-05,
@@ -19311,5 +19311,6 @@
       100
     ]
   ],
-  "written_utc": "2026-09-18T09:10:55Z"
+  "written_utc": "2026-09-18T09:10:55Z",
+  "config_hash_note": "over the derived config with the seed removed and input paths left relative, so the hash identifies the scenario and not the machine the reference was written on"
 }
