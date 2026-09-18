@@ -106,6 +106,14 @@ export function launcherScreen(
     if (!state.chosen) return;
     state.starting = true;
     state.error = null;
+    // The run before goes off the screen now rather than when the new one's first event arrives.
+    // Until it did, pressing Start left the previous run's id, its `completed` state and its "See
+    // the results" button on screen for as long as the POST took — a page saying something untrue
+    // about the button that had just been pressed. Found by the end-to-end tests, whose helper
+    // read that stale id and thought two runs had the same one.
+    stopStream();
+    state.run = null;
+    state.progress = initialProgress();
     render();
     try {
       const run = await api.startRun({

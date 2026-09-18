@@ -11,4 +11,10 @@ __pycache__/
 # node_modules is not (docs/decisions/0043-a-plain-typescript-frontend.md).
 web/node_modules/
 web/dist/
+
+# Playwright's own output: the report, the traces and the videos of a failing run. CI uploads them
+# as an artefact instead (docs/decisions/0045-end-to-end-tests-in-a-real-browser.md).
+web/playwright-report/
+web/test-results/
+
 out/runs/

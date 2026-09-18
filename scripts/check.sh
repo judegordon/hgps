@@ -6,8 +6,9 @@
 #   scripts/check.sh                 # everything
 #   scripts/check.sh --fast          # release preset and its tests only
 #   scripts/check.sh --no-equivalence
+#   scripts/check.sh --no-web
 #
-# Requires VCPKG_ROOT to point at a vcpkg checkout.
+# Requires VCPKG_ROOT to point at a vcpkg checkout, and — unless --no-web — npm.
 
 set -euo pipefail
 
@@ -16,10 +17,12 @@ REPO_ROOT="$PWD"
 
 FAST=0
 RUN_EQUIVALENCE=1
+RUN_WEB=1
 for arg in "$@"; do
     case "$arg" in
         --fast) FAST=1 ;;
         --no-equivalence) RUN_EQUIVALENCE=0 ;;
+        --no-web) RUN_WEB=0 ;;
         *) echo "check.sh: unknown argument '$arg'" >&2; exit 2 ;;
     esac
 done
@@ -49,6 +52,38 @@ for preset in "${PRESETS[@]}"; do
     step "test: $preset"
     ctest --preset "$preset"
 done
+
+# The graphical host, after the release build it needs and before the long comparison. Until this
+# run check.sh verified nothing in web/ at all, which made "green at every commit" a claim about the
+# C++ only — while three of the previous run's defects were in the frontend and its dev script
+# (docs/decisions/0045-end-to-end-tests-in-a-real-browser.md).
+if [[ "$RUN_WEB" -eq 1 ]]; then
+    if ! command -v npm >/dev/null 2>&1; then
+        echo "check.sh: npm is not on the path; the frontend cannot be checked. Use --no-web to skip it." >&2
+        exit 2
+    fi
+
+    step "frontend: install, type-check, test, build"
+    (
+        cd "$REPO_ROOT/web"
+        npm ci
+        npm run typecheck
+        npm test
+        npx vite build
+    )
+
+    if [[ "$FAST" -eq 0 ]]; then
+        # A real browser against the real server over the synthetic packs — seven seconds, because
+        # a run of a synthetic pack is a fifth of one. It needs the release build, which is why it
+        # is here rather than beside the other frontend steps.
+        step "frontend: end to end"
+        (
+            cd "$REPO_ROOT/web"
+            npx playwright install chromium
+            npx playwright test
+        )
+    fi
+fi
 
 if [[ "$RUN_EQUIVALENCE" -eq 1 && "$FAST" -eq 0 ]]; then
     step "equivalence harness"
