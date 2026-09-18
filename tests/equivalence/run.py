@@ -323,8 +323,8 @@ def run(binary: Path, config: Path, extra: list[str], log: Path,
     """Runs one binary on one config, and returns how long it took.
 
     `attempts` above one is for the baseline only, and exists for a measured reason: on the FINCH
-    example it exits on a signal about one run in twenty, and the *same* config and seed then
-    succeeds. That is the concurrency defect the audit recorded (B-01, B-02) — two scenario threads
+    example it exits on a signal about one run in forty-five — 4 of 180 measured runs, three
+    `SIGTRAP` and one `SIGABRT` — and the *same* config and seed then succeeds. That is the concurrency defect the audit recorded (B-01, B-02) — two scenario threads
     and a repository populated lazily from inside a parallel loop — and it is not something a
     comparison against it can fix. A retry keeps a twenty-seed run from being lost to it; every
     retry is recorded and reported, so the flake is visible rather than smoothed away.
