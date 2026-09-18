@@ -1,10 +1,13 @@
 // The command line is the one thing the CLI still owns after the library split, and while it lived
 // inside main.cpp nothing tested it. These are the tests it should have had all along.
 #include "options.h"
+
+#include "hgps/baseline_compat.h"
 #include "reporter.h"
 
 #include <gtest/gtest.h>
 
+#include <string>
 #include <sstream>
 #include <vector>
 
@@ -129,6 +132,44 @@ TEST(VersionText, SaysWhatBuiltIt) {
     EXPECT_NE(std::string::npos, text.find("commit"));
     EXPECT_NE(std::string::npos, text.find("platform"));
     EXPECT_NE(std::string::npos, text.find(std::string{hgps::api::build_info().version}));
+}
+
+TEST(CommandLine, BaselineCompatIsOffUnlessAsked) {
+    const auto result = parse({"-c", "run.json"});
+    ASSERT_TRUE(result.options.has_value());
+    EXPECT_TRUE(result.options->baseline_compat.none());
+}
+
+TEST(CommandLine, BaselineCompatTakesAFlagNameAndRepeats) {
+    const auto once = parse({"-c", "run.json", "--baseline-compat", "B-24"});
+    ASSERT_TRUE(once.options.has_value()) << once.message;
+    EXPECT_TRUE(once.options->baseline_compat.is_set(hgps::api::CompatFlag::b24));
+
+    // Repeating the same flag is not an error, and neither is asking for all of them twice.
+    const auto twice = parse({"-c", "run.json", "--baseline-compat", "B-24",
+                              "--baseline-compat", "all"});
+    ASSERT_TRUE(twice.options.has_value()) << twice.message;
+    EXPECT_EQ(hgps::api::BaselineCompat::flag_count, twice.options->baseline_compat.count());
+}
+
+TEST(CommandLine, AnUnknownBaselineCompatFlagIsRefusedWithTheListOfRealOnes) {
+    const auto result = parse({"-c", "run.json", "--baseline-compat", "B-99"});
+    EXPECT_FALSE(result.options.has_value());
+    EXPECT_NE(std::string::npos, result.message.find("B-99"));
+    EXPECT_NE(std::string::npos, result.message.find("B-24")) << result.message;
+
+    const auto missing = parse({"-c", "run.json", "--baseline-compat"});
+    EXPECT_FALSE(missing.options.has_value());
+    EXPECT_NE(std::string::npos, missing.message.find("--baseline-compat"));
+}
+
+TEST(CommandLine, TheHelpTextMentionsEveryCompatibilityFlag) {
+    const auto text = hgps::app::usage_text();
+    EXPECT_NE(std::string::npos, text.find("--baseline-compat"));
+    for (const auto flag : hgps::api::BaselineCompat::known()) {
+        EXPECT_NE(std::string::npos, text.find(hgps::api::BaselineCompat::name_of(flag)))
+            << hgps::api::BaselineCompat::name_of(flag) << " is missing from the help text";
+    }
 }
 
 TEST(DryRunText, ReportsWhatTheRunWouldDo) {

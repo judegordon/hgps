@@ -6,9 +6,12 @@
 // one age band to the next ends on the *new* band's effect rather than on the sum of the two.
 #include "sim/scenario.h"
 
+#include "hgps/baseline_compat.h"
+
 #include "diagnostics/internal_error.h"
 #include "random/source.h"
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -461,6 +464,105 @@ TEST(FoodLabellingScenario, APersonAffectedInTheWindowIsNotAffectedAgainInIt) {
     EXPECT_NE(25.0, scenario->apply(random, person, 2021, kBmi, 25.0));
     EXPECT_DOUBLE_EQ(25.0, scenario->apply(random, person, 2022, kBmi, 25.0));
     EXPECT_DOUBLE_EQ(25.0, scenario->apply(random, person, 2023, kBmi, 25.0));
+}
+
+TEST(FoodLabellingScenario, WithTheB24FlagOnTheBaselineDefectIsBackAndMeasurable) {
+    // B-24 with the compatibility flag on: somebody who fails an early coverage draw keeps their
+    // "unaffected" mark even after a later draw succeeds, so the policy offers them the impact
+    // again every remaining year of the window (ADR 0041).
+    //
+    // The two scenarios are driven from identically seeded sources over the same people and years
+    // at a coverage rate of one half, so the draws are the same sequence in both and the only
+    // difference is the one statement the flag selects. Counting rather than asserting a
+    // particular year keeps the test independent of which draws happen to fall where.
+    const auto affected_counts = [](hgps::api::BaselineCompat compat) {
+        auto spec = food_labelling_spec();
+        spec.coverage_rates = {0.5, 0.5};
+        spec.coverage_cutoff_time = 20; // the whole horizon, so nobody leaves the window
+        auto scenario = create_intervention_scenario(spec, compat);
+        auto random = source();
+
+        std::map<std::size_t, int> times_affected;
+        for (int year = 2021; year <= 2035; ++year) {
+            for (std::size_t id = 1; id <= 8; ++id) {
+                Person person{Gender::male, id};
+                person.age = 30;
+                person.risk_factors[Identifier{"energy"}] = 2000.0;
+                if (scenario->apply(random, person, year, kBmi, 25.0) != 25.0) {
+                    ++times_affected[id];
+                }
+            }
+        }
+        return times_affected;
+    };
+
+    const auto fixed = affected_counts(hgps::api::BaselineCompat{});
+    hgps::api::BaselineCompat compat;
+    compat.set(hgps::api::CompatFlag::b24);
+    const auto baseline_behaviour = affected_counts(compat);
+
+    // Fixed: nobody is ever affected more than once.
+    ASSERT_FALSE(fixed.empty()) << "the test needs somebody to pass a draw at all";
+    for (const auto &[id, count] : fixed) {
+        EXPECT_EQ(1, count) << "person " << id << " was affected " << count << " times";
+    }
+
+    // The baseline's behaviour: at least one person is affected more than once, which is the
+    // defect, and nobody is affected fewer times than under the fix.
+    int repeats = 0;
+    for (const auto &[id, count] : baseline_behaviour) {
+        EXPECT_GE(count, 1) << "person " << id;
+        repeats += count - 1;
+    }
+    EXPECT_GT(repeats, 0) << "the flag was on and nothing was applied twice";
+}
+
+TEST(FoodLabellingScenario, TheB24FlagChangesNothingWhenNobodyEverFailsADraw) {
+    // The flag restores a defect that needs a *previous* failed draw. At a coverage rate of one
+    // nobody fails one, so the two behaviours must be identical — which is why the deviation is
+    // worth exactly zero in a policy's first year (docs/deviations.md, B-24).
+    const auto run = [](hgps::api::BaselineCompat compat) {
+        auto spec = food_labelling_spec();
+        spec.coverage_rates = {1.0, 1.0};
+        auto scenario = create_intervention_scenario(spec, compat);
+        auto random = source();
+
+        std::vector<double> values;
+        for (int year = 2021; year <= 2030; ++year) {
+            auto person = person_aged(30);
+            person.risk_factors[Identifier{"energy"}] = 2000.0;
+            values.push_back(scenario->apply(random, person, year, kBmi, 25.0));
+        }
+        return values;
+    };
+
+    hgps::api::BaselineCompat compat;
+    compat.set(hgps::api::CompatFlag::b24);
+    EXPECT_EQ(run(hgps::api::BaselineCompat{}), run(compat));
+}
+
+TEST(FoodLabellingScenario, AFlagForADifferentDeviationDoesNotChangeThisOne) {
+    // `all` is what the equivalence harness passes. It must mean "B-24 on" here and not something
+    // broader, so that adding a second flag later cannot silently change this policy.
+    auto spec = food_labelling_spec();
+    spec.coverage_rates = {1.0, 1.0};
+
+    auto with_all = create_intervention_scenario(spec, hgps::api::BaselineCompat::all());
+    hgps::api::BaselineCompat only_b24;
+    only_b24.set(hgps::api::CompatFlag::b24);
+    auto with_b24 = create_intervention_scenario(spec, only_b24);
+
+    auto left = source();
+    auto right = source();
+    for (int year = 2021; year <= 2026; ++year) {
+        auto a = person_aged(30);
+        a.risk_factors[Identifier{"energy"}] = 2000.0;
+        auto b = person_aged(30);
+        b.risk_factors[Identifier{"energy"}] = 2000.0;
+        EXPECT_DOUBLE_EQ(with_all->apply(left, a, year, kBmi, 25.0),
+                         with_b24->apply(right, b, year, kBmi, 25.0))
+            << "year " << year;
+    }
 }
 
 TEST(FoodLabellingScenario, APersonWithoutTheAdjustedFactorIsNotAffected) {

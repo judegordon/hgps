@@ -63,6 +63,12 @@ struct Manifest {
     /// @brief Empty in every ordinary run; the perturbation specification otherwise, so a
     ///        deliberately wrong run cannot be mistaken for a real one (ADR 0036).
     std::string perturbation;
+
+    /// @brief The deliberate deviations this run put back, by name, or empty for none — which is
+    ///        every ordinary run. A result produced with a flag on is reproducing a baseline
+    ///        defect on purpose, and the manifest is where that is recorded
+    ///        (ADR 0041, docs/deviations.md).
+    std::vector<std::string> baseline_compat;
 };
 
 /// @brief ISO-8601 UTC "2026-09-18T04:53:12Z" for now.

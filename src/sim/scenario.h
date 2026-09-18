@@ -2,6 +2,8 @@
 // Origin: src/HealthGPS/{scenario,intervention_scenario,simple_policy_scenario}.h.
 #pragma once
 
+#include "hgps/baseline_compat.h"
+
 #include "config/types.h"
 #include "core/identifier.h"
 #include "model/containers.h"
@@ -272,9 +274,14 @@ class PhysicalActivityScenario final : public BandedInterventionScenario {
 ///        a higher rate in the policy's first years than afterwards; the impact is a product of
 ///        the effect, an adjustment factor, the person's value of an adjusted risk factor, and a
 ///        transfer coefficient that depends on their sex and whether they are a child.
+/// One deviation lives here, B-24, and it is switchable: with `api::CompatFlag::b24` on, the
+/// scenario re-applies its impact the way the baseline does. See `impact_for` for the single
+/// statement that differs, and docs/decisions/0041-deliberate-deviations-are-switchable.md for
+/// why a deliberate deviation has to be switchable at all.
 class FoodLabellingScenario final : public BandedInterventionScenario {
   public:
-    explicit FoodLabellingScenario(config::InterventionSpec definition);
+    explicit FoodLabellingScenario(config::InterventionSpec definition,
+                                   api::BaselineCompat compat = {});
 
   protected:
     double impact_for(rng::RandomSource &random, model::Person &person, int time,
@@ -292,12 +299,20 @@ class FoodLabellingScenario final : public BandedInterventionScenario {
     /// @brief Child male, child female, adult male, adult female.
     std::array<double, 4> transfer_{};
 
+    /// @brief B-24: on, a person who has already been marked unaffected keeps that mark even
+    ///        after a later draw succeeds, so the policy offers them the impact again every
+    ///        remaining year of the coverage window — which is what the baseline does.
+    bool b24_retry_{false};
+
     double transfer_for(const model::Person &person) const noexcept;
 };
 
 /// @brief Builds the scenario an intervention specification names.
 /// @throws diag::InternalError for an identifier this build does not implement — the config
 ///         loader has already rejected those, so reaching here is a bug (ADR 0021).
-std::unique_ptr<Scenario> create_intervention_scenario(const config::InterventionSpec &definition);
+/// @param compat Deliberate deviations to put back. Only `food_labelling` has one so far, so
+///        every other scenario ignores this.
+std::unique_ptr<Scenario> create_intervention_scenario(const config::InterventionSpec &definition,
+                                                       api::BaselineCompat compat = {});
 
 } // namespace hgps::sim

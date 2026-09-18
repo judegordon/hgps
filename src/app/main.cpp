@@ -72,6 +72,7 @@ int main(int argc, char **argv) {
         load_options.output_folder = options.output_folder;
         load_options.job_id = options.job_id;
         load_options.verbose = options.verbose;
+        load_options.baseline_compat = options.baseline_compat;
 
         const auto configuration =
             hgps::api::load_configuration(options.config, load_options, report);

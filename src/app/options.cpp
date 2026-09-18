@@ -37,6 +37,11 @@ Options:
                         so that the equivalence harness can check it fails where it should. The
                         run's manifest records what was set, and a specification naming a channel
                         the output does not have fails the run. Never use it for analysis.
+      --baseline-compat NAME
+                        Put a deliberate deviation from the baseline back, so its effect can be
+                        measured. NAME is a deviation's ID in docs/deviations.md — B-24 is the
+                        only one so far — or 'all'. Repeatable. Off by default, and the run's
+                        manifest records whatever was on.
   -j, --jobid N         An HPC array job identifier. Appended to the output file name unless the
                         name contains {JOBID}.
   -T, --threads N       Workers for the RNG-free parallel sections (default 1). The output is
@@ -110,6 +115,24 @@ OptionsResult parse_options(const std::vector<std::string> &arguments) {
                                      .message = fmt::format("{} needs a specification", argument)};
             }
             options.perturb = *value;
+            continue;
+        }
+
+        if (argument == "--baseline-compat") {
+            const auto value = next_value(argument);
+            if (!value.has_value()) {
+                return OptionsResult{
+                    .options = std::nullopt,
+                    .message = fmt::format("{} needs a flag name; the flags are {}", argument,
+                                           api::BaselineCompat::known_names_sentence())};
+            }
+            if (!api::BaselineCompat::apply_name(*value, options.baseline_compat)) {
+                return OptionsResult{
+                    .options = std::nullopt,
+                    .message = fmt::format("'{}' is not a baseline compatibility flag; the flags "
+                                           "are {}",
+                                           *value, api::BaselineCompat::known_names_sentence())};
+            }
             continue;
         }
 

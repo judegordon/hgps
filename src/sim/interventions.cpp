@@ -300,8 +300,10 @@ double PhysicalActivityScenario::impact_for(rng::RandomSource &random, model::Pe
 
 // --- food labelling ---------------------------------------------------------------------------
 
-FoodLabellingScenario::FoodLabellingScenario(config::InterventionSpec definition)
-    : BandedInterventionScenario{std::move(definition), 1} {
+FoodLabellingScenario::FoodLabellingScenario(config::InterventionSpec definition,
+                                             api::BaselineCompat compat)
+    : BandedInterventionScenario{std::move(definition), 1},
+      b24_retry_{compat.is_set(api::CompatFlag::b24)} {
     const auto &spec = this->definition();
 
     if (spec.coverage_rates.size() != 2) {
@@ -361,11 +363,13 @@ double FoodLabellingScenario::impact_for(rng::RandomSource &random, model::Perso
     // not noticed it yet is offered it again every year; after the window closes, everyone has
     // been decided one way or the other and nobody is reconsidered.
     //
-    // One difference from the baseline, recorded as B-24: when the draw succeeds the baseline
-    // marks the person with `try_emplace`, which does nothing if they are already marked as
-    // unaffected — so somebody who failed an early draw and passed a later one keeps their
-    // "unaffected" mark and is offered the impact again, and again, every remaining year of the
-    // window. Marking them affected is what the surrounding code plainly intends.
+    // One difference from the baseline, recorded as B-24 and switchable by `b24_retry_`: when
+    // the draw succeeds the baseline marks the person with `try_emplace`, which does nothing if
+    // they are already marked as unaffected — so somebody who failed an early draw and passed a
+    // later one keeps their "unaffected" mark and is offered the impact again, and again, every
+    // remaining year of the window. Marking them affected is what the surrounding code plainly
+    // intends, and is what happens with the flag off. The single statement that differs is the
+    // last one in this function.
     const bool short_term = elapsed < cutoff_time_;
     if (short_term) {
         if (seen != book_.end() && seen->second != kNoEffect) {
@@ -393,7 +397,14 @@ double FoodLabellingScenario::impact_for(rng::RandomSource &random, model::Perso
         return value;
     }
 
-    book_.insert_or_assign(person.id(), time);
+    // B-24. `try_emplace` leaves an existing kNoEffect mark in place, so the person is offered
+    // the impact again next year — the baseline's behaviour, bug and all. `insert_or_assign`
+    // records that they have now been affected, which is this build's.
+    if (b24_retry_) {
+        book_.try_emplace(person.id(), time);
+    } else {
+        book_.insert_or_assign(person.id(), time);
+    }
     return value + transfer_for(person) * impacts().front().impact_value * *adjusted *
                        adjustment_value_;
 }

@@ -1030,3 +1030,77 @@ TEST(ConfigParsing, AMalformedFileIsReportedWithALineNumber) {
     ASSERT_TRUE(report.contains(IssueCode::json_parse_error));
     EXPECT_TRUE(report.issues().front().location.line.has_value());
 }
+
+// --- baseline compatibility flags (ADR 0041) ----------------------------------------------------
+
+TEST(ConfigParsing, NoBaselineCompatFlagsUnlessAsked) {
+    const ConfigFixture fixture{"compat_absent"};
+    auto [config, report] = load(fixture, fixture.document());
+
+    ASSERT_TRUE(config.has_value()) << report.to_string();
+    EXPECT_TRUE(config->baseline_compat.none());
+    EXPECT_TRUE(config->baseline_compat.names().empty());
+}
+
+TEST(ConfigParsing, ReadsBaselineCompatFromTheDocument) {
+    const ConfigFixture fixture{"compat_named"};
+    auto document = fixture.document();
+    document["baseline_compat"] = nlohmann::json::array({"B-24"});
+
+    auto [config, report] = load(fixture, document);
+
+    ASSERT_TRUE(config.has_value()) << report.to_string();
+    EXPECT_TRUE(config->baseline_compat.is_set(hgps::api::CompatFlag::b24));
+    EXPECT_EQ(std::vector<std::string>{"B-24"}, config->baseline_compat.names());
+
+    // A run reproducing a defect on purpose says so, at the default verbosity.
+    EXPECT_FALSE(report.has_errors());
+    EXPECT_NE(std::string::npos, report.to_string().find("B-24"));
+}
+
+TEST(ConfigParsing, BaselineCompatAllMeansEveryFlag) {
+    const ConfigFixture fixture{"compat_all"};
+    auto document = fixture.document();
+    document["baseline_compat"] = nlohmann::json::array({"all"});
+
+    auto [config, report] = load(fixture, document);
+
+    ASSERT_TRUE(config.has_value()) << report.to_string();
+    EXPECT_EQ(hgps::api::BaselineCompat::flag_count, config->baseline_compat.count());
+}
+
+TEST(ConfigParsing, AnUnknownBaselineCompatFlagIsAnErrorNamingTheOnesThereAre) {
+    // A misspelled flag must not run with the fixed behaviour while its author believes they asked
+    // for the baseline's — they would then read the comparison as evidence about the wrong thing.
+    const ConfigFixture fixture{"compat_unknown"};
+    auto document = fixture.document();
+    document["baseline_compat"] = nlohmann::json::array({"B-99"});
+
+    auto [config, report] = load(fixture, document);
+
+    EXPECT_FALSE(config.has_value());
+    ASSERT_TRUE(report.has_errors());
+    const auto text = report.to_string();
+    EXPECT_NE(std::string::npos, text.find("B-99"));
+    EXPECT_NE(std::string::npos, text.find("B-24")) << "the message should list the flags: " << text;
+}
+
+TEST(ConfigParsing, TheCallersBaselineCompatIsUnionedWithTheDocuments) {
+    const ConfigFixture fixture{"compat_union"};
+    auto document = fixture.document();
+    document["baseline_compat"] = nlohmann::json::array({"B-24"});
+
+    LoadOptions options;
+    options.baseline_compat.set(hgps::api::CompatFlag::b24);
+
+    // Both ask for the same flag: the result is one run with it on, not an error.
+    auto [config, report] = load(fixture, document, options);
+    ASSERT_TRUE(config.has_value()) << report.to_string();
+    EXPECT_EQ(1U, config->baseline_compat.count());
+
+    // And the caller alone is enough, with nothing in the document.
+    const ConfigFixture second{"compat_caller_only"};
+    auto [from_caller, caller_report] = load(second, second.document(), options);
+    ASSERT_TRUE(from_caller.has_value()) << caller_report.to_string();
+    EXPECT_TRUE(from_caller->baseline_compat.is_set(hgps::api::CompatFlag::b24));
+}

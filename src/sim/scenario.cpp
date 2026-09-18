@@ -154,7 +154,8 @@ double SimplePolicyScenario::apply(rng::RandomSource & /*random*/, model::Person
 }
 
 std::unique_ptr<Scenario>
-create_intervention_scenario(const config::InterventionSpec &definition) {
+create_intervention_scenario(const config::InterventionSpec &definition,
+                            api::BaselineCompat compat) {
     // The six upstream identifiers, spelled as upstream spells them.
     if (definition.identifier == "simple") {
         return std::make_unique<SimplePolicyScenario>(definition);
@@ -172,7 +173,7 @@ create_intervention_scenario(const config::InterventionSpec &definition) {
         return std::make_unique<PhysicalActivityScenario>(definition);
     }
     if (definition.identifier == "food_labelling") {
-        return std::make_unique<FoodLabellingScenario>(definition);
+        return std::make_unique<FoodLabellingScenario>(definition, compat);
     }
 
     throw diag::InternalError(

@@ -34,6 +34,11 @@ inline std::filesystem::path upstream_examples_dir() {
 
 inline std::filesystem::path schemas_dir() { return std::filesystem::path{HGPS_SCHEMAS_DIR}; }
 
+/// @brief The documentation tree, for the tests that check code and prose have not drifted apart.
+inline std::filesystem::path docs_dir() {
+    return std::filesystem::path{HGPS_SOURCE_DIR} / "docs";
+}
+
 /// @brief A scratch directory for a test that must write files, removed and recreated on request.
 std::filesystem::path scratch_dir(const std::string &test_name);
 

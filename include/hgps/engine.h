@@ -7,6 +7,7 @@
 // Derived from Health-GPS (BSD-3-Clause, Imperial College London / INRAE); see LICENSE.
 #pragma once
 
+#include "baseline_compat.h"
 #include "cancellation.h"
 #include "diagnostics.h"
 #include "events.h"
@@ -45,6 +46,16 @@ struct LoadOptions {
     /// @brief Whether a path named in the configuration must already exist. A caller validating a
     ///        document it has not yet written files for turns this off.
     bool require_files_exist{true};
+
+    /// @brief Deliberate deviations from the baseline to put back, in addition to any the
+    ///        configuration's own `baseline_compat` array names. The two are unioned: neither
+    ///        overrides the other, because both are requests to restore a behaviour.
+    ///
+    /// Default-constructed means none, which is the fixed behaviour this project stands behind.
+    /// Setting a flag makes the engine reproduce a baseline defect exactly, so that the size of
+    /// the difference can be measured rather than merely asserted
+    /// ([ADR 0041](decisions/0041-deliberate-deviations-are-switchable.md)).
+    BaselineCompat baseline_compat;
 };
 
 /// @brief A loaded, fully validated configuration.
@@ -89,6 +100,11 @@ class Configuration {
     /// @brief `data.source` as written, and `data.checksum` if the configuration gave one.
     const std::string &data_source() const noexcept;
     std::optional<std::string> data_checksum() const;
+
+    /// @brief The deviations this configuration will put back: the union of the document's
+    ///        `baseline_compat` and the `LoadOptions` field of the same name. Recorded in the run
+    ///        manifest, so a result file carries the answer with it.
+    const BaselineCompat &baseline_compat() const noexcept;
 
     // Internals. Not part of the API; declared here because the implementation needs a handle.
     class Impl;

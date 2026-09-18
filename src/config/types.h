@@ -4,6 +4,8 @@
 // docs/decisions/0010-config-v2-and-a-converter.md records what changed and why.
 #pragma once
 
+#include "hgps/baseline_compat.h"
+
 #include "core/interval.h"
 #include "core/types.h"
 #include "io/csv_reader.h"
@@ -301,6 +303,15 @@ struct Config {
     Running running;
     Output output;
     PopulationImpactFraction population_impact_fraction;
+
+    /// @brief The deliberate deviations this run puts back, if any. Empty by default: the fixed
+    ///        behaviour is what this project stands behind, and a flag here is a request to
+    ///        reproduce a baseline defect so its effect can be measured
+    ///        ([ADR 0041](decisions/0041-deliberate-deviations-are-switchable.md)).
+    ///
+    /// The union of the config document's `baseline_compat` array and whatever the caller asked
+    /// for — neither overrides the other, because both are requests to restore a behaviour.
+    api::BaselineCompat baseline_compat;
 
     core::VerboseMode verbosity{core::VerboseMode::none};
     int job_id{0};

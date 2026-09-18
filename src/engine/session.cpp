@@ -116,6 +116,10 @@ std::optional<std::string> Configuration::data_checksum() const {
     return impl_->config().data.checksum;
 }
 
+const BaselineCompat &Configuration::baseline_compat() const noexcept {
+    return impl_->config().baseline_compat;
+}
+
 // --- DataHandle ---------------------------------------------------------------------------------
 
 class DataHandle::Impl {
@@ -183,6 +187,7 @@ std::optional<Configuration> load_configuration(const std::filesystem::path &pat
     internal_options.job_id = options.job_id;
     internal_options.verbose = options.verbose;
     internal_options.require_files_exist = options.require_files_exist;
+    internal_options.baseline_compat = options.baseline_compat;
 
     auto config = config::load(path, internal_options, internal);
     detail::append_to_public(internal, report);
@@ -305,6 +310,7 @@ RunSummary execute(Run &run, const RunOptions &options, EventSubscriber *subscri
     manifest.trial_runs = description.trial_runs;
     manifest.cohort_size = description.cohort_size;
     manifest.threads = options.threads;
+    manifest.baseline_compat = config.baseline_compat.names();
 
     output::RunMetadata metadata;
     metadata.model = "healthgps";
@@ -420,7 +426,8 @@ RunSummary execute(Run &run, const RunOptions &options, EventSubscriber *subscri
         if (impl.intervention_modules.has_value()) {
             sim::Engine intervention{
                 impl.loaded.inputs,
-                sim::create_intervention_scenario(*config.running.active_intervention),
+                sim::create_intervention_scenario(*config.running.active_intervention,
+                                                  config.baseline_compat),
                 std::move(*impl.intervention_modules), config.running.seed};
 
             outcome = runner.run(baseline, intervention, config.running.trial_runs,

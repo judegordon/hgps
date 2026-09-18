@@ -74,6 +74,10 @@ void write_manifest(const std::filesystem::path &path, const Manifest &manifest)
 
     document["results"] = manifest.results;
 
+    // Always present, empty in an ordinary run: "which deviations did this run put back?" is a
+    // question every manifest answers, and an empty array is the answer "none".
+    document["baseline_compat"] = manifest.baseline_compat;
+
     // Present and null in an ordinary run rather than absent, so "was this output perturbed?" is
     // answered by every manifest instead of by the absence of a key.
     if (manifest.perturbation.empty()) {

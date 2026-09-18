@@ -25,6 +25,13 @@
     "population_impact_fraction": {
       "$ref": "config/population_impact_fraction.json",
       "description": "Reserved. Accepted by the schema so a PIF config keeps its shape, but rejected at load with feature_not_implemented when enabled is true; PIF is out of scope for this build (docs/decisions/0021-scope-finch-and-hlm-france.md)."
+    },
+    "baseline_compat": {
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "default": [],
+      "description": "Deliberate deviations from the upstream baseline to put back, each named by its ID in docs/deviations.md — \"B-24\" is the only one so far — or \"all\" for every one of them. Absent or empty means none, which is this build's own behaviour and what every ordinary run uses. A flag makes the engine reproduce a baseline defect exactly, so the size and direction of the difference can be measured rather than merely asserted, and the run manifest records whatever was on. Matching ignores case and the - or _ between the letter and the number; an unrecognised name is an error rather than a silent no-op (docs/decisions/0041-deliberate-deviations-are-switchable.md)."
     }
   },
   "required": [

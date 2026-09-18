@@ -2,6 +2,8 @@
 // Origin: src/HealthGPS.Console/command_options.{h,cpp}, which uses cxxopts.
 #pragma once
 
+#include "hgps/baseline_compat.h"
+
 #include <cstdint>
 #include <filesystem>
 #include <optional>
@@ -43,6 +45,11 @@ struct Options {
     /// (docs/equivalence-method.md §7.2). A run that uses it records the specification in its
     /// manifest, so its output cannot be mistaken for a real one.
     std::string perturb;
+
+    /// @brief `--baseline-compat NAME` — deliberate deviations to put back, so their effect can
+    ///        be measured rather than merely asserted (ADR 0041). Repeatable; `all` is every
+    ///        flag there is. Off by default.
+    api::BaselineCompat baseline_compat;
 };
 
 /// @brief What parsing produced: options, or a message explaining what was wrong.

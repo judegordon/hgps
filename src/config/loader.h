@@ -32,6 +32,11 @@ struct LoadOptions {
     /// @brief Whether a path named in the config must already exist. Off in tests that check
     ///        parsing rather than the file system.
     bool require_files_exist{true};
+
+    /// @brief Deliberate deviations to put back, in addition to any the document names. The two
+    ///        are unioned: `--baseline-compat B-24` on a config that already asks for it is the
+    ///        same run (ADR 0041).
+    api::BaselineCompat baseline_compat;
 };
 
 /// @brief Loads and validates a config v2 document.
@@ -68,6 +73,8 @@ bool load_running(const io::JsonCursor &root, Config &config, diag::IssueReport 
 bool load_output(const io::JsonCursor &root, const LoadOptions &options, Config &config,
                  diag::IssueReport &report);
 bool check_version(const io::JsonCursor &root, diag::IssueReport &report);
+void load_baseline_compat(const io::JsonCursor &root, const LoadOptions &options, Config &config,
+                          diag::IssueReport &report);
 
 /// @brief Resolves a path from the config against the config's directory, checking existence.
 std::optional<std::filesystem::path> resolve_path(const io::JsonCursor &cursor,

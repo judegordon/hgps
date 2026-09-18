@@ -935,6 +935,43 @@ bool load_output(const JsonCursor &root, const LoadOptions &options, Config &con
     return report.error_count() == before;
 }
 
+/// @brief Reads the optional `baseline_compat` array and unions it with whatever the caller asked
+///        for.
+///
+/// An unknown name is an error rather than a shrug: a caller who misspells a flag would otherwise
+/// get the fixed behaviour while believing they had asked for the baseline's, and then read a
+/// comparison as evidence about the wrong thing. The message names every flag there is.
+void load_baseline_compat(const JsonCursor &root, const LoadOptions &options, Config &config,
+                          diag::IssueReport &report) {
+    auto compat = options.baseline_compat;
+
+    if (root.has("baseline_compat")) {
+        for (const auto &name :
+             root.string_array("baseline_compat").value_or(std::vector<std::string>{})) {
+            if (!api::BaselineCompat::apply_name(name, compat)) {
+                root.error("baseline_compat", IssueCode::config_bad_value,
+                           fmt::format("'{}' is not a baseline compatibility flag; the flags are {}",
+                                       name, api::BaselineCompat::known_names_sentence()));
+            }
+        }
+    }
+
+    // Worth saying out loud: a run with a flag on is deliberately reproducing a defect, and a
+    // reader who finds one of these result files later should not have to open the manifest to
+    // discover that.
+    for (const auto flag : api::BaselineCompat::known()) {
+        if (compat.is_set(flag)) {
+            report.warning(IssueCode::config_default_applied, IssueLocation{},
+                           fmt::format("baseline compatibility flag {} is on: this run reproduces "
+                                       "the baseline's behaviour, in which {}",
+                                       api::BaselineCompat::name_of(flag),
+                                       api::BaselineCompat::description_of(flag)));
+        }
+    }
+
+    config.baseline_compat = compat;
+}
+
 } // namespace detail
 
 std::string expand_output_file_name(const Output &output, int job_id) {
@@ -980,7 +1017,7 @@ std::optional<Config> load_from_json(const nlohmann::json &document,
     // annotate JSON that has no schema slot for prose.
     root.reject_unknown_members({"$schema", "$comment", "version", "project_requirements", "data",
                                  "inputs", "modelling", "running", "output",
-                                 "population_impact_fraction"});
+                                 "population_impact_fraction", "baseline_compat"});
 
     // Removed in config v2, with the replacement named rather than the key ignored.
     root.reject_removed_member("trend_type", "use project_requirements.trend instead");
@@ -1048,6 +1085,10 @@ std::optional<Config> load_from_json(const nlohmann::json &document,
 
         config.population_impact_fraction = result;
     }
+
+    // Baseline compatibility flags (ADR 0041). Off unless asked for, in the document or by the
+    // caller, and the two are unioned rather than one overriding the other.
+    detail::load_baseline_compat(root, options, config, report);
 
     if (report.error_count() != before) {
         return std::nullopt;
