@@ -530,7 +530,23 @@ values for a quantile to carry information, and it is compared numerically as it
 comparing against them would be comparing two things at once: the same 60 seeds, the same stored
 reference, the same binary, and one line of the detector different.
 
-<!--PAIRED-->
+| `HLM_India`, 60 seeds | Comparisons | Out of tolerance | Which |
+|---|---:|---:|---|
+| `simple`, printed precision on the **rate** | 68,740 | **3** | `incidence_gout` 2019 (×2), `prevalence_thyroidcancer` 2046 |
+| `simple`, on the **numerator** | 67,894 | **2** | `incidence_gout` 2019 (×2) |
+| `food_labelling`, on the rate | 68,830 | **4** | `incidence_gout` 2019 (×2), `prevalence_stomachcancer` 2034, `prevalence_livercancer` 2036 |
+| `food_labelling`, on the numerator | 68,047 | **3** | `incidence_gout` 2019 (×2), `prevalence_stomachcancer` 2034 |
+
+One failure removed in each: `prevalence_thyroidcancer` at 2046 and `prevalence_livercancer` at
+2036. Both are now lattice-valued and have no quantile comparison left to fail; neither passed by a
+wider allowance, because the allowance did not change. Nothing that was passing began to fail.
+
+The comparison count falls by 846 and 783 because that is what reclassifying a series does: its
+per-year quantile comparisons are replaced by one distribution test over the whole series, which is
+the stricter of the two on a series whose values really are a lattice — the previous run's residual
+list is where that argument is set out. The surviving failures are identical numbers in both passes
+(`incidence_gout` p95 baseline 0.00104759 against 0.000598623, 1.1× the allowance), which is the
+check that the two passes differ in one line and nothing else.
 
 `prevalence_stomachcancer` was not one of the four the previous run profiled. Re-measured the same
 way, it has **8 to 10** distinct case counts across the four (scenario, sex) cells that carry it, with
