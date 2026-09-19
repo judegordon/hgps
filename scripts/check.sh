@@ -91,27 +91,19 @@ if [[ "$RUN_EQUIVALENCE" -eq 1 && "$FAST" -eq 0 ]]; then
         # Twenty seeds of each example against the stored baseline reference. Add
         # --refresh-reference to re-run the baseline binary itself; see docs/equivalence.md.
         #
-        # HLM_France has no failure budget. KevinHall_FINCH has one, of 3 out of its 111,836
-        # comparisons, and it is the first this project has had for two runs.
-        #
-        # Comparing every output family rather than one file per run took that example from 22,616
-        # comparisons to 111,836. Three are out of tolerance at 20 seeds and four at 60, and no cell
-        # fails in both. Re-scoring the 60-seed run over subsets of itself says why: the allowance's
-        # width is estimated from the same twenty draws it is judging, so a series sitting at a
-        # small signed offset well inside its allowance fails in every year at once whenever a seed
-        # set gives a tight sample. The worst 20-seed draw of 100 has 45 failures, 32 of them in one
-        # whole-population series — so this is not about the stratified files and is older than this
-        # run; what this run did was add four times as many groups for it to show up in.
-        #
-        # 3 is what this build produces at these seeds, with no margin, so any increase fails. The
-        # other two disjoint thirds of that 60-seed run give 1 each. docs/backlog.md item 6 is the
-        # work that removes the budget; docs/equivalence.md, "There is a failure budget again".
+        # **Neither example has a failure budget, and the harness has no flag that could give one.**
+        # The eighth run spent a budget of 3 on KevinHall_FINCH, because the rule then in force had
+        # no false-positive rate to appeal to: its allowance was 4.5 estimated standard errors, and
+        # re-scoring a 60-seed run over 20-seed subsets of itself gave between 0 and 45 failures
+        # from the same build against the same baseline. The rule states a family-wise rate of 1%
+        # now and has been measured against it on a null — the same build against itself on
+        # disjoint seed sets, on all three runnable examples
+        # (docs/equivalence-method.md 4.4, ADR 0048).
         #
         # Both examples, one per model family: HLM_France covers HLM/EBHLM and KevinHall_FINCH
         # covers StaticLinear/KevinHall and the S1 policy model.
         python3 tests/equivalence/run.py --example HLM_France --seeds 20 --use-reference
-        python3 tests/equivalence/run.py --example KevinHall_FINCH --seeds 20 --use-reference \
-            --max-failures 3
+        python3 tests/equivalence/run.py --example KevinHall_FINCH --seeds 20 --use-reference
     else
         echo "check.sh: tests/equivalence/run.py is missing or not executable." >&2
         exit 1

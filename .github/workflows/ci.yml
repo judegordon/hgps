@@ -477,23 +477,18 @@ jobs:
           python3 tests/equivalence/self_check.py --mode seeds --example Synthetic --seeds 20
           python3 tests/equivalence/self_check.py --mode perturbation --example Synthetic --seeds 20
 
-      # The budget is zero for every example but one, and the matrix entry carries its own so this
-      # job and `scripts/check.sh` agree about what passes.
-      #
-      # `KevinHall_FINCH` is allowed **3** of its 111,836 comparisons. Three are out of tolerance at
-      # 20 seeds and four at 60, and no cell fails in both: the allowance's width is estimated from
-      # the same twenty draws it is judging, so a series at a small signed offset well inside its
-      # allowance fails in every year at once when a seed set gives a tight sample. 3 is what this
-      # build produces at these seeds, with no margin, so any increase fails.
-      # docs/equivalence.md, "There is a failure budget again"; docs/backlog.md item 6 removes it.
+      # **There is no failure budget, on any example.** One failure fails the job, and the harness
+      # has no flag that could raise it. The eighth run spent a budget of three here because the
+      # rule in force then had no false-positive rate to appeal to — its allowance was estimated
+      # from the same twenty draws it judged, so the same build against the same baseline gave
+      # between 0 and 45 failures depending on the seed set. The rule now states a family-wise
+      # rate of 1% and is measured against it on a null
+      # (docs/equivalence-method.md 4.4, ADR 0048), so a failure here is a failure.
       - name: Compare against the checked-in baseline reference
         working-directory: hgps_new_rewrite
-        env:
-          MAX_FAILURES: ${{ matrix.example == 'KevinHall_FINCH' && '3' || '0' }}
         run: |
           python3 tests/equivalence/run.py \
             --example ${{ matrix.example }} --seeds 20 --use-reference \
-            --max-failures "$MAX_FAILURES" \
             --json "out/equivalence-${{ matrix.example }}.json"
 
       - name: Upload the comparison
