@@ -52,6 +52,12 @@ class RuntimeContext {
     RuntimeMetric &metrics() noexcept { return metrics_; }
     const RuntimeMetric &metrics() const noexcept { return metrics_; }
 
+    /// @brief Located warnings the simulation raised. Unlike the metrics, these are **not**
+    ///        cleared between trial runs: a warning is a fact about the whole run, and a reader
+    ///        of the manifest wants the first one whichever trial run raised it.
+    RuntimeWarnings &warnings() noexcept { return warnings_; }
+    const RuntimeWarnings &warnings() const noexcept { return warnings_; }
+
     const ModelInput &inputs() const noexcept { return *inputs_; }
 
     sim::Scenario &scenario() const noexcept { return *scenario_; }
@@ -85,6 +91,7 @@ class RuntimeContext {
     std::unique_ptr<rng::RandomSource> random_;
 
     RuntimeMetric metrics_{};
+    RuntimeWarnings warnings_{};
     unsigned int current_run_{};
     int start_time_{};
     int time_now_{};

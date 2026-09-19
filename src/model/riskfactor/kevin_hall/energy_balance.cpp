@@ -108,6 +108,48 @@ double KevinHallModel::compute_expenditure(double weight, double fat, double lea
            (1.0 + partition);
 }
 
+KevinHallModel::BoundedStep KevinHallModel::bounded_step(double steady_fat, double fat_0,
+                                                          double steady_lean, double lean_0,
+                                                          double tau, double reached) {
+    const double fat = steady_fat - (steady_fat - fat_0) * reached;
+    const double lean = steady_lean - (steady_lean - lean_0) * reached;
+
+    // A time constant that is not a positive finite number is not a time constant. `tau` is
+    // `rho_lean · rho_fat · (1 + x) / determinant`, and the determinant is positive for every
+    // body with fat and every physical activity level a person can have — so this branch is
+    // insurance against a configuration whose `PhysicalActivity` range reaches low enough to
+    // make the energy cost per kilogram more negative than gamma_lean, not something a shipped
+    // example does. Nothing about such a year can be integrated, so nothing is.
+    if (!std::isfinite(tau) || !(tau > 0.0) || !std::isfinite(reached) || !std::isfinite(fat) ||
+        !std::isfinite(lean)) {
+        return {.fat = fat_0,
+                .lean = lean_0,
+                .bounded = BoundedReason::step_is_not_a_relaxation};
+    }
+
+    // Zero is the boundary, and reaching it exactly is not crossing it: `p = C / (C + 0)` is 1,
+    // which is finite, and a body that has arrived at no fat stays there without anything being
+    // bounded. Only a step that goes *below* leaves the domain.
+    if (!(fat < 0.0)) {
+        return {.fat = fat, .lean = lean, .bounded = std::nullopt};
+    }
+
+    // F(t) = F* - (F* - F0)·e^(-t/tau) reaches zero when e^(-t/tau) = F* / (F* - F0), and that
+    // ratio is in (0, 1) exactly when F* < 0 < F0 — a body with fat now whose steady state has
+    // none, which is the only way to arrive here from a body that had fat. If it is not, there
+    // is no crossing inside the year to stop at and the composition stays where it started.
+    const double crossing = (steady_fat < 0.0 && fat_0 > 0.0)
+                                ? steady_fat / (steady_fat - fat_0)
+                                : 0.0;
+    if (!std::isfinite(crossing) || !(crossing > 0.0) || !(crossing <= 1.0)) {
+        return {.fat = fat_0, .lean = lean_0, .bounded = BoundedReason::body_fat_below_zero};
+    }
+
+    return {.fat = 0.0,
+            .lean = steady_lean - (steady_lean - lean_0) * crossing,
+            .bounded = BoundedReason::body_fat_below_zero};
+}
+
 void KevinHallModel::compute_nutrient_intakes(Person &person) const {
     // Index-keyed throughout: the names were resolved when the model was built, and the order is
     // the maps' own order, so the accumulation is the same sum in the same sequence it always was.
@@ -293,8 +335,57 @@ void KevinHallModel::run_energy_balance(RuntimeContext &context, Person &person)
                         (kGammaLean + delta) * p * kRhoFat);
     const double reached = std::exp(-365.0 / tau);
 
-    const double fat = steady_fat - (steady_fat - fat_0) * reached;
-    const double lean = steady_lean - (steady_lean - lean_0) * reached;
+    // The year's step, integrated only as far as the model is defined. `p = C / (C + F)` is a
+    // coefficient of the very relaxation this solves and has a pole at F = -C, about -2.001 kg,
+    // so a body fat mass that goes through zero does not merely become unphysical: within one
+    // more year it takes the partition coefficient, the determinant and the time constant
+    // through zero with it, and exp(-365/tau) at a negative tau of half a day is 652
+    // e-foldings. That is what seed 80 of `KevinHall_FINCH` does — one person in about fifty
+    // thousand adult person-years, -1.7e283 kg, in a model whose coefficients admit it and in a
+    // baseline that computes it identically (docs/findings/seed-80.md, ADR 0049).
+    //
+    // Switchable: with B-29 on the baseline's unbounded integration is back, bug and all.
+    auto step = parameters_->unbounded_body_fat
+                    ? BoundedStep{.fat = steady_fat - (steady_fat - fat_0) * reached,
+                                  .lean = steady_lean - (steady_lean - lean_0) * reached,
+                                  .bounded = std::nullopt}
+                    : bounded_step(steady_fat, fat_0, steady_lean, lean_0, tau, reached);
+
+    if (step.bounded.has_value()) {
+        // Cumulative over the run, like `WeightAboveConfiguredMaximum` beside it; the manifest's
+        // warnings carry the year and the person, which is where a reader looks for the when.
+        context.metrics()["EnergyBalanceBodyFatBounded"] += 1.0;
+        context.warnings().add(RuntimeWarning{
+            .code = "energy_balance_body_fat_bounded",
+            .scenario = context.identifier(),
+            .year = context.time_now(),
+            .person = person.id(),
+            .message =
+                *step.bounded == BoundedReason::body_fat_below_zero
+                    ? fmt::format(
+                          "person {} ({}, age {}) would have had a body fat mass of {:.6g} kg "
+                          "after the energy balance, which a body cannot have. The year's step "
+                          "was integrated only as far as the model is defined, leaving 0 kg of "
+                          "fat and {:.6g} kg of lean tissue in place of {:.6g} and {:.6g}. The "
+                          "steady state their intake and physical activity imply is {:.6g} kg "
+                          "of fat",
+                          person.id(),
+                          person.gender == core::Gender::male ? "male" : "female", person.age,
+                          steady_fat - (steady_fat - fat_0) * reached, step.lean,
+                          steady_fat - (steady_fat - fat_0) * reached,
+                          steady_lean - (steady_lean - lean_0) * reached, steady_fat)
+                    : fmt::format(
+                          "person {} ({}, age {}) has an energy balance with a time constant of "
+                          "{:.6g} days, which is not a relaxation, so this year's step was not "
+                          "taken and their body composition is unchanged: {:.6g} kg of fat and "
+                          "{:.6g} kg of lean tissue",
+                          person.id(),
+                          person.gender == core::Gender::male ? "male" : "female", person.age,
+                          tau, step.fat, step.lean)});
+    }
+
+    const double fat = step.fat;
+    const double lean = step.lean;
 
     person.risk_factors.at(kGlycogen) = glycogen;
     person.risk_factors.at(kExtracellularFluid) = fluid;

@@ -86,6 +86,19 @@ void write_manifest(const std::filesystem::path &path, const Manifest &manifest)
         document["perturbation"] = manifest.perturbation;
     }
 
+    // Always present, empty in an ordinary run. `kept` is capped (RuntimeWarnings::kKept) and
+    // `total` is not, so a run that raised more warnings than the manifest holds says so rather
+    // than looking like a run that raised exactly as many as it kept.
+    document["warnings"] = {{"total", manifest.warnings.total()},
+                            {"kept", nlohmann::json::array()}};
+    for (const auto &warning : manifest.warnings.kept()) {
+        document["warnings"]["kept"].push_back({{"code", warning.code},
+                                                {"scenario", warning.scenario},
+                                                {"year", warning.year},
+                                                {"person", warning.person},
+                                                {"message", warning.message}});
+    }
+
     std::ofstream stream{path, std::ios::trunc};
     if (!stream) {
         throw std::runtime_error(

@@ -11,6 +11,7 @@
 #include "diagnostics/internal_error.h"
 
 #include <cmath>
+#include <limits>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -147,4 +148,179 @@ TEST(KevinHallPhysiology, APersonInBalanceStaysWhereTheyAre) {
     // Equal to the intake, up to the thermic and adaptive constants the expenditure formula adds
     // and the initialiser does not.
     EXPECT_NEAR(intake, expenditure, 1.0);
+}
+
+// --- the edge of the model's domain -----------------------------------------------------------
+//
+// `p = C / (C + F)` is a coefficient of the relaxation the yearly step solves, and it has a pole
+// at `F = -C`. Everything below is about what happens on either side of it, and the numbers in
+// the last three tests are the ones seed 80 of `KevinHall_FINCH` actually produced
+// (docs/findings/seed-80.md, ADR 0049).
+
+namespace {
+
+/// The partition coefficient's pole: C = 10.4 · rho_lean / rho_fat, about -2.001 kg of body fat.
+constexpr double kPole = -10.4 * KevinHallModel::kRhoLean / KevinHallModel::kRhoFat;
+
+} // namespace
+
+TEST(KevinHallDomain, AStepThatStaysAboveZeroIsLeftAlone) {
+    // The ordinary case, and the one that must not change: a relaxation from 25 kg toward 24 kg
+    // that covers half the distance is 24.5 kg, and the guard has no opinion about it.
+    const auto step = KevinHallModel::bounded_step(24.0, 25.0, 58.0, 60.0, 500.0, 0.5);
+
+    EXPECT_FALSE(step.bounded.has_value());
+    EXPECT_DOUBLE_EQ(24.5, step.fat);
+    EXPECT_DOUBLE_EQ(59.0, step.lean);
+}
+
+TEST(KevinHallDomain, ArrivingExactlyAtZeroIsNotCrossingZero) {
+    // F* = 0 makes every later year's p exactly 1, which is finite, so a body that has arrived at
+    // no fat is at the boundary rather than past it. Bounding here would raise a warning every
+    // year for the rest of that person's life and change nothing.
+    const auto step = KevinHallModel::bounded_step(0.0, 0.0, 40.0, 42.0, 300.0, 0.25);
+
+    EXPECT_FALSE(step.bounded.has_value());
+    EXPECT_DOUBLE_EQ(0.0, step.fat);
+    EXPECT_DOUBLE_EQ(40.5, step.lean);
+}
+
+TEST(KevinHallDomain, AStepBelowZeroStopsAtZeroAndSaysSo) {
+    // `reached` is exp(-365/tau): 1 is no movement at all and 0 is the whole way to the steady
+    // state, so a *smaller* one is a longer year. A steady state of -5 kg from a starting 5 kg
+    // reaches zero at exp(-t*/tau) = F*/(F* - F0) = -5 / -10 = 0.5, and a year that goes further
+    // than that — here to 0.3, which would have left -2 kg of fat — is stopped there. Lean
+    // tissue is taken to the same instant: 30 - (30 - 50)·0.5.
+    const auto step = KevinHallModel::bounded_step(-5.0, 5.0, 30.0, 50.0, 200.0, 0.3);
+
+    EXPECT_DOUBLE_EQ(-2.0, -5.0 - (-5.0 - 5.0) * 0.3);  // what it would have been
+    ASSERT_TRUE(step.bounded.has_value());
+    EXPECT_EQ(KevinHallModel::BoundedReason::body_fat_below_zero, *step.bounded);
+    EXPECT_DOUBLE_EQ(0.0, step.fat);
+    EXPECT_DOUBLE_EQ(40.0, step.lean);
+}
+
+TEST(KevinHallDomain, AYearThatStopsShortOfTheCrossingIsLeftAlone) {
+    // The same person and the same steady state, with a year that only gets 70% of the way
+    // there. Body fat is still positive, so nothing is bounded — the guard fires on the
+    // trajectory leaving the domain, not on the steady state being outside it.
+    const auto step = KevinHallModel::bounded_step(-5.0, 5.0, 30.0, 50.0, 200.0, 0.7);
+
+    EXPECT_FALSE(step.bounded.has_value());
+    EXPECT_DOUBLE_EQ(2.0, step.fat);
+}
+
+TEST(KevinHallDomain, TheBoundedLeanTissueIsTheSameSolutionAtTheSameInstant) {
+    // The point of stopping at the crossing rather than freezing the year: lean tissue is not
+    // held at its starting value, it is taken to where its own half of the solution is when body
+    // fat reaches zero. With F* = -1 and F0 = 3 the crossing is at 0.25.
+    const auto step = KevinHallModel::bounded_step(-1.0, 3.0, 20.0, 60.0, 400.0, 0.1);
+
+    ASSERT_TRUE(step.bounded.has_value());
+    EXPECT_DOUBLE_EQ(0.0, step.fat);
+    EXPECT_DOUBLE_EQ(20.0 - (20.0 - 60.0) * 0.25, step.lean);
+    EXPECT_DOUBLE_EQ(30.0, step.lean);
+}
+
+TEST(KevinHallDomain, ANegativeTimeConstantTakesNoStepAtAll) {
+    // A negative tau turns the year's step from a relaxation *toward* the steady state into an
+    // exponential flight *away* from it. There is no instant inside the year at which the model
+    // is still describing anything, so nothing is integrated and the composition is unchanged.
+    const auto step = KevinHallModel::bounded_step(-2.4, -2.2, 38.0, 37.5, -0.559, 2.29e283);
+
+    ASSERT_TRUE(step.bounded.has_value());
+    EXPECT_EQ(KevinHallModel::BoundedReason::step_is_not_a_relaxation, *step.bounded);
+    EXPECT_DOUBLE_EQ(-2.2, step.fat);
+    EXPECT_DOUBLE_EQ(37.5, step.lean);
+}
+
+TEST(KevinHallDomain, ANonFiniteStepTakesNoStepAtAll) {
+    const auto step = KevinHallModel::bounded_step(
+        1.0, 2.0, 3.0, 4.0, 100.0, std::numeric_limits<double>::infinity());
+
+    ASSERT_TRUE(step.bounded.has_value());
+    EXPECT_EQ(KevinHallModel::BoundedReason::step_is_not_a_relaxation, *step.bounded);
+    EXPECT_DOUBLE_EQ(2.0, step.fat);
+    EXPECT_DOUBLE_EQ(4.0, step.lean);
+}
+
+TEST(KevinHallDomain, ThePoleIsWhereTheModelSaysItIs) {
+    // Not a round number and not a constant anybody can change independently: it is
+    // 10.4 · rho_lean / rho_fat, and a body fat mass below it inverts the partition coefficient.
+    EXPECT_NEAR(-2.001012658227848, kPole, 1e-15);
+
+    const double c = -kPole;
+    const auto p_at = [c](double fat) { return c / (c + fat); };
+
+    EXPECT_GT(p_at(0.0), 0.0);
+    EXPECT_DOUBLE_EQ(1.0, p_at(0.0));
+    EXPECT_GT(p_at(kPole + 0.1), 0.0);   // just above the pole: positive, and very large
+    EXPECT_LT(p_at(kPole - 0.1), 0.0);   // just below it: negative, which is meaningless
+    EXPECT_LT(p_at(-2.2324094172489493), 0.0);
+}
+
+// --- seed 80 of KevinHall_FINCH, pinned -------------------------------------------------------
+
+TEST(KevinHallPhysiology, TheSeed80TrajectoryIsWhatTheTraceRecorded) {
+    // Person 1222, male, in simulated 2030: the year their body fat goes negative and the first
+    // value in the whole trajectory that cannot exist. Traced from the run, and reproduced
+    // digit for digit by the baseline's own statements (docs/findings/seed-80.md §3).
+    constexpr double steady_fat = -3.0670836989773984;
+    constexpr double fat_0 = 5.8617563101306471;
+    constexpr double steady_lean = 35.821273667675811;
+    constexpr double lean_0 = 51.662931215642693;
+    constexpr double tau = 154.66107471082029;
+    constexpr double reached = 0.0944203064178748;
+
+    // What the baseline computes, and what this build computed before the guard.
+    EXPECT_NEAR(-2.2240198893612368, steady_fat - (steady_fat - fat_0) * reached, 1e-13);
+
+    // What it computes now: the step stops where body fat reaches zero.
+    const auto step = KevinHallModel::bounded_step(steady_fat, fat_0, steady_lean, lean_0, tau,
+                                                    reached);
+    ASSERT_TRUE(step.bounded.has_value());
+    EXPECT_EQ(KevinHallModel::BoundedReason::body_fat_below_zero, *step.bounded);
+    EXPECT_DOUBLE_EQ(0.0, step.fat);
+
+    // The crossing is at exp(-t*/tau) = F*/(F* - F0), which is inside the year — so the person
+    // really does run out of fat partway through 2030 rather than at the end of it.
+    const double crossing = steady_fat / (steady_fat - fat_0);
+    EXPECT_GT(crossing, reached);
+    EXPECT_LT(crossing, 1.0);
+    EXPECT_DOUBLE_EQ(steady_lean - (steady_lean - lean_0) * crossing, step.lean);
+}
+
+TEST(KevinHallPhysiology, PastThePoleOneYearIsSixHundredEFoldings) {
+    // Person 1222 in 2031, entering with the -2.2324 kg of fat the unguarded 2030 step left.
+    // This is the arithmetic the run died on, and it is arithmetic rather than a bug: every
+    // constant here is the model's own.
+    constexpr double fat_0 = -2.2324094172489493;
+    constexpr double delta = 68.166056768948593;
+
+    const double c = 10.4 * KevinHallModel::kRhoLean / KevinHallModel::kRhoFat;
+    const double p = c / (c + fat_0);
+    EXPECT_NEAR(-8.6475396919685217, p, 1e-12);
+
+    const double partition = p * KevinHallModel::kEtaLean / KevinHallModel::kRhoLean +
+                             (1.0 - p) * KevinHallModel::kEtaFat / KevinHallModel::kRhoFat;
+    const double determinant = (KevinHallModel::kGammaFat + delta) * (1.0 - p) *
+                                   KevinHallModel::kRhoLean +
+                               (KevinHallModel::kGammaLean + delta) * p * KevinHallModel::kRhoFat;
+    EXPECT_LT(determinant, 0.0);
+
+    const double tau = KevinHallModel::kRhoLean * KevinHallModel::kRhoFat * (1.0 + partition) /
+                       determinant;
+    EXPECT_NEAR(-0.55942178144697796, tau, 1e-12);
+
+    // Half a day of time constant, run backwards for a year.
+    EXPECT_GT(std::exp(-365.0 / tau), 1e283);
+
+    // And the guard refuses to take a step whose time constant is negative at all, so this
+    // person's 2031 never happens: they entered 2031 with zero fat instead.
+    const auto step = KevinHallModel::bounded_step(-2.4, fat_0, 38.0, 37.4, tau,
+                                                    std::exp(-365.0 / tau));
+    ASSERT_TRUE(step.bounded.has_value());
+    EXPECT_EQ(KevinHallModel::BoundedReason::step_is_not_a_relaxation, *step.bounded);
+    EXPECT_TRUE(std::isfinite(step.fat));
+    EXPECT_TRUE(std::isfinite(step.lean));
 }

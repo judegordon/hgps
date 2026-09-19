@@ -55,6 +55,11 @@ struct KevinHallParameters {
     /// @brief The configured range of `Weight`, used to check the energy balance has not produced
     ///        an impossible body.
     std::optional<core::DoubleInterval> weight_range;
+
+    /// @brief B-29 on: integrate the energy balance past a non-positive body fat, as the baseline
+    ///        does. Off — the default — bounds it at the edge of the model's domain
+    ///        (ADR 0049, docs/findings/seed-80.md).
+    bool unbounded_body_fat{false};
 };
 
 /// @brief The `KevinHall` dynamic model: a physiological energy-balance model.
@@ -125,6 +130,41 @@ class KevinHallModel final : public AdjustableRiskFactorModel {
     /// @brief Energy expenditure. Exposed for tests.
     static double compute_expenditure(double weight, double fat, double lean, double intake,
                                       double intercept, double delta, double partition);
+
+    /// @brief Why a year's step had to be bounded.
+    enum class BoundedReason : std::uint8_t {
+        /// @brief The step would have taken body fat below zero.
+        body_fat_below_zero,
+        /// @brief The relaxation is not a relaxation: a non-positive or non-finite time
+        ///        constant, or a non-finite result. Nothing about the year can be integrated.
+        step_is_not_a_relaxation,
+    };
+
+    /// @brief One year's new body fat and lean tissue, bounded to where the model is defined.
+    struct BoundedStep {
+        double fat{};
+        double lean{};
+        /// @brief Empty when the step was inside the domain and nothing was changed.
+        std::optional<BoundedReason> bounded{};
+    };
+
+    /// @brief The year's step, integrated only as far as the model's domain extends.
+    ///
+    /// The one-year update is the closed-form solution of a two-compartment relaxation,
+    /// `F(365) = F* - (F* - F0)·exp(-365/tau)`, whose own coefficient `p = C / (C + F)` has a
+    /// pole at `F = -C`. So a step that takes body fat through zero leaves the region where the
+    /// equation it solves is defined, and the year after it the time constant changes sign and
+    /// the exponential overflows (docs/findings/seed-80.md).
+    ///
+    /// When `F*` is negative the trajectory crosses zero at some `t* < 365`, and `exp(-t*/tau)`
+    /// is exactly `F* / (F* - F0)` — no logarithm, because the exponential is already what both
+    /// expressions are written in. Lean tissue follows its own half of the same solution to the
+    /// same instant. Where there is no crossing to stop at, the composition is left where the
+    /// year started, which is the least a guard can assume.
+    ///
+    /// Exposed, and static, so that every branch of it is a test rather than a seed.
+    static BoundedStep bounded_step(double steady_fat, double fat_0, double steady_lean,
+                                    double lean_0, double tau, double reached);
 
     /// @brief The height and weight parameters for a person's sex and income stratum.
     const HeightModelParams &height_params_for(const Person &person) const;

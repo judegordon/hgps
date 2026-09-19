@@ -12,6 +12,7 @@
 #include "model/riskfactor/kevin_hall/kevin_hall_model.h"
 
 #include "config/models/model_loader.h"
+#include "hgps/baseline_compat.h"
 #include "core/string_util.h"
 #include "io/csv_reader.h"
 #include "diagnostics/internal_error.h"
@@ -19,6 +20,7 @@
 #include "sim/scenario.h"
 #include "support/test_paths.h"
 
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <memory>
@@ -426,5 +428,92 @@ TEST(KevinHallBehaviour, AWeightBelowTheConfiguredMinimumStopsTheRunAndAboveTheM
         EXPECT_NO_THROW(model->generate_risk_factors(*harness.context, harness.journal));
         ASSERT_TRUE(harness.context->metrics().contains("WeightAboveConfiguredMaximum"));
         EXPECT_GT(harness.context->metrics().at("WeightAboveConfiguredMaximum"), 0.0);
+    }
+}
+
+TEST(KevinHallBehaviour, AYearOfStarvationStopsAtNoBodyFatRatherThanGoingThroughIt) {
+    // The guard, driven through the real model rather than through its arithmetic
+    // (ADR 0049, docs/findings/seed-80.md). A cohort is initialised in balance, and then their
+    // food intake collapses to a fortieth of what it was while their physical activity goes to
+    // the top of its configured range. That is the shape of the draw seed 80 produced: a steady
+    // state with negative body fat, reached inside one year.
+    //
+    // Without the guard the run leaves people with a negative body fat mass, which puts the
+    // partition coefficient past its pole and the year after that overflows. With it, they stop
+    // at no fat, the run says who and when, and every number stays describable.
+    const auto starve = [](bool unbounded) {
+        const auto config = [unbounded] {
+            auto built = finch_config();
+            if (unbounded) {
+                built.baseline_compat.set(hgps::api::CompatFlag::b29);
+            }
+            return built;
+        }();
+        const auto mapping = finch_mapping();
+        IssueReport report;
+        auto model = load_model(finch_dynamic_model(), config, mapping, finch_expected(), report);
+        EXPECT_NE(nullptr, model) << report.to_string();
+
+        auto harness = make_harness(mapping, {40}, 12);
+        model->generate_risk_factors(*harness.context, harness.journal);
+
+        harness.context->set_current_time(2023);
+        for (auto &person : harness.context->population()) {
+            seed_person(person, 1.25);
+            person.risk_factors[Identifier{"physicalactivity"}] = 2.5;
+            person.physical_activity = 2.5;
+        }
+        model->update_risk_factors(*harness.context, harness.journal);
+        return harness;
+    };
+
+    {
+        auto harness = starve(false);
+
+        // Nobody has a negative body fat mass, and nobody is past the pole.
+        constexpr double pole = -10.4 * KevinHallModel::kRhoLean / KevinHallModel::kRhoFat;
+        int at_the_boundary = 0;
+        for (const auto &person : harness.context->population()) {
+            const double fat = person.risk_factors.at(Identifier{"bodyfat"});
+            EXPECT_GE(fat, 0.0) << "person " << person.id();
+            EXPECT_GT(fat, pole);
+            EXPECT_TRUE(std::isfinite(weight_of(person)));
+            EXPECT_GT(weight_of(person), 0.0);
+            if (fat == 0.0) {
+                ++at_the_boundary;
+            }
+        }
+        ASSERT_GT(at_the_boundary, 0) << "the starvation was not severe enough to reach the "
+                                         "boundary, so this test is checking nothing";
+
+        // Counted, and located: who, when, and what the step would have produced.
+        ASSERT_TRUE(harness.context->metrics().contains("EnergyBalanceBodyFatBounded"));
+        EXPECT_EQ(static_cast<double>(at_the_boundary),
+                  harness.context->metrics().at("EnergyBalanceBodyFatBounded"));
+
+        const auto &warnings = harness.context->warnings();
+        EXPECT_EQ(static_cast<std::size_t>(at_the_boundary), warnings.total());
+        ASSERT_FALSE(warnings.kept().empty());
+        const auto &first = warnings.kept().front();
+        EXPECT_EQ("energy_balance_body_fat_bounded", first.code);
+        EXPECT_EQ(2023, first.year);
+        EXPECT_NE(0U, first.person);
+        EXPECT_NE(std::string::npos, first.message.find("body fat mass"));
+    }
+
+    {
+        // B-29 on: the baseline's behaviour is back, bug and all.
+        auto harness = starve(true);
+
+        int negative = 0;
+        for (const auto &person : harness.context->population()) {
+            if (person.risk_factors.at(Identifier{"bodyfat"}) < 0.0) {
+                ++negative;
+            }
+        }
+        EXPECT_GT(negative, 0) << "with the flag on the energy balance should integrate straight "
+                                  "through zero, as the baseline does";
+        EXPECT_FALSE(harness.context->metrics().contains("EnergyBalanceBodyFatBounded"));
+        EXPECT_TRUE(harness.context->warnings().empty());
     }
 }

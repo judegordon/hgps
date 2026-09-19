@@ -6,6 +6,8 @@
 // (docs/decisions/0034-a-run-manifest-beside-the-results.md).
 #pragma once
 
+#include "model/results.h"
+
 #include <cstdint>
 #include <filesystem>
 #include <string>
@@ -69,6 +71,13 @@ struct Manifest {
     ///        defect on purpose, and the manifest is where that is recorded
     ///        (ADR 0041, docs/deviations.md).
     std::vector<std::string> baseline_compat;
+
+    /// @brief Located warnings the simulation raised, and how many there were altogether.
+    ///
+    /// Always present, empty in an ordinary run. A guard that bounded something did so to one
+    /// named person in one named year, and a result whose provenance record does not say so is a
+    /// result nobody can check (ADR 0049).
+    model::RuntimeWarnings warnings;
 };
 
 /// @brief ISO-8601 UTC "2026-09-18T04:53:12Z" for now.

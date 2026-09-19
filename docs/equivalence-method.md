@@ -16,6 +16,7 @@ Everything here is enforced in one script and tested by two others:
 | `tests/equivalence/null_check.py` | the third question those two cannot answer: does it fail as **often** as it says it does (§4.5)? Run by CTest. |
 | `tests/equivalence/sweep.py` | many seeds of one example, run once and stored, so a study can score the same runs many ways without re-running them. |
 | `tests/equivalence/calibrate.py` | the studies: the null calibration behind §4.5, a direct test of one variable, and how far a twenty-seed standard deviation wanders. |
+| `tests/equivalence/seed_scan.py` | the census: many seeds of **one** implementation, asking only whether the run finished and whether what it wrote is sane. It scans the two sides independently — unlike `sweep.py`, which must drop a failing seed from both — and it reads a run that *finishes*, because a value above the configured ceiling leaves both implementations exiting zero. With `--against` it runs each seed twice under two compatibility sets and compares the output files byte for byte, which is how a deviation's effect over hundreds of seeds becomes a measurement rather than an argument about aggregates. |
 
 ---
 

@@ -440,6 +440,7 @@ RunSummary execute(Run &run, const RunOptions &options, EventSubscriber *subscri
         summary.elapsed_ms = outcome.elapsed_ms;
         summary.cancelled = outcome.cancelled;
         summary.years_completed = outcome.years_completed;
+        manifest.warnings = outcome.warnings;
         summary.result_csv = writer.csv_path();
         summary.result_json = writer.json_path();
         summary.outputs = writer.paths();

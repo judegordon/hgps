@@ -155,6 +155,39 @@ bool RuntimeMetric::emplace(const std::string &key, double value) {
 
 bool RuntimeMetric::erase(const std::string &key) { return metrics_.erase(key) > 0; }
 
+void RuntimeWarnings::add(RuntimeWarning warning) {
+    ++total_;
+    ++by_code_[warning.code];
+    if (kept_.size() < kKept) {
+        kept_.push_back(std::move(warning));
+    }
+}
+
+std::size_t RuntimeWarnings::total(const std::string &code) const {
+    const auto found = by_code_.find(code);
+    return found == by_code_.end() ? 0 : found->second;
+}
+
+void RuntimeWarnings::merge(const RuntimeWarnings &other) {
+    for (const auto &warning : other.kept_) {
+        if (kept_.size() < kKept) {
+            kept_.push_back(warning);
+        }
+    }
+    // The counts come from the other side's totals rather than from what it kept, so merging
+    // two capped collections does not silently lose the ones neither of them kept.
+    total_ += other.total_;
+    for (const auto &[code, count] : other.by_code_) {
+        by_code_[code] += count;
+    }
+}
+
+void RuntimeWarnings::clear() noexcept {
+    kept_.clear();
+    by_code_.clear();
+    total_ = 0;
+}
+
 void RuntimeMetric::reset() noexcept {
     for (auto &[key, value] : metrics_) {
         value = 0.0;

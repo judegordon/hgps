@@ -20,6 +20,10 @@ constexpr std::array<FlagInfo, BaselineCompat::flag_count> kFlags{{
     {CompatFlag::b24, "B-24",
      "the food-labelling policy offers its impact again, every remaining year of the coverage "
      "window, to somebody who failed an early coverage draw and passed a later one"},
+    {CompatFlag::b29, "B-29",
+     "the energy balance lets a body fat mass go through zero and past the pole of the partition "
+     "coefficient, so a starved draw runs away to an impossible weight instead of stopping at "
+     "the edge of the model's domain"},
 }};
 
 /// @brief Name matching that ignores case and the separators people write between a letter and a

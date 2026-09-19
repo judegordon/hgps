@@ -121,8 +121,8 @@ term that fails is the body-fat compartment, not the weight; the weight is where
 ### Why only one person
 
 Instrumented to report every person-year whose body fat comes out non-positive, seed 80's whole
-run — about 6,900 people over the 2022–2032 horizon, so roughly 50,000 adult person-years of
-energy balance — reports **exactly one**:
+run — **43,960 adult person-years** of energy balance in the baseline arm before it stops —
+reports **exactly one**:
 
 ```
 FATCENSUS year=2030 id=1222 age=23 steady_fat=-3.0670836989773984 fat_0=5.8617563101306471
@@ -172,6 +172,49 @@ overflow, where the residue is `-O2` floating-point contraction and not a differ
 classification means: not something this build does differently, and not something the baseline
 masks. The energy-balance coefficients admit a draw whose one-year step takes body fat below zero,
 and neither implementation checks.
+
+## 3a. What the aggregate output does not show
+
+The ninth run recorded a **three-year precursor** — "the largest band mean weight is flat at
+87.28 kg through 2027 and then 87.32, **92.1**, **98.5** in 2028–2030" — and concluded that a run
+stopping in 2030 would have written a contaminated number and exited zero
+([docs/equivalence.md](../equivalence.md), [docs/backlog.md](../backlog.md) item 2).
+
+**That is not a precursor, and this run withdraws it.** Three things are wrong with it:
+
+- **The rising series is the *intervention* arm.** In the baseline arm the largest band mean
+  weight is flat at **87.2845 kg in every year** of the run, because the Kevin Hall model
+  calibrates each (sex, age) band's mean weight onto the `FactorsMean` table and the intervention
+  replays the baseline's adjustment rather than computing its own. The baseline arm's band means
+  are pinned by construction and can say nothing about one person.
+- **The band is the wrong band.** 92.1 is three 96-year-old men and 98.5 is three 97-year-old
+  men. Person 1222 is 22 and 23 in those years.
+- **It happens on seeds that never diverge.** Seed 251 completes cleanly and its intervention arm
+  reaches **98.6 kg** in 2030, in a five-person band of 92-year-olds. It is the ordinary
+  behaviour of a maximum taken over hundreds of bands, some of which hold three people.
+
+**So the honest statement is the opposite of the one it replaces, and it is worse: the aggregate
+output cannot show this at all.** Person 1222's own weight really does go 105.9 → 77.3 → 55.7 kg
+over 2029 and 2030. Their band's reported mean does not move by so much as a bit:
+
+| male, in the baseline arm | seed 80 | seed 1 | seed 5 |
+|---|---:|---:|---:|
+| age 21, 2028 | 78.931943 | 78.931943 | 78.931943 |
+| age 22, 2029 | **79.468944** | 79.468944 | 79.468944 |
+| age 23, 2030 | **80.042100** | 80.042100 | 80.042100 |
+
+Identical to the last printed digit on a seed whose cohort contains a man 22 kg lighter than he
+should be, because the Kevin Hall model **calibrates each (sex, age) band's mean weight onto the
+`FactorsMean` table**: `compute_weight_adjustments` takes `expected − simulated` per band and adds
+it to everybody in it. The diverging person's deficit is therefore not merely diluted among his
+forty-six peers — it is *spread onto them*, and the band mean is restored exactly. A run stopped
+at 2030 would have written a mean weight no reader could tell from a correct one, because in that
+column it **is** the correct one.
+
+That is the argument for [ADR 0050](../decisions/0050-no-output-carries-a-number-that-cannot-exist.md)
+rather than for watching the aggregates: an aggregate is exactly the wrong instrument for a defect
+that affects one person in seven thousand, and the place to catch it is where the person's own
+value is still a person's own value.
 
 ## 4. What the baseline does when it happens
 

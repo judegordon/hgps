@@ -200,6 +200,22 @@ TEST_P(RunManifest, SaysSoWhenTheRunWasCancelled) {
     EXPECT_EQ(0U, manifest.at("run").at("years_completed").get<std::size_t>());
 }
 
+TEST_P(RunManifest, RecordsTheWarningsTheRunRaisedAndSaysZeroWhenThereWereNone) {
+    // A guard that bounded something did so to one named person in one named year, and a result
+    // whose provenance record does not say so is a result nobody can check (ADR 0049). The field
+    // is present and empty in an ordinary run rather than absent, for the same reason
+    // `baseline_compat` and `perturbation` are: an absent key reads as "nobody looked".
+    const auto folder = pack_scratch("manifest_warnings");
+    const auto outcome = hgps::test::run_simulation(pack().config(), folder, 2);
+    ASSERT_TRUE(outcome.succeeded) << outcome.report.to_string();
+
+    const auto manifest = read_json(outcome.manifest_path);
+    ASSERT_TRUE(manifest.contains("warnings"));
+    EXPECT_EQ(0U, manifest.at("warnings").at("total").get<std::size_t>());
+    EXPECT_TRUE(manifest.at("warnings").at("kept").is_array());
+    EXPECT_TRUE(manifest.at("warnings").at("kept").empty());
+}
+
 TEST_P(RunManifest, TwoRunsOfTheSameConfigAgreeOnEverythingButTheClock) {
     // The manifest is not byte-identical between runs and must not be: it records when the run
     // happened and how long it took. Everything else is a property of the inputs and the binary, so

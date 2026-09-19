@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import math
 import shutil
@@ -116,18 +117,31 @@ def scan_metrics(folder: Path) -> dict:
     event in two different places and a census has to read both.
     """
     found: dict[str, float] = {}
+    warnings: list[str] = []
+    total = 0
     for path in sorted(folder.glob("*.json")):
-        if path.name.endswith("_manifest.json"):
-            continue
         try:
             document = json.loads(path.read_text())
         except (OSError, ValueError):
+            continue
+        if path.name.endswith("_manifest.json"):
+            # The manifest's located warnings: a guard that bounded something names the person
+            # and the year there, and that is the only place it is written down (ADR 0049).
+            raised = document.get("warnings") or {}
+            total += int(raised.get("total", 0))
+            warnings.extend(w.get("message", "")[:300] for w in raised.get("kept", [])[:4])
             continue
         for entry in document.get("results", []):
             for name, value in (entry.get("metrics") or {}).items():
                 if "Weight" in name:
                     found[name] = max(found.get(name, 0.0), float(value))
-    return {"weight_metrics": found} if found else {}
+    out: dict = {}
+    if found:
+        out["weight_metrics"] = found
+    if total:
+        out["run_warnings"] = total
+        out["run_warning"] = warnings[:2]
+    return out
 
 
 def peak_weight(path: Path) -> float:
@@ -147,10 +161,22 @@ def peak_weight(path: Path) -> float:
     return peak
 
 
+def digests(folder: Path) -> dict[str, str]:
+    """One SHA-256 per output family. Every family, not just the whole-population file: a
+    change could move a stratum file without moving the main one."""
+    try:
+        written = harness.result_families(folder)
+    except RuntimeError:
+        return {}
+    return {family: hashlib.sha256(path.read_bytes()).hexdigest()
+            for family, path in written.items()}
+
+
 def one_seed(*, seed: int, side: str, example: harness.Example, intervention: str | None,
              overlay: dict | None, binary: Path, compat: list[str], workdir: Path,
              stop_time: int | None, size_fraction: float | None,
-             weight_ceiling: float, keep_files: bool, attempts: int) -> dict:
+             weight_ceiling: float, keep_files: bool, attempts: int,
+             against: list[str] | None = None) -> dict:
     is_baseline = side == "baseline"
     source = example.baseline_config if is_baseline else example.new_config
 
@@ -218,6 +244,41 @@ def one_seed(*, seed: int, side: str, example: harness.Example, intervention: st
     record["findings"] = findings
     record["peak_mean_weight"] = round(peak, 4)
     record["clean"] = bool(record["completed"] and not findings)
+    mine = digests(folder) if record["completed"] else {}
+
+    # The same seed again, with a different compatibility set, and the two sets of output files
+    # compared byte for byte. This is how "the fix changes nothing on the seeds that do not
+    # diverge" is a measurement over every seed rather than an argument about aggregates.
+    if against is not None:
+        extra_against = ["-T", "1"] if is_baseline else ["--threads", "1", *against]
+        other_folder = folder.parent / "against"
+        if other_folder.exists():
+            shutil.rmtree(other_folder)
+        other_folder.mkdir(parents=True)
+        other_document = harness.derive_config(source, seed, other_folder, intervention,
+                                               stop_time, is_baseline, overlay, size_fraction)
+        other_config = folder.parent / f"config-against-{seed}.json"
+        harness.write_derived_config(other_config, other_document)
+        other_log = folder.parent / "log-against.txt"
+        try:
+            harness.run(binary, other_config, extra_against, other_log, attempts=attempts,
+                        output_folder=other_folder)
+            record["against_completed"] = True
+            theirs = digests(other_folder)
+        except RuntimeError as failure:
+            record["against_completed"] = False
+            lines = [line for line in other_log.read_text(errors="replace").splitlines()
+                     if line.strip()]
+            record["against_reason"] = (lines[-1][:300] if lines else str(failure)[:300])
+            theirs = {}
+        if record["completed"] and record["against_completed"]:
+            record["identical"] = mine == theirs
+            if not record["identical"]:
+                record["differing_families"] = sorted(
+                    family for family in set(mine) | set(theirs)
+                    if mine.get(family) != theirs.get(family))
+        else:
+            record["identical"] = None
 
     if not keep_files:
         shutil.rmtree(folder.parent, ignore_errors=True)
@@ -246,6 +307,10 @@ def main() -> int:
     parser.add_argument("--baseline-compat", default="all")
     parser.add_argument("--workdir", type=Path, default=None)
     parser.add_argument("--keep-files", action="store_true")
+    parser.add_argument("--against", default=None,
+                        help="run every seed a second time with this compatibility set and "
+                             "compare the two runs' output files byte for byte. 'none' means no "
+                             "flags. Omitted means one run per seed.")
     parser.add_argument("--attempts", type=int, default=None,
                         help="tries per seed before it counts as refused. The default is 3 for "
                              "the baseline and 1 for this build; see `one_seed`.")
@@ -264,6 +329,10 @@ def main() -> int:
     binary = arguments.baseline if arguments.side == "baseline" else arguments.new
     if arguments.attempts is None:
         arguments.attempts = 3 if arguments.side == "baseline" else 1
+    against = None
+    if arguments.against is not None:
+        value = "" if arguments.against.lower() in ("", "none") else arguments.against
+        against = ["--baseline-compat", value] if value else []
 
     seeds = list(range(arguments.first_seed, arguments.first_seed + arguments.seeds))
     root = arguments.workdir or (Path("/tmp") / "hgps-scan" / arguments.example /
@@ -286,11 +355,15 @@ def main() -> int:
                           size_fraction=arguments.size_fraction,
                           weight_ceiling=arguments.weight_ceiling,
                           keep_files=arguments.keep_files,
-                          attempts=arguments.attempts)
+                          attempts=arguments.attempts,
+                          against=against)
         with lock:
             stream.write(json.dumps(record) + "\n")
             stream.flush()
             done[0] += 1
+            if record.get("run_warnings"):
+                print(f"    {arguments.side} seed {seed}: {record['run_warnings']} located "
+                      f"warning(s) — {(record.get('run_warning') or [''])[0][:200]}", flush=True)
             if record.get("weight_metrics"):
                 print(f"    {arguments.side} seed {seed}: "
                       f"{record['weight_metrics']}, run still exited zero", flush=True)
@@ -298,6 +371,9 @@ def main() -> int:
                 print(f"    {arguments.side} seed {seed}: {record['weight_warnings']} weight(s) "
                       f"above the configured maximum, run still exited zero — "
                       f"{record.get('weight_warning', '')[:200]}", flush=True)
+            if record.get("identical") is False:
+                print(f"    {arguments.side} seed {seed}: output MOVED in "
+                      f"{record.get('differing_families')}", flush=True)
             if not record["clean"]:
                 why = record.get("reason", "") or record["findings"][0]["kind"]
                 print(f"    {arguments.side} seed {seed}: NOT CLEAN — {why[:200]}", flush=True)
@@ -317,6 +393,9 @@ def main() -> int:
     dirty = [r["seed"] for r in records if r["completed"] and r["findings"]]
     warned = [r["seed"] for r in records
               if r.get("weight_warnings") or r.get("weight_metrics")]
+    bounded = [r["seed"] for r in records if r.get("run_warnings")]
+    compared = [r for r in records if r.get("identical") is not None]
+    moved = [r["seed"] for r in compared if not r["identical"]]
     print(f"seed_scan: {arguments.example} {arguments.side}, {len(seeds)} seeds, "
           f"{len(refused)} refused, {len(dirty)} completed with a non-finite or impossible "
           f"value, {flaked} retried attempt(s), "
@@ -327,6 +406,21 @@ def main() -> int:
         print(f"    unsane output: {dirty}")
     if warned:
         print(f"    above the configured maximum without failing: {warned}")
+    if bounded:
+        print(f"    a guard bounded something: {bounded}")
+    if against is not None:
+        only_here = [r["seed"] for r in records
+                     if r["completed"] and r.get("against_completed") is False]
+        only_there = [r["seed"] for r in records
+                      if not r["completed"] and r.get("against_completed")]
+        print(f"    against {arguments.against}: {len(compared)} seeds compared, "
+              f"{len(compared) - len(moved)} byte-identical, {len(moved)} moved")
+        if moved:
+            print(f"    moved: {moved}")
+        if only_here:
+            print(f"    completes here and not against: {only_here}")
+        if only_there:
+            print(f"    completes against and not here: {only_there}")
     if not arguments.keep_files:
         shutil.rmtree(root, ignore_errors=True)
     return 0

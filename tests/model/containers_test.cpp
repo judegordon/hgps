@@ -637,3 +637,54 @@ TEST(TestHealthGPS_ModelInput, CarriesTheProjectRequirementsAndDerivesTheIncomeL
         EXPECT_FALSE(build(requirements).income_analysis_enabled());
     }
 }
+
+// --- located warnings -------------------------------------------------------------------------
+
+TEST(TestHealthGPS_Warnings, KeepsTheFirstOnesWholeAndCountsTheRest) {
+    // A cap rather than a ring buffer, and the *first* occurrences are the ones kept: they are
+    // the ones that have not already been contaminated by an earlier one.
+    RuntimeWarnings warnings;
+    EXPECT_TRUE(warnings.empty());
+
+    for (std::size_t i = 0; i < RuntimeWarnings::kKept + 7; ++i) {
+        warnings.add(RuntimeWarning{.code = "a_code",
+                                    .scenario = "Baseline",
+                                    .year = 2020 + static_cast<int>(i),
+                                    .person = i,
+                                    .message = "something"});
+    }
+
+    EXPECT_FALSE(warnings.empty());
+    EXPECT_EQ(RuntimeWarnings::kKept + 7, warnings.total());
+    EXPECT_EQ(RuntimeWarnings::kKept + 7, warnings.total("a_code"));
+    EXPECT_EQ(RuntimeWarnings::kKept, warnings.kept().size());
+    EXPECT_EQ(2020, warnings.kept().front().year);
+    EXPECT_EQ(0U, warnings.kept().front().person);
+}
+
+TEST(TestHealthGPS_Warnings, CountsPerCodeAndForgetsNothingOnAMerge) {
+    RuntimeWarnings left;
+    left.add(RuntimeWarning{.code = "one", .year = 2020});
+    left.add(RuntimeWarning{.code = "two", .year = 2021});
+
+    RuntimeWarnings right;
+    for (std::size_t i = 0; i < RuntimeWarnings::kKept + 3; ++i) {
+        right.add(RuntimeWarning{.code = "one", .year = 2030});
+    }
+
+    left.merge(right);
+
+    // The totals come from the other side's counts rather than from what it kept, so merging two
+    // capped collections does not silently lose the ones neither of them kept.
+    EXPECT_EQ(RuntimeWarnings::kKept + 5, left.total());
+    EXPECT_EQ(RuntimeWarnings::kKept + 4, left.total("one"));
+    EXPECT_EQ(1U, left.total("two"));
+    EXPECT_EQ(0U, left.total("three"));
+    EXPECT_EQ(RuntimeWarnings::kKept, left.kept().size());
+    EXPECT_EQ(2020, left.kept().front().year);
+
+    left.clear();
+    EXPECT_TRUE(left.empty());
+    EXPECT_EQ(0U, left.total());
+    EXPECT_TRUE(left.kept().empty());
+}

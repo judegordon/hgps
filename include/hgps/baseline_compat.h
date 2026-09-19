@@ -31,13 +31,18 @@ enum class CompatFlag : std::uint8_t {
     /// @brief B-24: the food-labelling policy re-applies its impact to somebody who failed an
     ///        early coverage draw and passed a later one.
     b24 = 0,
+
+    /// @brief B-29: the energy balance integrates a body fat mass straight through zero and past
+    ///        the partition coefficient's pole, instead of stopping at the edge of the model's
+    ///        domain (docs/findings/seed-80.md).
+    b29 = 1,
 };
 
 /// @brief A set of compatibility flags. Default-constructed means "none" — the fixed behaviour.
 class BaselineCompat {
   public:
     /// @brief How many flags exist. Grows when a deviation does.
-    static constexpr std::size_t flag_count = 1;
+    static constexpr std::size_t flag_count = 2;
 
     BaselineCompat() = default;
 

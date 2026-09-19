@@ -5,6 +5,7 @@
 #include "containers.h"
 #include "core/types.h"
 
+#include <cstdint>
 #include <map>
 #include <optional>
 #include <string>
@@ -145,6 +146,56 @@ class RuntimeMetric {
     // std::map, unlike the baseline's unordered_map: the metrics are written to the results file,
     // so their order is output.
     std::map<std::string, double> metrics_;
+};
+
+/// @brief One located warning the simulation raised while it ran.
+///
+/// A metric says *how often* something happened; this says *to whom*, *when*, and *what the
+/// numbers were*. The two are complementary and both are needed: a run whose manifest says
+/// "person 1222, 2030, body fat -2.224 kg" can be reproduced and argued about, and a run whose
+/// metric says "1" cannot.
+struct RuntimeWarning {
+    /// @brief A stable machine-readable code, snake_case, so a reader can filter without
+    ///        matching prose.
+    std::string code;
+    std::string scenario;
+    int year{};
+    std::uint64_t person{};
+
+    /// @brief The whole sentence, located: who, when, which term, and what it was.
+    std::string message;
+};
+
+/// @brief The located warnings one run raised, bounded so a pathological run cannot write a
+///        gigabyte of manifest.
+///
+/// The first `kKept` are kept whole and the rest are counted. A cap rather than a ring buffer,
+/// because the *first* occurrence is the one worth reading: it is the one that has not already
+/// been contaminated by an earlier one.
+class RuntimeWarnings {
+  public:
+    /// @brief How many are kept whole. Beyond this only the count grows.
+    static constexpr std::size_t kKept = 32;
+
+    void add(RuntimeWarning warning);
+
+    /// @brief How many were raised, including the ones not kept.
+    std::size_t total() const noexcept { return total_; }
+    std::size_t total(const std::string &code) const;
+
+    bool empty() const noexcept { return total_ == 0; }
+
+    const std::vector<RuntimeWarning> &kept() const noexcept { return kept_; }
+
+    /// @brief Adds every warning `other` holds, keeping this one's cap.
+    void merge(const RuntimeWarnings &other);
+
+    void clear() noexcept;
+
+  private:
+    std::vector<RuntimeWarning> kept_;
+    std::map<std::string, std::size_t> by_code_;
+    std::size_t total_{};
 };
 
 /// @brief Everything one simulated year of one scenario reports.

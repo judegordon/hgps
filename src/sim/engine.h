@@ -87,6 +87,9 @@ class Engine {
     ScenarioType type() const noexcept;
     const std::string &name() const noexcept;
 
+    /// @brief The located warnings this scenario raised, over every trial run it has done.
+    const model::RuntimeWarnings &warnings() const noexcept;
+
     /// @brief Runs one trial run and returns one result per simulated year, in year order.
     ///
     /// @param run The 1-based trial run number.
@@ -143,6 +146,12 @@ class Runner {
 
         /// @brief How many scenario-years were simulated and handed to the sink.
         std::size_t years_completed{};
+
+        /// @brief Every located warning every scenario raised, in scenario order. These go into
+        ///        the run manifest: a run that had to bound something says so where its
+        ///        provenance is recorded, rather than only in a log nobody keeps
+        ///        (ADR 0049, ADR 0034).
+        model::RuntimeWarnings warnings{};
     };
 
     /// @brief Runs `trial_runs` runs of the baseline alone.

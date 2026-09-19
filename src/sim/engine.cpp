@@ -115,6 +115,8 @@ std::vector<ResultRow> Engine::run(unsigned int run, std::uint32_t run_seed,
     return results;
 }
 
+const model::RuntimeWarnings &Engine::warnings() const noexcept { return context_.warnings(); }
+
 void Engine::initialise_population() {
     // Order is load-bearing. The single random stream is consumed in this order, so changing it
     // changes every result: demographics decide who exists, SES is a predictor for the risk
@@ -337,6 +339,7 @@ Runner::Outcome Runner::run(Engine &baseline, unsigned int trial_runs,
     if (hooks != nullptr && hooks->is_cancelled()) {
         outcome.cancelled = true;
     }
+    outcome.warnings.merge(baseline.warnings());
     outcome.elapsed_ms = std::chrono::duration<double, std::milli>(Clock::now() - start).count();
     return outcome;
 }
@@ -404,6 +407,10 @@ Runner::Outcome Runner::run(Engine &baseline, Engine &intervention, unsigned int
     if (hooks != nullptr && hooks->is_cancelled()) {
         outcome.cancelled = true;
     }
+    // Scenario order, as the results are: a reader comparing the two futures wants the baseline's
+    // warnings before the intervention's.
+    outcome.warnings.merge(baseline.warnings());
+    outcome.warnings.merge(intervention.warnings());
     outcome.elapsed_ms = std::chrono::duration<double, std::milli>(Clock::now() - start).count();
     return outcome;
 }

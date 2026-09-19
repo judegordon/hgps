@@ -539,6 +539,13 @@ std::unique_ptr<model::RiskFactorModel> load_kevin_hall(const nlohmann::json &do
         }
     }
 
+    // B-29: with the flag on, the energy balance integrates past a non-positive body fat exactly
+    // as the baseline does, so what the guard is worth can be measured rather than argued
+    // (ADR 0041, ADR 0049).
+    parameters->unbounded_body_fat =
+        context.config != nullptr &&
+        context.config->baseline_compat.is_set(api::CompatFlag::b29);
+
     if (report.error_count() != before) {
         return nullptr;
     }
