@@ -39,7 +39,7 @@ a stratified series, and the whole lot runs in CI.
 | Source | `src/` 153 files; `tests/` 73 files; 46,678 lines of C++ between them; `web/src/` 18 TypeScript files and `web/e2e/` 6, 3,136 lines |
 | Documents | **14**, plus **47 ADRs** |
 | CI | **16 jobs** — see below |
-| Findings this run | **4** |
+| Findings this run | **5** |
 
 ## The seven tasks, and how each ended
 
@@ -53,14 +53,15 @@ a stratified series, and the whole lot runs in CI.
 | 6 | The coverage CI job | **Done.** `column coverage · three examples`, sixteenth job, and a step in `scripts/check.sh`. |
 | 7 | The server and the frontend | **Done.** `GET /api/runs/{id}/summary?family=…`, a selector on the results screen, two more end-to-end tests. |
 
-## The four findings, and what found each
+## The five findings, and what found each
 
 | | What | Found by |
 |---|---|---|
 | 1 | **`AssignedAttributes::region` and `::ethnicity` were never set by anything**, so the two branches in `initialise_output_channels` that read them had never fired. `KevinHall_FINCH`'s `mean_region` column is there because its config declares `Region` as a level-0 risk factor and the mapping loop adds it, not because of the branch meant to decide it | giving the second fixture pack a region and finding it had no column |
 | 2 | **Classifying a stratum file by the *shape* of its CamelCase suffix is wrong.** The second pack's configured output name is `synthland_{TIMESTAMP}_B.csv`, and `_B` is a CamelCase suffix that is not a family | the enumeration test counting four stratum files where the pack writes three |
 | 3 | **Every demographic standard deviation that is also a declared risk factor has its square root taken twice in the baseline.** `std_region` is 0.122097 in a band of 50 whose spread is 0.745, and 0.122097 is `sqrt(0.745/50)`. The finishing loop walks the mapping and then a fixed list of demographic names, and a name in both is finished twice | writing the stratified standard-deviation pass beside the baseline's and asking why the two loops overlap |
-| 4 | **The comparison's allowance is estimated from the same twenty draws it is judging**, so a series at a small signed offset well inside its allowance fails in *every year at once* when a seed set gives a tight sample. It is why the failure count on one example ranges from 0 to 45 across equally valid seed sets, and it is a property of the whole-population comparison that is older than this run | three comparisons out of tolerance at twenty seeds, four at sixty and no cell in common — then re-scoring the sixty-seed run over subsets of itself, which contradicted the obvious explanation |
+| 4 | **The enumeration test asserted the whole family list where only one fixture pack runs.** Under ThreadSanitizer the second pack does not run ([ADR 0046](decisions/0046-what-runs-under-which-sanitizer.md)), so "every family the engine can write is produced by a fixture" is false there — and asserting it is asserting something about the sanitizer. It derives the expectation from each pack's own configuration now, and makes the whole-enumeration claim only where both packs run | running the TSan preset, which is the only configuration in which the test was wrong |
+| 5 | **The comparison's allowance is estimated from the same twenty draws it is judging**, so a series at a small signed offset well inside its allowance fails in *every year at once* when a seed set gives a tight sample. It is why the failure count on one example ranges from 0 to 45 across equally valid seed sets, and it is a property of the whole-population comparison that is older than this run | three comparisons out of tolerance at twenty seeds, four at sixty and no cell in common — then re-scoring the sixty-seed run over subsets of itself, which contradicted the obvious explanation |
 
 Finding 3 is reproduced here rather than fixed, and [docs/upstream-reports.md](upstream-reports.md)
 is the fifth report. A standard deviation is a number somebody may have published; changing it is a

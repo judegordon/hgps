@@ -69,9 +69,19 @@ where it earns its keep: the facts a test needs about the second pack are now nu
 one of them is asked rather than assumed.
 
 **Under ThreadSanitizer the stratified families are not produced at all**, because only the first
-pack runs there (ADR 0046). The enumeration test states that from the other side rather than
-skipping: with one pack it asserts the stratum family is *absent*, which is also a check that the
-first pack has not quietly acquired an income model.
+pack runs there (ADR 0046) — and the enumeration test has to say so rather than assert the whole
+list. It got that wrong on the first attempt and ThreadSanitizer caught it: with one pack,
+"every family the engine can write is produced by a fixture" is false, and asserting it there is
+asserting something about the sanitizer.
+
+What it does now is derive the expectation from **each pack's own configuration** — a pack produces
+the stratum family when its `project_requirements.income` enables the stratified output — and then
+assert two things separately: that what the packs are configured to produce is what they actually
+write, everywhere; and that the configured set is the *whole* enumeration, where both packs run.
+The second is the claim this suite exists for, and it is the one that fails when a family is added
+with no fixture behind it. The sibling test states the same thing from the other side, asserting
+with one pack that the stratum family is *absent*, which is also a check that the first pack has not
+quietly acquired an income model.
 
 **A dead condition became live, and the column order had to be protected.** Setting
 `AssignedAttributes::region` and `::ethnicity` — which nothing had ever set — made the branch in

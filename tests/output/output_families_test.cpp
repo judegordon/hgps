@@ -21,6 +21,8 @@
 #include <set>
 #include <string>
 
+#include <nlohmann/json.hpp>
+
 #include <gtest/gtest.h>
 
 namespace {
@@ -47,20 +49,52 @@ std::map<OutputFamily, std::set<std::string>> families_across_the_packs() {
     return found;
 }
 
+/// Which families the packs that run *here* are configured to produce.
+///
+/// Asked of each pack's own configuration rather than assumed, which is the rule for anything a
+/// test needs to know about a pack (tests/support/fixture_packs.h) — and load-bearing rather than
+/// tidy, because under ThreadSanitizer only the first pack runs ([ADR 0046](0046)) and that pack
+/// has no income model. A test that asserted the whole enumeration there would be asserting
+/// something about the sanitizer.
+std::set<OutputFamily> families_the_packs_can_produce() {
+    std::set<OutputFamily> expected{OutputFamily::result, OutputFamily::metadata,
+                                    OutputFamily::manifest};
+
+    for (const auto &pack : hgps::test::fixture_packs()) {
+        const auto income =
+            hgps::test::config_document(pack).at("project_requirements").at("income");
+        if (income.at("enabled").get<bool>() && income.at("income_based_csv_output").get<bool>()) {
+            expected.insert(OutputFamily::income_stratum);
+        }
+    }
+
+    return expected;
+}
+
 } // namespace
 
 TEST(OutputFamilies, EveryFamilyTheEngineCanWriteIsProducedByAFixture) {
-    const auto found = families_across_the_packs();
+    const auto expected = families_the_packs_can_produce();
 
-    for (const auto family : hgps::output::all_output_families()) {
-        const auto entry = found.find(family);
-        ASSERT_NE(found.end(), entry)
-            << "no fixture pack produces the '" << output_family_name(family)
-            << "' output family, so nothing in this suite ever reads one. Either a pack should "
-               "produce it — see tools/gen-fixtures/model_pack.h — or it should not be in "
+    // The claim this suite exists for, and it holds only where both packs run: the set of families
+    // the fixtures are configured to produce is the **whole** set the engine can write. A member
+    // added to `all_output_families()` with no pack behind it fails here.
+    if (hgps::test::fixture_packs().size() > 1) {
+        const auto all = hgps::output::all_output_families();
+        EXPECT_EQ(std::set<OutputFamily>(all.begin(), all.end()), expected)
+            << "a family the engine can write has no fixture pack that produces it. Either a pack "
+               "should produce it — see tools/gen-fixtures/model_pack.h — or it should not be in "
                "all_output_families().";
-        EXPECT_FALSE(entry->second.empty());
     }
+
+    // And what they are configured to produce is what they actually write, which is the half a
+    // configuration cannot tell you.
+    std::set<OutputFamily> found;
+    for (const auto &[family, packs] : families_across_the_packs()) {
+        EXPECT_FALSE(packs.empty()) << output_family_name(family);
+        found.insert(family);
+    }
+    EXPECT_EQ(expected, found);
 }
 
 TEST(OutputFamilies, TheStratifiedFilesAreTheSecondPacksAndThereIsOnePerCategory) {
