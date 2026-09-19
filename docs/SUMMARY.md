@@ -171,43 +171,41 @@ there" a fact about the model rather than about luck.
 
 ## CI, per matrix entry
 
-Sixteen jobs. Run **35449681187** on `9e0c724`, the commit carrying every line of code this run
-wrote, every entry read with `gh run view` rather than from the run's own summary. **16 of 16
-success.** The last column is the same job on the fix commit before it, run 35446674088, which was
-also 16 of 16.
+Sixteen jobs. Run **35452631992** on `80a211b`, this run's final tree, every entry read with
+`gh run view` rather than from the run's own summary. **16 of 16 success.** The last column is the
+same job on `9e0c724`, the commit carrying every line of code this run wrote, run 35449681187 —
+also 16 of 16, as was run 35446674088 on the fix before it.
 
 | Job | Result | Time | The previous run |
 |---|---|---:|---:|
-| `linux · clang · release` | **success** | 6m16s | 6m18s |
-| `linux · clang · debug` | **success** | 20m30s | 20m18s |
-| `linux · clang · asan-ubsan` | **success** | 29m05s | 36m38s |
-| `linux · clang · tsan` | **success** | 15m02s | 15m57s |
-| `linux · gcc · release` | **success** | 5m17s | 5m21s |
-| `linux · gcc · debug` | **success** | 9m47s | 18m10s |
-| `macos · appleclang · release` | **success** | 5m00s | 5m41s |
-| `macos · appleclang · debug` | **success** | 17m03s | 15m29s |
-| `macos · appleclang · asan-ubsan` | **success** | 46m02s | 43m46s |
-| `macos · appleclang · tsan` | **success** | 25m12s | 27m12s |
-| `equivalence · HLM_France · 20 seeds` | **success** | 6m57s | 7m03s |
-| `equivalence · KevinHall_FINCH · 20 seeds` | **success** | 9m05s | 5m41s |
-| `column coverage · three examples` | **success** | 3m53s | 5m32s |
-| `web · typecheck, test, build` | **success** | 0m14s | 0m15s |
-| `web · end-to-end` | **success** | 3m07s | 3m01s |
-| `performance · linux · indicative` | **success** | 5m26s | 4m59s |
+| `linux · clang · release` | **success** | 6m17s | 6m16s |
+| `linux · clang · debug` | **success** | 20m04s | 20m30s |
+| `linux · clang · asan-ubsan` | **success** | 28m05s | 29m05s |
+| `linux · clang · tsan` | **success** | 16m35s | 15m02s |
+| `linux · gcc · release` | **success** | 5m24s | 5m17s |
+| `linux · gcc · debug` | **success** | 13m22s | 9m47s |
+| `macos · appleclang · release` | **success** | 4m48s | 5m00s |
+| `macos · appleclang · debug` | **success** | 17m31s | 17m03s |
+| `macos · appleclang · asan-ubsan` | **success** | 41m54s | 46m02s |
+| `macos · appleclang · tsan` | **success** | 32m22s | 25m12s |
+| `equivalence · HLM_France · 20 seeds` | **success** | 7m40s | 6m57s |
+| `equivalence · KevinHall_FINCH · 20 seeds` | **success** | 8m56s | 9m05s |
+| `column coverage · three examples` | **success** | 3m38s | 3m53s |
+| `web · typecheck, test, build` | **success** | 0m10s | 0m14s |
+| `web · end-to-end` | **success** | 3m05s | 3m07s |
+| `performance · linux · indicative` | **success** | 2m49s | 5m26s |
 
-**Nothing in this table is this run's cost.** The two AddressSanitizer jobs bracket the previous
-run's — Linux 7 minutes shorter, macOS 2 longer — and `linux · gcc · debug` halved. Twenty-two new
-tests are 14 milliseconds of arithmetic and one 23-millisecond cohort; what moves these numbers is
-runner weather, and it moved them in both directions.
+**Nothing in this table is this run's cost.** The two AddressSanitizer jobs are *shorter* than the
+previous commit's, Linux by a minute and macOS by four; `macos · appleclang · tsan` is seven
+minutes longer and `linux · gcc · debug` three and a half, in the other direction, on code that
+did not change between the two runs at all. Twenty-two new tests are 14 milliseconds of arithmetic
+and one 23-millisecond cohort. What moves these numbers is runner weather, and the three runs
+above show it moving them both ways on identical code.
 
-`equivalence · KevinHall_FINCH` is 3½ minutes longer, and that is the same job that was 3 minutes
-longer last run for the same reason — twenty runs of the example and then 45,544 tests in Python,
-on whatever machine GitHub allocates. `HLM_France`, which does the same work, is unchanged.
-
-This table is the run on `9e0c724`. The push that carries this document starts one more, on the
-same code and the same matrix — a fixed point a summary of its own run cannot reach, so what is
-quoted is the newest run that had reported when the table was written, and it is the one that
-carries all the code.
+This table describes `80a211b`. The one-line commit that installs it starts one more run, on the
+same code and the same matrix — a fixed point a summary of its own tree cannot reach. What is
+quoted is the newest run that had reported, and that run is on the tree everything but this
+paragraph is in.
 
 ## The same tree locally
 
