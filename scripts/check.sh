@@ -34,6 +34,43 @@ fi
 
 step() { printf '\n=== %s\n' "$*"; }
 
+# The ADR index, before anything is compiled, because it costs nothing and an index that has
+# drifted from the directory is the one documentation defect a reader cannot detect by reading.
+# Two directions: an ADR with no line in the index is invisible to anyone who starts at the index,
+# and a line naming a file that is not there is a broken link. docs/decisions/README.md is the
+# index; docs/READING-GUIDE.md carries the same list in reading order and is held to the same
+# check, so the two cannot disagree about which decisions exist.
+step "ADR index"
+adr_index_failures=0
+for index in docs/decisions/README.md docs/READING-GUIDE.md; do
+    if [[ ! -f "$index" ]]; then
+        echo "check.sh: $index is missing; it is the ADR index." >&2
+        adr_index_failures=$((adr_index_failures + 1))
+        continue
+    fi
+    for adr in docs/decisions/0*.md; do
+        name="$(basename "$adr")"
+        # README.md sits in docs/decisions/ and links to a bare file name; READING-GUIDE.md sits
+        # in docs/ and prefixes it. Either spelling counts as an index line.
+        if ! grep -qF "]($name)" "$index" && ! grep -qF "](decisions/$name)" "$index"; then
+            echo "check.sh: $name has no index line in $index (ADR 0001)." >&2
+            adr_index_failures=$((adr_index_failures + 1))
+        fi
+    done
+    while read -r name; do
+        if [[ ! -f "docs/decisions/$name" ]]; then
+            echo "check.sh: $index links to docs/decisions/$name, which does not exist." >&2
+            adr_index_failures=$((adr_index_failures + 1))
+        fi
+    done < <(grep -oE '\]\((decisions/)?0[0-9]{3}-[a-z0-9-]+\.md\)' "$index" \
+             | sed -E 's/^\]\((decisions\/)?//; s/\)$//' | sort -u)
+done
+if [[ "$adr_index_failures" -ne 0 ]]; then
+    echo "check.sh: the ADR index is out of sync with docs/decisions/ — $adr_index_failures problem(s) above." >&2
+    exit 1
+fi
+echo "docs/decisions/: $(ls docs/decisions/0*.md | wc -l | tr -d ' ') records, all indexed in both files."
+
 if [[ "$FAST" -eq 1 ]]; then
     PRESETS=(release)
 else
