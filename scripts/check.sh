@@ -105,6 +105,17 @@ if [[ "$RUN_EQUIVALENCE" -eq 1 && "$FAST" -eq 0 ]]; then
         echo "check.sh: tests/equivalence/run.py is missing or not executable." >&2
         exit 1
     fi
+
+    # The column inventory: every column of every output family, on both sides, and which of them
+    # are identically zero. It asks a question the comparison above cannot express — "the baseline
+    # has numbers here and we have nothing" is not a disagreement about a distribution — and it is
+    # the check that would have caught the 49 columns the previous run found by hand
+    # (docs/equivalence.md, "Every column of every family").
+    #
+    # One run of this build per example against the stored baseline inventory, so it needs no
+    # baseline binary; all three runnable examples, `HLM_India` at the reduced cohort.
+    step "column coverage"
+    python3 scripts/column-coverage.py
 fi
 
 step "all checks passed"

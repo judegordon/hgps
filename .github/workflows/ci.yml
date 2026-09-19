@@ -350,6 +350,71 @@ jobs:
           retention-days: 90
 
   # ---------------------------------------------------------------------------------------------
+  # The column inventory: every column of every output family, on both sides, and which of them are
+  # identically zero.
+  #
+  # This is the check that would have caught the 49. A statistical comparison cannot express "the
+  # baseline has numbers here and we have nothing": a column of zeros against a column of numbers
+  # either fails for ever or — where the column is legitimately absent for an example — is skipped
+  # on both sides and says nothing. So this job asks of the files themselves, and fails when a
+  # column is present in the baseline, present here, identically zero here and not identically zero
+  # in the baseline.
+  #
+  # It needs no baseline binary: the baseline's inventory is stored beside its reduction and keyed
+  # by the same hash of the same derived config. All three runnable examples, `HLM_India` at the
+  # hundredth of its cohort the harness compares it at.
+  column-coverage:
+    name: column coverage · three examples
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the implementation
+        uses: actions/checkout@v4
+        with:
+          path: hgps_new_rewrite
+
+      - name: Prepare
+        uses: ./hgps_new_rewrite/.github/actions/prepare
+        with:
+          vcpkg-commit: ${{ env.VCPKG_COMMIT }}
+          examples-repo: ${{ env.EXAMPLES_REPO }}
+          cache-id: linux-clang
+          examples: |
+            HLM_France
+            KevinHall_FINCH
+            HLM_India
+
+      - name: Cache the extracted data pack
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/healthgps
+          key: healthgps-data-${{ hashFiles('hgps_new_rewrite/examples/HLM_France/config.json', 'hgps_new_rewrite/examples/KevinHall_FINCH/config.json', 'hgps_new_rewrite/examples/HLM_India/config.json') }}
+          restore-keys: |
+            healthgps-data-
+
+      - name: Build (release)
+        working-directory: hgps_new_rewrite
+        env:
+          CC: clang
+          CXX: clang++
+        run: |
+          cmake --preset release
+          cmake --build --preset release
+
+      - name: Inventory every column of every output family
+        working-directory: hgps_new_rewrite
+        run: scripts/column-coverage.py --json out/column-coverage.json
+
+      - name: Upload the inventory
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: column-coverage
+          path: hgps_new_rewrite/out/column-coverage.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------------------------
   # Statistical equivalence against the baseline, without building the baseline: the two reductions
   # of its output are checked in, and the harness compares this build against them. That is the half
   # of the validation a unit test cannot do, and until this workflow existed nothing ran it
