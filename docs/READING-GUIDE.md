@@ -21,8 +21,11 @@ useful.
 | **everything** | items 1–14 | own it |
 
 Nothing here is a substitute for `scripts/check.sh`. Run it once, early, on a machine with
-`VCPKG_ROOT` set; it takes about an hour without the sanitizer presets and it is the fastest way to
-find out whether the tree in front of you is the tree these documents describe.
+`VCPKG_ROOT` set: it is the fastest way to find out whether the tree in front of you is the tree
+these documents describe. `--fast` is the release preset alone and its tests are a minute; the full
+run is the long one, because the four presets are 54, 511, 1,620 and 972 seconds of tests before
+the frontend, the browser and the equivalence harness ([docs/SUMMARY.md](SUMMARY.md), *The same
+tree locally*).
 
 ---
 
@@ -154,9 +157,9 @@ taken and are never rewritten.
 new owner asks most often and the one the code cannot answer. Several of these records exist
 specifically because the decision looks wrong from outside.
 
-**How long.** A full day if read end to end, which is worth doing once. If you have an hour instead,
-read 0005, 0008, 0024, 0032, 0041, 0048, 0049 and 0050: those eight carry the shape of everything
-else.
+**How long.** 38,000 words — most of a day if read end to end, which is worth doing once. If you
+have an hour instead, read 0005, 0008, 0024, 0032, 0041, 0048, 0049 and 0050: those eight carry the
+shape of everything else.
 
 **The question.** *For any surprising thing in this codebase, which record argues for it, and what
 was the alternative?*
