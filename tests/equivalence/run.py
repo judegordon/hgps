@@ -276,7 +276,7 @@ BASELINE_DOES_NOT_COMPUTE = {
 # compare against.
 BASELINE_ONLY_FAMILIES = {
     "IndividualIDTracking": (
-        "backlog item 4",
+        "backlog item 2",
         "the baseline opens `<stem>_IndividualIDTracking.csv` for every run whose config enables "
         "tracking, and writes nothing to it — not even a header — when no person passes the "
         "filter; `KevinHall_FINCH` asks for ages 80-110 in four named regions and matches nobody. "

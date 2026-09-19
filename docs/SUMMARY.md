@@ -52,6 +52,7 @@ a stratified series, and the whole lot runs in CI.
 | 5 | The 45 columns | **Done.** `column coverage: PASS` on all three examples, every all-zero count matching the baseline's. The whole-population CSV is **byte-identical** before and after on both examples that have one. **One finding**, and it belongs to upstream. |
 | 6 | The coverage CI job | **Done.** `column coverage · three examples`, sixteenth job, and a step in `scripts/check.sh`. |
 | 7 | The server and the frontend | **Done.** `GET /api/runs/{id}/summary?family=…`, a selector on the results screen, two more end-to-end tests. |
+| + | What it cost | `KevinHall_FINCH` is **3% slower and 11% heavier**, measured against the commit before the change on the same machine. Both are the price of the columns and both are accounted for. |
 
 ## The five findings, and what found each
 
@@ -106,6 +107,22 @@ The check that says so is not one test but three:
 
 **And the whole-population CSV did not change**: byte for byte, `HLM_France` and `KevinHall_FINCH`,
 before and after.
+
+**What it cost, measured rather than assumed.** Five runs of each binary, alternating, on an idle
+machine, against the shipped configurations ([docs/performance.md](performance.md)):
+
+| | Wall, best of 5 | Peak memory |
+|---|---|---|
+| `HLM_France` | 1.01 → **1.02 s** | 42.7 → **43.7 MiB** |
+| `KevinHall_FINCH` | 3.38 → **3.49 s, 3% slower** | 78.8 → **87.6 MiB, +11%** |
+
+The 3% is the second pass over the population that a standard deviation from the finished mean
+needs. The 8.8 MiB is arithmetic and the multiplier is the horizon: 46 more channels per (stratum,
+sex) is 327 KB per year-result, and `Engine::run` holds every year of a scenario before any of it is
+written, because the row order is the output contract
+([ADR 0020](decisions/0020-output-single-owner-defined-row-order.md)). Twenty-two year-results is
+7.2 MB, and the map nodes are most of the rest. There is nothing to optimise: the channels exist
+because the columns are written.
 
 ## The three marginal comparisons, and what they turned out to be
 
@@ -206,15 +223,105 @@ engine writes and is not a rule anything enforces. It classifies by the engine's
 
 ## CI, per matrix entry
 
-CI_TABLE_PLACEHOLDER
+Sixteen jobs. Run **35421861281** on `d76b3b2`, every entry read with `gh run view` rather than from
+the run's own summary. **16 of 16 success.** The last column is the same job on the previous run's
+final commit, run 35405669788.
+
+| Job | Result | Time | The previous run |
+|---|---|---:|---:|
+| `linux · clang · release` | **success** | 4m11s | 5m46s |
+| `linux · clang · debug` | **success** | 16m06s | 6m47s |
+| `linux · clang · asan-ubsan` | **success** | 28m30s | 22m32s |
+| `linux · clang · tsan` | **success** | 11m58s | 15m51s |
+| `linux · gcc · release` | **success** | 4m52s | 4m56s |
+| `linux · gcc · debug` | **success** | 12m41s | 13m03s |
+| `macos · appleclang · release` | **success** | 3m04s | 4m36s |
+| `macos · appleclang · debug` | **success** | 12m48s | 10m57s |
+| `macos · appleclang · asan-ubsan` | **success** | 28m13s | 26m43s |
+| `macos · appleclang · tsan` | **success** | 25m28s | 30m12s |
+| `equivalence · HLM_France · 20 seeds` | **success** | 6m56s | 4m27s |
+| `equivalence · KevinHall_FINCH · 20 seeds` | **success** | 8m56s | 6m03s |
+| **`column coverage · three examples`** | **success** | **3m55s** | — (new) |
+| `web · typecheck, test, build` | **success** | 0m12s | 0m12s |
+| `web · end-to-end` | **success** | 3m15s | 3m00s |
+| `performance · linux · indicative` | **success** | 4m22s | 5m23s |
+
+**The sixteenth job is the point of the table.** `column coverage · three examples` is the check
+that would have caught the 49, it needs no baseline binary, and it costs four minutes — of which
+most is fetching and extracting `HLM_India`'s data pack.
+
+The two equivalence entries are longer by about half, which is what comparing five files per run
+rather than one costs: `KevinHall_FINCH` went from 22,616 comparisons to 111,836 for 2m53s. Nothing
+else in the table moved for a reason belonging to this run; the rest is runner weather, and the
+previous run's numbers are beside them so a reader can see which is which.
+
+This table is the run on `d76b3b2`, which carries every change this run made and every document but
+this table. The push that updates it starts one more, on the same code and the same matrix — a fixed
+point a summary of its own run cannot reach, so what is quoted is the newest run that had reported
+when it was written.
 
 ## The same tree locally
 
-CHECK_TABLE_PLACEHOLDER
+`scripts/check.sh` with nothing skipped, on the tree these commits leave behind — **38 minutes end
+to end, exit 0**:
+
+| | Result | Time |
+|---|---|---:|
+| release | **866 / 866** | 33 s |
+| debug | **866 / 866** | 332 s |
+| asan-ubsan | **866 / 866** | 976 s |
+| tsan | **773 / 773** | 790 s |
+| frontend, type-check and unit | **48 / 48** | under a second |
+| frontend, end to end in a browser | **21 / 21** | 6.4 s |
+| equivalence, `HLM_France` | **38,386** comparisons over four families, **0** out of tolerance | — |
+| equivalence, `KevinHall_FINCH` | **111,836** comparisons over five families, **3** out of tolerance, within the budget of 3 | — |
+| column coverage, three examples | **13 families** compared column by column, **0** findings | — |
+
+The per-family split, which is the thing that did not exist before this run:
+
+| Example | `result` | Each stratum file | Total |
+|---|---:|---|---:|
+| `HLM_France` | 31,546 | 2,280 × 3 | **38,386** |
+| `KevinHall_FINCH` | 22,616 | 21,897 / 22,617 / 22,485 / 22,221 | **111,836** |
+| `HLM_India`, `simple` | 66,787 | 2,280 × 3 | **73,627** |
+| `HLM_India`, `food_labelling` | 66,805 | 2,280 × 3 | **73,645** |
+
+**The whole-population column is unchanged in all four**, which is the check that the reduction did
+not move underneath the comparison: 31,546, 22,616, 66,787 and 66,805 are what the previous run
+produced. Everything else is new.
+
+`KevinHall_FINCH`'s stratum files carry nearly as many comparisons as its whole-population file
+because that is the one example where they have numbers in them. The other two are HLM examples,
+nobody in them has an income category, and their 2,280 per file are seven head counts agreeing that
+they are all zero.
 
 ## The recommended next run
 
-NEXT_RUN_PLACEHOLDER
+**Fix the allowance** — [docs/backlog.md](backlog.md) item 6. It is first because it is the one
+thing this run made worse: there is a failure budget again, on one example, for the first time since
+the fifth run, and closing this item is what removes it. It is also the only item on the list that
+changes what the word "equivalent" is worth, because an allowance whose width is estimated from the
+same twenty draws it is judging is one whose threshold is partly luck. The measurement is already
+done and in [docs/equivalence.md](equivalence.md); what is left is choosing a rule and testing it,
+and the harness's 63 tests are where that is cheap.
+
+**Two things to be careful of, both written into the item.** The small signed offsets are worth
+understanding before the rule changes — `std_polyunsaturatedfattyacid` and `std_fat` are both about
+1% below the baseline's while their means agree to a tenth of a percent, both are two-stage factors
+whose spread depends on the fraction of people at zero, and that may be a real difference rather
+than noise. A rule change that hid it would be the wrong fix. And the sigma limit is not the lever:
+this run worked out what re-deriving it would do and did not do it.
+
+If a modelling answer arrives before then, **item 1 outranks it**: interventions on the Kevin Hall
+surface are a question for the upstream authors ([docs/briefing.md](briefing.md)), four of the six
+examples can only be run with a no-op policy until it is answered, and it has been first on this
+list for three runs because it is work nobody here can do.
+
+**Item 2 is the cheapest real gain**: individual-level tracking output is the one output family the
+baseline writes and this build does not, and it is now carried by two explicit exclusions —
+the harness's and the coverage script's — whose premise is that the baseline's own file is empty.
+Writing the file would remove both. And **`HLM_India` at the cohort it ships** (item 4) is still the
+largest single gap in the validation: machine time rather than work.
 
 ## What a reader should still be sceptical about
 
@@ -232,6 +339,15 @@ NEXT_RUN_PLACEHOLDER
   configuration rather than running it silently.
 - **The comparison's floor.** The baseline writes six significant digits, so no comparison is
   tighter than about 10⁻⁵ relative.
+- **There is a failure budget again**, of 3 comparisons on `KevinHall_FINCH` out of 111,836, and it
+  is the first since the fifth run. A count budget cannot tell a series at the edge of a shrunken
+  allowance from a real regression; what limits the damage is that everything else has a budget of
+  zero. [docs/backlog.md](backlog.md) item 6 removes it.
+- **A handful of series sit at a small signed offset well inside their allowance**, and whether that
+  shows up as a failure depends on how tight the seed set's sample standard deviation happens to be.
+  `std_polyunsaturatedfattyacid` is about 1.1% below the baseline's at its worst cell while its mean
+  agrees to 0.109%. Whether that 1% is real has not been established, and it is in the
+  whole-population file rather than in anything this run added.
 - **The harness has been wrong five times**, and its reduction was wrong about four columns until
   the previous run. It has 63 tests, which is better than nothing and is not the same as being
   right. What this run added to it — a family in every key, a per-family section, a family-presence

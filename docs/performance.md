@@ -73,6 +73,48 @@ so its wall and CPU times are the same number. Sequential execution was expected
 factor of two in wall time and to be worth it for byte-identical output. It costs nothing on either
 example, because the work itself is smaller.
 
+### The 45 columns cost 3% of FINCH's time and 11% of its peak memory
+
+The eighth run filled 45 columns of every income-stratified file that were identically zero here
+and non-zero in the baseline's (docs/SUMMARY.md). The income series became the whole-population
+series per stratum — a second pass over the population per year for the standard deviations, and
+about **46 more channels per (income category, sex)**. That is not free, and the A/B is here rather
+than in a sentence because a change that buys output should have to say what it costs.
+
+Five runs of each binary, alternating, on an idle machine, against the **shipped** configurations:
+
+| | Wall, best of 5 | CPU, best of 5 | Peak memory |
+|---|---|---|---|
+| `HLM_France` | 1.01 → **1.02 s** | 1.01 → **1.02 s** | 42.7 → **43.7 MiB** |
+| `KevinHall_FINCH` | 3.38 → **3.49 s, 1.03× slower** | 3.37 → **3.47 s** | 78.8 → **87.6 MiB, +11%** |
+
+`HLM_France` is unchanged in time and costs 1.0 MiB: nobody in it has an income category, so the
+only new channels are the `mean_age`, `mean_age2`, `mean_age3` and `deaths` the divide loop creates
+for every configured stratum whether or not anybody is in it — which is exactly what the baseline
+does and what made those three columns the whole difference on that example.
+
+**The 8.8 MiB on FINCH is arithmetic rather than a leak, and the multiplier is the horizon.**
+`Engine::run` collects **every year's `ResultRow` for a whole scenario** before any of them is
+written, because the output's row order is scenario-then-year and one owner writes the file
+([ADR 0020](decisions/0020-output-single-owner-defined-row-order.md)). FINCH is 11 years × 2
+scenarios, so 22 year-results are alive at once:
+
+    46 channels × 4 strata × 2 sexes × 111 ages × 8 bytes = 327 KB per year-result
+    × 22 year-results                                     = 7.2 MB
+    + ~8,100 extra std::map nodes at ~100 bytes           = 0.8 MB
+                                                            ---------
+                                                            8.0 MB against 8.8 MiB measured
+
+**It was not optimised away, and the reason is that there is nothing to optimise.** The channels
+exist because the columns are written; a stratum file carries the whole-population header and every
+one of those 46 is a column somebody reads. The only lever is the buffering, and that is ADR 0020's
+design rather than an oversight — streaming the rows would trade a defined row order for 7 MB.
+
+The 3% on FINCH is the second pass over the population. The baseline runs the same two passes for
+the same reason: a standard deviation is a deviation from the *finished* mean, and computing it as
+`E[x²] − E[x]²` in one pass loses most of its significant digits on a quantity whose spread is small
+beside its level, which several of these are.
+
 ### What the index-keyed store bought
 
 This build immediately before [ADR 0037](decisions/0037-index-keyed-risk-factor-store.md) and
