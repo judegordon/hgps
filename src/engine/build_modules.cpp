@@ -560,10 +560,12 @@ std::optional<sim::Modules> build_modules(const LoadedInputs &loaded,
     // Region and ethnicity come out of the static model's own file but are assigned by the
     // demographic module, which is the only thing that sees a person before their risk factors
     // exist.
-    if (!models->prevalence.region.empty()) {
+    const bool assigns_region = !models->prevalence.region.empty();
+    const bool assigns_ethnicity = !models->prevalence.ethnicity.empty();
+    if (assigns_region) {
         demographic->set_region_prevalence(std::move(models->prevalence.region));
     }
-    if (!models->prevalence.ethnicity.empty()) {
+    if (assigns_ethnicity) {
         demographic->set_ethnicity_prevalence(std::move(models->prevalence.ethnicity));
     }
 
@@ -571,7 +573,20 @@ std::optional<sim::Modules> build_modules(const LoadedInputs &loaded,
 
     // What the models assign decides part of the output's column set, so it is read before the
     // models are handed to the host module.
-    const auto assigned = merge(models->static_model->assigns(), models->dynamic_model->assigns());
+    auto assigned = merge(models->static_model->assigns(), models->dynamic_model->assigns());
+
+    // Region and ethnicity are the two attributes no *model* claims: `StaticLinearModel::assigns`
+    // leaves both false and says so, because it is the demographic module that gives them to a
+    // person. Nothing then set them, so `AssignedAttributes::region` and `::ethnicity` were always
+    // false and the two branches in `initialise_output_channels` that read them were dead — the
+    // `mean_region` column of the FINCH and India outputs is there because their configs declare
+    // `Region` as a level-0 risk factor and the mapping loop adds it, not because of the branch
+    // meant to decide it. Set here, from the prevalence data that actually makes the assignment
+    // possible, so the condition says what it means. It adds no column to any existing example:
+    // each one that has the data also names the factor in its mapping, and `add` is
+    // case-insensitively deduplicated.
+    assigned.region |= assigns_region;
+    assigned.ethnicity |= assigns_ethnicity;
 
     modules.risk_factor = std::make_unique<model::RiskFactorHostModule>(
         std::move(models->static_model), std::move(models->dynamic_model), journal);

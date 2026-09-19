@@ -9,10 +9,53 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace hgps::output {
+
+/// @brief The kinds of file a run writes.
+///
+/// This enumeration is the whole answer to "what does this engine put on disk", and it exists
+/// because the previous run found out what happens when nothing enumerates that: the
+/// income-stratified CSVs had been written for as long as this build has existed with no
+/// comparison, no test and no fixture that produced one, and 45 of their columns were empty
+/// (docs/SUMMARY.md, docs/backlog.md item 2).
+///
+/// Adding a member here without a fixture pack that produces it fails
+/// `OutputFamilies.EveryFamilyTheEngineCanWriteIsProducedByAFixture`, and adding one without
+/// teaching the equivalence harness about it fails the harness's own family enumeration. That is
+/// the point: a new output family should be work in three places rather than a file nobody looks
+/// at.
+enum class OutputFamily {
+    /// The whole-population result CSV.
+    result,
+    /// One CSV per configured income category, with the same columns as `result`.
+    income_stratum,
+    /// The result metadata JSON, beside the result CSV and with its name.
+    metadata,
+    /// The run manifest JSON, written by the session rather than by this writer.
+    manifest,
+};
+
+/// @brief A stable, lower-case name for a family, as the API and the harness spell it.
+std::string_view output_family_name(OutputFamily family) noexcept;
+
+/// @brief Every family this engine can write, in a fixed order.
+std::span<const OutputFamily> all_output_families() noexcept;
+
+/// @brief Which family a written file belongs to, from its name.
+///
+/// The rule is the naming this file implements, read back: `<stem>_manifest.json` is the manifest,
+/// any other `.json` beside the result is its metadata, a `.csv` whose stem ends in a CamelCase
+/// suffix is a stratum file, and anything else is the result itself. It is the same rule
+/// `tests/equivalence/run.py` applies to the baseline's output, which is what lets the two sides
+/// be grouped by the same families.
+///
+/// @throws std::invalid_argument for a path that is not one of this engine's outputs at all.
+OutputFamily output_family_of(const std::filesystem::path &path);
 
 /// @brief What produced a result file, for its metadata.
 struct RunMetadata {

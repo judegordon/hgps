@@ -104,6 +104,19 @@ class TestSimulation : public hgps::test::FixturePackTest {
         return document()["running"]["diseases"].get<std::vector<std::string>>();
     }
 
+    /// @brief The `ModelName` of the pack's own static model file.
+    ///
+    /// Read out of the file the configuration names, because what a pack's models assign is a
+    /// property of those models — the one thing a test may take from a pack, as long as it asks
+    /// rather than assumes.
+    std::string static_model_name() const {
+        const auto relative =
+            document()["modelling"]["risk_factor_models"]["static"].get<std::string>();
+        std::ifstream stream{pack().directory / relative};
+        EXPECT_TRUE(stream.good()) << "cannot read " << relative;
+        return nlohmann::json::parse(stream).at("ModelName").get<std::string>();
+    }
+
     /// @brief The scenarios the pack's own configuration produces, in order.
     std::vector<std::string> scenarios() const {
         if (document()["running"]["interventions"]["active_type_id"].is_null()) {
@@ -148,16 +161,23 @@ TEST_P(TestSimulation, RunsTheWholeHorizonAndWritesEveryYear) {
 
 TEST_P(TestSimulation, AChannelExistsOnlyWhenAModelActuallyAssignsIt) {
     // project_requirements defaults switch income and physical activity on for every config,
-    // including this one, whose HLM models assign neither. Emitting the channels anyway put six
-    // columns of zeros in the reference example's output; the baseline instead decides by
-    // sampling the first 1,000 people, so its column set depends on the cohort's contents.
-    // Neither is right: the channel exists when the project asks for the dimension *and* a
-    // loaded model gives it to people.
+    // including one whose HLM models assign neither. Emitting the channels anyway put six columns
+    // of zeros in the reference example's output; the baseline instead decides by sampling the
+    // first 1,000 people, so its column set depends on the cohort's contents. Neither is right:
+    // the channel exists when the project asks for the dimension *and* a loaded model gives it to
+    // people.
+    //
+    // **Both halves of that rule are asserted, one per pack**, and which half a pack gets is read
+    // out of its own static model file rather than assumed from its name. The first pack is `HLM`
+    // and assigns neither, so switching the requirements on must add no column; the second is
+    // `StaticLinear` and assigns both, so switching them on must add them. Before this run only
+    // the first half existed, because both packs were `HLM` — and a rule tested only where it says
+    // "no" is a rule that would pass if the column never appeared at all.
     auto config_doc = document();
     config_doc["project_requirements"]["income"]["enabled"] = true;
     config_doc["project_requirements"]["physical_activity"]["enabled"] = true;
-    // region and ethnicity are not switched on here: the run refuses them outright without the
-    // prevalence data, which is a different rule with its own test.
+    // region and ethnicity are not switched on here: a pack whose model has no prevalence data is
+    // refused outright, which is a different rule with its own test.
     const auto config = hgps::test::write_config_variant(pack(), "sim_channels_config", config_doc);
 
     const auto outcome = hgps::test::run_simulation(config, pack_scratch("sim_channels"));
@@ -168,12 +188,19 @@ TEST_P(TestSimulation, AChannelExistsOnlyWhenAModelActuallyAssignsIt) {
     std::string header;
     ASSERT_TRUE(std::getline(stream, header));
 
-    for (const auto *absent : {"mean_income_category", "mean_income", "mean_physical_activity"}) {
-        EXPECT_EQ(std::string::npos, header.find(absent))
-            << absent << " should not be a column: no loaded model assigns it";
+    const bool assigns = static_model_name() == "StaticLinear";
+    for (const auto *channel : {"mean_income_category", "mean_income", "mean_physical_activity"}) {
+        if (assigns) {
+            EXPECT_NE(std::string::npos, header.find(channel))
+                << channel << " should be a column: the project asks for the dimension and this "
+                              "pack's StaticLinear model assigns it";
+        } else {
+            EXPECT_EQ(std::string::npos, header.find(channel))
+                << channel << " should not be a column: no loaded model assigns it";
+        }
     }
 
-    // What the models do assign is still there.
+    // What every pack's models assign is there either way.
     for (const auto *present : {"mean_age", "mean_bmi", "mean_energy", "mean_yll"}) {
         EXPECT_NE(std::string::npos, header.find(present)) << present;
     }

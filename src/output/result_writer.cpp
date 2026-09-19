@@ -39,6 +39,59 @@ nlohmann::json to_json(const model::ResultByGender &value) {
 
 } // namespace
 
+std::string_view output_family_name(OutputFamily family) noexcept {
+    switch (family) {
+    case OutputFamily::result:
+        return "result";
+    case OutputFamily::income_stratum:
+        return "income_stratum";
+    case OutputFamily::metadata:
+        return "metadata";
+    case OutputFamily::manifest:
+        return "manifest";
+    }
+    return "unknown";
+}
+
+std::span<const OutputFamily> all_output_families() noexcept {
+    static constexpr std::array kFamilies{OutputFamily::result, OutputFamily::income_stratum,
+                                          OutputFamily::metadata, OutputFamily::manifest};
+    return kFamilies;
+}
+
+OutputFamily output_family_of(const std::filesystem::path &path) {
+    const auto extension = core::to_lower(path.extension().string());
+    const auto stem = path.stem().string();
+
+    if (extension == ".json") {
+        return stem.ends_with("_manifest") ? OutputFamily::manifest : OutputFamily::metadata;
+    }
+
+    if (extension != ".csv") {
+        throw std::invalid_argument(
+            fmt::format("'{}' is not one of this engine's output files: it is neither a .csv nor "
+                        "a .json",
+                        path.string()));
+    }
+
+    // A stratum file is the result's name plus one of the category suffixes `income_file_name`
+    // produces, and it is matched against exactly those rather than against the *shape* of a
+    // CamelCase suffix. The shape rule is one character shorter to write and wrong: the second
+    // fixture pack's configured output name is `synthland_{TIMESTAMP}_B.csv`, whose `_B` is a
+    // CamelCase suffix and not a stratum. Matching the names keeps this in step with the writer
+    // without guessing, and a category added to `core::Income` that this loop does not know about
+    // is a compile error rather than a misfiled result.
+    for (const auto income : {core::Income::low, core::Income::lowermiddle, core::Income::middle,
+                              core::Income::uppermiddle, core::Income::high}) {
+        const auto suffix = fmt::format("_{}", core::income_file_name(income));
+        if (stem.size() > suffix.size() && stem.ends_with(suffix)) {
+            return OutputFamily::income_stratum;
+        }
+    }
+
+    return OutputFamily::result;
+}
+
 ResultWriter::ResultWriter(std::filesystem::path base_path, RunMetadata metadata,
                            bool write_income_files, core::IncomeCategoryLayout income_layout)
     : metadata_{std::move(metadata)}, write_income_files_{write_income_files},

@@ -457,11 +457,17 @@ def write_derived_config(path: Path, document: dict) -> None:
     path.write_text(json.dumps(document, indent=1))
 
 
-# The derived files are the main name plus a CamelCase suffix — `_LowIncome`, `_Quintile3`,
-# `_IndividualIDTracking`. Matching on the shape of the suffix rather than on a list of them keeps
-# this in step with the writer, and works even when a derived file's own timestamp is a second
-# later than the main one's, which it sometimes is.
-DERIVED_SUFFIX = re.compile(r"_([A-Z][A-Za-z0-9]*)$")
+# The derived files are the main name plus one of these suffixes: one per income category, and the
+# individual-tracking file. Matched against the list rather than against the *shape* of a CamelCase
+# suffix, because a configured output name can end in one: the second fixture pack's is
+# `synthland_{TIMESTAMP}_B.csv`, and `_B` is a CamelCase suffix that is not a family. A derived file
+# whose suffix is not here is not silently classified as a second main file — two files claiming
+# the main family is an error, which is the loud failure a new output family should cause.
+#
+# The five income names are `core::income_file_name`'s, which is what `ResultWriter` names the files
+# with; `src/output/result_writer.cpp` matches the same list for the same reason.
+DERIVED_FAMILIES = ("LowIncome", "LowerMiddleIncome", "MiddleIncome", "UpperMiddleIncome",
+                    "HighIncome", "IndividualIDTracking")
 
 # The main file's family name. It has no suffix, so it needs one to be spoken about.
 MAIN_FAMILY = "result"
@@ -469,8 +475,10 @@ MAIN_FAMILY = "result"
 
 def family_of(path: Path) -> str:
     """Which output family a result file belongs to, from its name alone."""
-    match = DERIVED_SUFFIX.search(path.stem)
-    return match.group(1) if match else MAIN_FAMILY
+    for family in DERIVED_FAMILIES:
+        if path.stem.endswith("_" + family):
+            return family
+    return MAIN_FAMILY
 
 
 def result_families(folder: Path) -> dict[str, Path]:

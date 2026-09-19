@@ -1,6 +1,8 @@
 #include "model_pack.h"
 
+#include <array>
 #include <cmath>
+#include <filesystem>
 #include <fstream>
 #include <stdexcept>
 #include <string>
@@ -28,15 +30,28 @@ void write(const std::filesystem::path &path, const std::string &contents) {
 double expected_energy(int age) { return 1500.0 + 900.0 * (1.0 - std::exp(-0.09 * age)); }
 double expected_bmi(int age) { return 15.0 + 11.0 * (1.0 - std::exp(-0.07 * age)); }
 
+/// A physical activity level: the flat-ish curve a PAL is, so the log-normal draw around it stays
+/// inside any plausible range.
+double expected_physical_activity(int age) { return 1.75 - 0.25 * (1.0 - std::exp(-0.05 * age)); }
+
 /// The FactorsMean table has to cover the configured age range, which a pack may set above the
 /// data's top age — the loader says so with a located error when it does not.
-std::string factors_mean_csv(bool male, int top_age) {
+///
+/// `with_physical_activity` adds the column the `StaticLinear` pack needs and the `HLM` pack must
+/// not have: the simple physical-activity model draws around the expected value for the person's
+/// age and sex, so the column is what makes that model loadable at all, and adding it to the
+/// first pack's table would change nothing about that pack except its bytes.
+std::string factors_mean_csv(bool male, int top_age, bool with_physical_activity) {
     const double sex_scale = male ? 1.0 : 0.94;
 
-    std::string out = "age,Energy,BMI\n";
+    std::string out = with_physical_activity ? "age,Energy,BMI,PhysicalActivity\n" : "age,Energy,BMI\n";
     for (int age = 0; age <= top_age; ++age) {
-        out += fmt::format("{},{:.6f},{:.6f}\n", age, expected_energy(age) * sex_scale,
+        out += fmt::format("{},{:.6f},{:.6f}", age, expected_energy(age) * sex_scale,
                            expected_bmi(age) * sex_scale);
+        if (with_physical_activity) {
+            out += fmt::format(",{:.6f}", expected_physical_activity(age) * (male ? 1.0 : 0.97));
+        }
+        out += '\n';
     }
     return out;
 }
@@ -162,6 +177,133 @@ std::string dynamic_model_json(const FixturePackSpec &spec) {
     return document.dump(2) + "\n";
 }
 
+/// The three region shares at an age and sex. Smooth in age, different between the sexes, and
+/// summing to one — the loader does not require that, because `rng::Categorical` normalises, but
+/// a fixture whose shares do not sum to one would be a fixture that hides a normalisation bug.
+std::string region_csv(int top_age) {
+    std::string out = "Age,Gender,region1,region2,region3\n";
+    for (int age = 0; age <= top_age; ++age) {
+        for (int gender = 1; gender <= 2; ++gender) {
+            const double t = static_cast<double>(age) / static_cast<double>(top_age);
+            const double male = gender == 1 ? 1.0 : 0.0;
+            const double first = 0.45 - 0.15 * t + 0.05 * male;
+            const double second = 0.30 + 0.05 * t - 0.03 * male;
+            out += fmt::format("{},{},{:.6f},{:.6f},{:.6f}\n", age, gender, first, second,
+                               1.0 - first - second);
+        }
+    }
+    return out;
+}
+
+/// Three ethnicities per region, per sex, for under- and over-18. The shares in one row are the
+/// three regions' shares of *that* ethnicity, so what has to sum to one is a column within an
+/// (adult, sex) block — which is how the loader indexes it: `[group][sex][region][ethnicity]`.
+std::string ethnicity_csv() {
+    std::string out = "adult,gender,ethnicity,region1,region2,region3\n";
+    for (int adult = 0; adult <= 1; ++adult) {
+        for (int gender = 1; gender <= 2; ++gender) {
+            // Three shares per (adult, gender, region) column, summing to one and differing by
+            // every one of the three keys, so a test that mixed two of them up would see it.
+            const double drift = 0.05 * adult - 0.03 * (gender - 1);
+            const std::array<std::array<double, 3>, 3> shares{{
+                {{0.50 + drift, 0.40 - drift, 0.25 + drift}},
+                {{0.30 - drift, 0.35 + drift, 0.45 - drift}},
+                {{0.20, 0.25, 0.30}},
+            }};
+            for (int ethnicity = 1; ethnicity <= 3; ++ethnicity) {
+                const auto &row = shares.at(static_cast<std::size_t>(ethnicity - 1));
+                out += fmt::format("{},{},{},{:.6f},{:.6f},{:.6f}\n", adult, gender, ethnicity,
+                                   row[0], row[1], row[2]);
+            }
+        }
+    }
+    return out;
+}
+
+/// A square matrix in one of the two upstream shapes.
+///
+/// `with_row_names` is the correlation matrix's shape — an empty first header cell, then one row
+/// per factor with its own name in the first column. The policy covariance matrix is the other
+/// one: a header of names and nothing but numbers below it. The upstream packs really do use both,
+/// and the loader reads each accordingly, so a fixture that used one shape for both would be
+/// testing half of that.
+std::string matrix_csv(const std::vector<std::string> &names,
+                       const std::vector<std::vector<double>> &values, bool with_row_names) {
+    std::string out;
+    for (std::size_t i = 0; i < names.size(); ++i) {
+        if (with_row_names || i > 0) {
+            out += ',';
+        }
+        out += names[i];
+    }
+    out += '\n';
+    for (std::size_t row = 0; row < names.size(); ++row) {
+        if (with_row_names) {
+            out += names[row];
+        }
+        for (std::size_t column = 0; column < names.size(); ++column) {
+            if (with_row_names || column > 0) {
+                out += ',';
+            }
+            out += fmt::format("{:.9f}", values[row][column]);
+        }
+        out += '\n';
+    }
+    return out;
+}
+
+const std::vector<std::string> &static_linear_factors() {
+    static const std::vector<std::string> names{"Energy", "BMI"};
+    return names;
+}
+
+std::string correlation_csv() {
+    // Correlated, but not so strongly that the Cholesky factor is near-singular.
+    return matrix_csv(static_linear_factors(), {{1.0, 0.25}, {0.25, 1.0}}, true);
+}
+
+std::string policy_covariance_csv() {
+    return matrix_csv(static_linear_factors(), {{1.0, 0.1}, {0.1, 1.0}}, false);
+}
+
+json file_block(const std::string &name, const std::vector<std::string> &columns) {
+    json block{{"name", name}, {"format", "csv"}, {"delimiter", ","}, {"encoding", "ASCII"}};
+    json declared = json::object();
+    for (const auto &column : columns) {
+        declared[column] = "double";
+    }
+    block["columns"] = std::move(declared);
+    return block;
+}
+
+/// One factor's Box-Cox model, kept deliberately gentle.
+///
+/// `initialise_factors` computes `expected * inverse_box_cox(linear + residual * stddev, lambda)`,
+/// and with `Lambda` 1 the inverse transform is `x + 1`. So an intercept of zero and small
+/// coefficients put every person within a fraction of the FactorsMean value for their age and sex,
+/// which is what keeps the generated factors inside the ranges the config declares — the point of
+/// a fixture is that it runs, not that it is a plausible fit.
+json static_linear_factor_model(double income_coefficient, double sector_coefficient,
+                                double stddev, double lower, double upper) {
+    return json{
+        {"Lambda", 1.0},
+        {"StdDev", stddev},
+        {"Range", json::array({lower, upper})},
+        {"Intercept", 0.0},
+        {"Coefficients", json{{"Gender", 0.012},
+                              {"Age", 0.0006},
+                              {"Income", income_coefficient},
+                              {"Sector", sector_coefficient}}},
+        // Every policy coefficient is zero, which the loader reads as "this model has no active
+        // policies" and says so. The variant pack's intervention reaches the *dynamic* model, which
+        // is what it has always tested; the StaticLinear policy path is covered against the real
+        // FINCH pack by the equivalence harness, and switching it on here would change the random
+        // stream of every test that runs this pack for no coverage this repository lacks.
+        {"Policy", json{{"Range", json::array({-1.0, 1.0})},
+                        {"Intercept", 0.0},
+                        {"Coefficients", json{{"Gender", 0.0}, {"Age", 0.0}}}}}};
+}
+
 /// @brief What one model pack calls its files, and what its config asks the engine to do.
 ///
 /// Two packs are generated from one description so that the differences between them are a list
@@ -192,6 +334,21 @@ struct PackLayout {
 
     /// The `interventions.active_type_id`; empty for a baseline-only run.
     std::string active_intervention;
+
+    /// @brief Whether the static model is `StaticLinear` rather than `HLM`.
+    ///
+    /// It carries far more than the model family, because everything a `StaticLinear` model makes
+    /// possible is gated on a project requirement as well: a categorical income, a region, an
+    /// ethnicity, a sector and a physical-activity value, and with them the income-stratified
+    /// result files. `static_linear_model_json` says why the variant pack needs it.
+    bool static_linear{false};
+
+    /// The extra inputs a `StaticLinear` model names, relative to the **model file's** directory
+    /// rather than the config's — that is how a model file's own references are resolved.
+    std::string region_file;
+    std::string ethnicity_file;
+    std::string correlation_file;
+    std::string policy_covariance_file;
 };
 
 PackLayout primary_layout() {
@@ -232,7 +389,71 @@ PackLayout variant_layout() {
                       .top_age_offset = 5,
                       .size_fraction = 0.004,
                       .diseases = {"breastcancer", "asthma"},
-                      .active_intervention = "food_labelling"};
+                      .active_intervention = "food_labelling",
+                      // And, since this run, a different static model family — the only one that
+                      // gives a person an income category, a region and an ethnicity, so that the
+                      // income-stratified output files are produced by a fixture at all.
+                      .static_linear = true,
+                      .region_file = "../tables/region.csv",
+                      .ethnicity_file = "../tables/ethnicity.csv",
+                      .correlation_file = "../tables/correlation.csv",
+                      .policy_covariance_file = "../tables/policy-covariance.csv"};
+}
+
+/// @brief The `StaticLinear` static model the variant pack uses.
+///
+/// The variant pack is `StaticLinear` rather than `HLM` for one reason: **`StaticLinear` is the
+/// only model family that gives a person an income category**, and `RegionFile` and
+/// `EthnicityFile` are read from a `StaticLinear` model file and nowhere else. Until this run
+/// neither synthetic pack assigned an income category, so no test that ran a configuration could
+/// reach `calculate_income_based_series` at all — which is why 45 columns of every stratum file
+/// were empty for as long as this build has written them (docs/SUMMARY.md, docs/backlog.md item 2).
+///
+/// It keeps the pack's `EBHLM` dynamic model. The two slots are independent in the loader, and the
+/// intervention this pack activates has to reach a dynamic model that applies it, which `EBHLM`
+/// does and `KevinHall` does not (deviation B-25).
+std::string static_linear_model_json(const FixturePackSpec &spec, const PackLayout &layout) {
+    json document;
+    document["$comment"] =
+        "SYNTHETIC model definition. Generated by tools/gen-fixtures; see ../data/SYNTHETIC.md.";
+    document["ModelName"] = "StaticLinear";
+    document["InformationSpeed"] = 0.1;
+
+    // Two age groups, because that is the shape the loader reads; the values give both sectors a
+    // real share of the cohort, so `mean_sector` and `std_sector` are columns with numbers in them
+    // rather than columns of zeros — which is what they are on all three upstream examples.
+    document["RuralPrevalence"] =
+        json::array({json{{"Name", "Under18"}, {"Female", 0.42}, {"Male", 0.40}},
+                     json{{"Name", "Over18"}, {"Female", 0.35}, {"Male", 0.33}}});
+
+    document["RegionFile"] = file_block(layout.region_file, {"region1", "region2", "region3"});
+    document["EthnicityFile"] =
+        file_block(layout.ethnicity_file, {"region1", "region2", "region3"});
+
+    // The categorical income shape: one logit per category, softmaxed. The coefficients differ by
+    // category so the three strata hold different people — a layout whose logits were all equal
+    // would put a third of every age band in each and hide anything that depends on the split.
+    document["IncomeModels"] =
+        json{{"Low", json{{"Intercept", 0.6},
+                          {"Coefficients", json{{"Gender", -0.35}, {"Age", -0.02}}}}},
+             {"Middle", json{{"Intercept", 0.2},
+                             {"Coefficients", json{{"Gender", 0.10}, {"Age", 0.004}}}}},
+             {"High", json{{"Intercept", -0.4},
+                           {"Coefficients", json{{"Gender", 0.30}, {"Age", 0.018}}}}}};
+
+    document["PhysicalActivityModels"] = json{{"simple", json{{"PhysicalActivityStdDev", 0.22}}}};
+
+    document["RiskFactorModels"] =
+        json{{"Energy", static_linear_factor_model(0.02, 0.03, 0.08, 800.0, 4000.0)},
+             {"BMI", static_linear_factor_model(-0.015, 0.025, 0.07, 12.0, 45.0)}};
+
+    document["RiskFactorCorrelationFile"] =
+        file_block(layout.correlation_file, static_linear_factors());
+    document["PolicyCovarianceFile"] =
+        file_block(layout.policy_covariance_file, static_linear_factors());
+
+    (void)spec;
+    return document.dump(2) + "\n";
 }
 
 /// @brief The `food_labelling` definition the variant pack activates.
@@ -263,16 +484,21 @@ std::string config_json(const FixturePackSpec &spec, const PackLayout &layout) {
     document["$schema"] = "schemas/v2/config.json";
     document["version"] = 2;
 
+    // What the pack's static model can actually give a person. An `HLM` model assigns none of
+    // these, and a requirement switched on without a model that satisfies it is refused at load
+    // time — which is the rule this project has instead of the baseline's population sampling.
+    const bool rich = layout.static_linear;
+
     document["project_requirements"] = json{
         {"demographics",
-         json{{"age", true}, {"gender", true}, {"region", false}, {"ethnicity", false}}},
-        {"income", json{{"enabled", false},
+         json{{"age", true}, {"gender", true}, {"region", rich}, {"ethnicity", rich}}},
+        {"income", json{{"enabled", rich},
                         {"type", "categorical"},
                         {"categories", "3"},
                         {"adjust_to_factors_mean", false},
                         {"trended", false},
-                        {"income_based_csv_output", false}}},
-        {"physical_activity", json{{"enabled", false},
+                        {"income_based_csv_output", rich}}},
+        {"physical_activity", json{{"enabled", rich},
                                    {"type", "simple"},
                                    {"adjust_to_factors_mean", false},
                                    {"trended", false}}},
@@ -362,10 +588,27 @@ std::size_t write_pack(const std::filesystem::path &output, const FixturePackSpe
     const int top_age = spec.max_age + layout.top_age_offset;
 
     emit("config.json", config_json(spec, layout));
-    emit(layout.static_model, static_model_json(spec));
+    if (layout.static_linear) {
+        emit(layout.static_model, static_linear_model_json(spec, layout));
+
+        // Named relative to the model file, so they are resolved against its directory rather
+        // than the config's — the same two-directory arrangement an upstream example does not
+        // have and a converted one does.
+        const auto beside_model = [&layout](const std::string &name) {
+            return (std::filesystem::path{layout.static_model}.parent_path() / name)
+                .lexically_normal()
+                .generic_string();
+        };
+        emit(beside_model(layout.region_file), region_csv(top_age));
+        emit(beside_model(layout.ethnicity_file), ethnicity_csv());
+        emit(beside_model(layout.correlation_file), correlation_csv());
+        emit(beside_model(layout.policy_covariance_file), policy_covariance_csv());
+    } else {
+        emit(layout.static_model, static_model_json(spec));
+    }
     emit(layout.dynamic_model, dynamic_model_json(spec));
-    emit(layout.factors_mean_male, factors_mean_csv(true, top_age));
-    emit(layout.factors_mean_female, factors_mean_csv(false, top_age));
+    emit(layout.factors_mean_male, factors_mean_csv(true, top_age, layout.static_linear));
+    emit(layout.factors_mean_female, factors_mean_csv(false, top_age, layout.static_linear));
     emit(layout.dataset, dataset_csv(spec));
 
     return written;

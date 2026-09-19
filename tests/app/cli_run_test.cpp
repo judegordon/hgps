@@ -10,6 +10,8 @@
 //
 // Both matter more since the second synthetic pack, whose folder is nested three deep and whose
 // file name carries a `{TIMESTAMP}` token (tests/support/fixture_packs.h).
+#include "output/result_writer.h"
+
 #include "support/fixture_packs.h"
 #include "support/simulation_harness.h"
 #include "support/test_paths.h"
@@ -76,6 +78,22 @@ class CliRun : public hgps::test::FixturePackTest {
     std::string configured_folder() const {
         return hgps::test::config_document(pack()).at("output").at("folder").get<std::string>();
     }
+
+    /// @brief How many income-stratified CSVs this pack's configuration asks for.
+    ///
+    /// Asked of the configuration rather than assumed, which is the rule for anything a test needs
+    /// to know about a pack (tests/support/fixture_packs.h). The second pack writes three of them
+    /// and the first writes none, and a test that knew which was which by name would be the
+    /// hard-coded assumption the second pack exists to catch.
+    std::size_t configured_strata() const {
+        const auto income =
+            hgps::test::config_document(pack()).at("project_requirements").at("income");
+        if (!income.at("enabled").get<bool>() ||
+            !income.at("income_based_csv_output").get<bool>()) {
+            return 0;
+        }
+        return static_cast<std::size_t>(std::stoul(income.at("categories").get<std::string>()));
+    }
 };
 
 HGPS_TEST_EVERY_FIXTURE_PACK(CliRun);
@@ -94,14 +112,27 @@ TEST_P(CliRun, WritesIntoTheFolderTheConfigurationNames) {
         << folder << " was not created; the program said:\n"
         << invocation.output;
 
-    std::size_t csv = 0;
+    std::size_t results = 0;
+    std::size_t strata = 0;
     std::size_t manifests = 0;
     for (const auto &relative : files_under(folder)) {
         const auto name = relative.filename().string();
-        csv += name.ends_with(".csv") ? 1U : 0U;
+        if (name.ends_with(".csv")) {
+            switch (hgps::output::output_family_of(relative)) {
+            case hgps::output::OutputFamily::result:
+                ++results;
+                break;
+            case hgps::output::OutputFamily::income_stratum:
+                ++strata;
+                break;
+            default:
+                break;
+            }
+        }
         manifests += name.ends_with("_manifest.json") ? 1U : 0U;
     }
-    EXPECT_EQ(1U, csv) << "one result CSV, whatever it is called";
+    EXPECT_EQ(1U, results) << "one whole-population result CSV, whatever it is called";
+    EXPECT_EQ(configured_strata(), strata) << "one CSV per configured income category";
     EXPECT_EQ(1U, manifests);
 }
 

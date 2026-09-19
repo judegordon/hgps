@@ -30,7 +30,11 @@ std::size_t write_model_pack(const std::filesystem::path &output, const FixtureP
 ///   the result's name is neither `result.csv` nor the same twice;
 /// - an **active intervention**, so the run has two scenarios rather than one;
 /// - a **different disease set**, in a different order, and one fewer comorbidity column;
-/// - a different seed, horizon, cohort fraction and age range.
+/// - a different seed, horizon, cohort fraction and age range;
+/// - and, since the eighth run, a **`StaticLinear` static model** with a categorical income, a
+///   region, an ethnicity, a sector and a physical-activity value — which is what makes this the
+///   pack that produces the income-stratified output files, the only output family no fixture
+///   produced before (docs/decisions/0047-the-second-pack-carries-the-stratified-dimensions.md).
 ///
 /// It refers to the same data pack as `../data`, so it costs no extra data generation.
 ///

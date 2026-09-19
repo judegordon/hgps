@@ -47,15 +47,6 @@ void AnalysisModule::initialise_output_channels(RuntimeContext &context) {
     // column entirely. The configuration already says which dimensions the project uses.
     const auto &requirements = context.inputs().project_requirements();
 
-    if (requirements.demographics.region && assigned_.region) {
-        add("mean_region");
-        add("std_region");
-    }
-    if (requirements.demographics.ethnicity && assigned_.ethnicity) {
-        add("mean_ethnicity");
-        add("std_ethnicity");
-    }
-
     // Sector is not a project requirement of its own; it is present when a model assigns it,
     // which is exactly when the rural prevalence data exists.
     if (assigned_.sector || context.mapping().contains(core::Identifier{"sector"})) {
@@ -86,6 +77,29 @@ void AnalysisModule::initialise_output_channels(RuntimeContext &context) {
     for (const auto &factor : context.mapping().entries()) {
         add("mean_" + factor.key().to_string());
         add("std_" + factor.key().to_string());
+    }
+
+    // Region and ethnicity, **after** the mapping and not before it, and the position is
+    // load-bearing rather than tidy.
+    //
+    // Every configuration that has them — `KevinHall_FINCH` is the only one of the six — also
+    // declares `Region` and `Ethnicity` as level-0 risk factors, so the loop above has already
+    // added both columns at their mapping position and `add` deduplicates. Putting this block
+    // before the loop, where the other demographic dimensions are, would move those two columns
+    // and change every result file that has them.
+    //
+    // A configuration that assigns a region without naming it in its mapping gets the columns
+    // here instead, which is the case these two lines exist for: until this run
+    // `AssignedAttributes::region` and `::ethnicity` were never set by anything, so this condition
+    // was dead and such a configuration silently had no region column at all. The second fixture
+    // pack is now exactly that configuration (docs/SUMMARY.md).
+    if (requirements.demographics.region && assigned_.region) {
+        add("mean_region");
+        add("std_region");
+    }
+    if (requirements.demographics.ethnicity && assigned_.ethnicity) {
+        add("mean_ethnicity");
+        add("std_ethnicity");
     }
 
     for (const auto &disease : context.diseases()) {
