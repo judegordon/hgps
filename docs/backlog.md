@@ -15,26 +15,37 @@ Tags:
   or the data, and guessing would put an invented number into somebody else's fitted model.
 - `docs`
 
-**This run closed item 2, which was the previous run's only correctness item.** Every CSV a run
-writes is now reduced and compared against the baseline's, family by family, with its own counts;
-the 45 empty columns of the income-stratified files are filled and checked; `scripts/column-coverage.py`
-asks of the files themselves which columns are identically zero on each side and fails where the
-baseline has numbers and this build has none; the second fixture pack assigns a categorical income,
-a region, an ethnicity and a sector, so every output family this engine can write is produced by a
-fixture ([ADR 0047](decisions/0047-the-second-pack-carries-the-stratified-dimensions.md)); and the
-summary endpoint and the results screen expose every family with a selector.
+**This run closed item 6, and item 6 was the only thing the previous run made worse.** The
+comparison's threshold is no longer an allowance somebody chose: it is a family-wise false-positive
+rate of 1%, controlled by Holm over every test a run performs, and **measured on a null before it
+was adopted** — 30 pairs of twenty seeds of one build against itself across all three runnable
+examples, 922,564 tests, zero failures against 0.30 expected, with the raw p-value tail below
+uniform at every threshold ([ADR 0048](decisions/0048-a-comparison-with-a-stated-false-positive-rate.md),
+[docs/equivalence-method.md](equivalence-method.md) §4). **The failure budget is gone from every
+example and there is no flag that could grant one.** All four stored references were re-scored and
+none fails.
 
-What is left is what it was, minus that: **one modelling question that belongs to you**
-(interventions on Kevin Hall models), the validation this project's own documents hedge about, and
-Windows. The top of the list is a question rather than work for the third run running.
+Two things came out of the work rather than out of the plan:
+
+- **The 1.1% `std_polyunsaturatedfattyacid` offset the previous run flagged is not real.** Two
+  hundred seeds of both implementations put it at **+0.135%** — the other sign — with 0 of its 44
+  series below p = 0.05. It was a twenty-seed artefact of the allowance, and it was answered before
+  the new rule was adopted so that the rule could not be what decided it.
+- **This build refuses `KevinHall_FINCH` at seed 80**, deterministically, when the energy balance
+  diverges for one person in simulated year 2031. That is the new item 2 below, and it is the only
+  correctness item on this list.
+
+What is left is otherwise what it was: **one modelling question that belongs to you** (interventions
+on Kevin Hall models), the validation this project's own documents hedge about, and Windows.
 
 ## Do these first
 
 ### 1. Interventions on the Kevin Hall model surface — `needs-ruling`
 
-**Value: high. Effort: none here, and that is the point.** It was item 8 in the previous run's
-ranking; it is first now because everything above it is done, and because it is the largest thing
-this build refuses that a user could reasonably want.
+**Value: high. Effort: none here, and that is the point.** It was item 8 two runs ago and item 1 in
+the last; it stays first because it is the largest thing this build refuses that a user could
+reasonably want, and because nobody here can do it. **Item 2 is the one thing that could displace
+it**, and only once somebody has worked out whether that divergence is ours.
 
 An intervention selected on the `StaticLinear`/`KevinHall` surface has **no effect at all** in the
 baseline, and the run reports success: `Scenario::apply` has exactly one call site in the whole
@@ -55,7 +66,46 @@ work. Until it is answered, four of the six upstream examples can only be run wi
 
 See [docs/deviations.md](deviations.md) B-25 and `tests/config/intervention_reach_test.cpp`.
 
-### 2. Individual-level tracking output — `scope`
+### 2. The energy balance diverges on one seed in two hundred — `correctness`
+
+**Value: high. Effort: unknown, and that is most of the item.** Found this run by a two-hundred-seed
+sweep of `KevinHall_FINCH`, which is the first time either implementation has been run that many
+times on that example.
+
+At **seed 80** this build stops with a located internal error and the baseline completes:
+
+```
+person 1222 (male, age 24) weighs -1.702e+283 kg after the energy balance, below the
+configured minimum of 1 kg for 'Weight'
+```
+
+What is measured ([docs/equivalence.md](equivalence.md), *One seed in two hundred*):
+
+- **deterministic and reproducible** — same config, same seed, same person, same number, three
+  times;
+- **not a compatibility flag**: `--baseline-compat none` fails identically, so it is not a baseline
+  behaviour this build reproduces;
+- **simulated year 2031**, the tenth of the horizon; stopping at 2030 completes and exits zero;
+- **a three-year precursor**: the largest band mean weight is flat at 87.28 kg through 2027, then
+  87.32, **92.1**, **98.5** in 2028–2030. So the 2029 and 2030 numbers on that seed are already
+  contaminated, and a shorter run would have written them and exited zero;
+- **1 in 200 here, 0 in 200 in the baseline** — but the two draw different random streams, so seed
+  80 is not the same cohort on both sides and this is not proof the instability is ours rather than
+  the model's.
+
+**The next step is to find out which of those it is**, and it is cheap to start: the divergence is
+one person over four simulated years, so instrumenting `KevinHall_model`'s energy balance for that
+person and that seed would show whether the intake, the expenditure or the integration is what runs
+away. If it is the integration, it is ours and it is fixable; if it is a coefficient combination the
+model admits, it belongs upstream beside the other reports and the honest fix here is to clamp and
+count rather than to refuse.
+
+**Until then the refusal is the right behaviour** and should not be softened: the alternative is
+writing 1e283 kg into a results file. The bound check is `validate_weight` in
+`src/model/riskfactor/kevin_hall/weight_height.cpp`, and it already treats *above* the configured
+maximum as a counted metric rather than an error, which is the shape a clamp would take.
+
+### 3. Individual-level tracking output — `scope`
 
 **Value: medium. Effort: low-medium.** `output.individual_tracking` is parsed, validated and
 carried in `config::IndividualTracking`, and nothing writes the file. The baseline's
@@ -64,7 +114,7 @@ baseline's person IDs matter, and it is why this implementation kept the monoton
 counter rather than the earlier rewrite's slot reuse
 ([ADR 0017](decisions/0017-person-ids-monotonic-and-free-slots.md)).
 
-It has moved up this list for a reason that is new: it is now **the one output family the baseline
+It stays near the top for a reason the previous run gave: it is **the one output family the baseline
 writes and this build does not**, and both the equivalence harness and the column-coverage script
 carry an explicit exclusion for it. Each exclusion holds only while the baseline's own file is
 *empty* — on `KevinHall_FINCH` it is zero bytes, because the config asks for ages 80–110 in four
@@ -73,7 +123,7 @@ ever puts a row in it. So the cost of not doing this is now a documented hole ra
 unexamined one, which is the right place for it to be, and closing it would remove two exclusions
 rather than add a feature.
 
-### 3. A runnable Kevin Hall example, which needs upstream — `needs-ruling`
+### 4. A runnable Kevin Hall example, which needs upstream — `needs-ruling`
 
 **Value: high. Effort: none here.** Population impact fraction is implemented
 ([ADR 0038](decisions/0038-population-impact-fraction.md)) and `KevinHall_PIF` loads completely: config,
@@ -86,10 +136,10 @@ in the same place.**
 So the whole Kevin Hall + India data family — `KevinHall_India`, `KevinHall_PIF` and all twelve of the
 latter's alternatives — cannot be run by either implementation, and no code change here can fix it:
 raising the curve or lowering the bound would both be inventing a number for somebody else's fitted
-model. This is item 5's question asked again from a second direction, and answering it would unblock
+model. This is item 6's question asked again from a second direction, and answering it would unblock
 two examples rather than one, plus the only PIF equivalence comparison there could be.
 
-### 4. `HLM_India` at the cohort it ships — `validation`
+### 5. `HLM_India` at the cohort it ships — `validation`
 
 **Value: medium. Effort: medium, and all of it is machine time.** `HLM_India` is now compared against
 the baseline at 20 and 60 seeds — but at `size_fraction` 1e-5, which is **12,406 people against the
@@ -102,12 +152,14 @@ specific rather than hypothetical: the emptying-band exclusion is **1,641 bands 
 against 785 on `HLM_France`, and at 1.24 million almost none of those bands would empty at all — so
 the full-scale comparison would exclude far less and test more; and a rare disease that gives 0, 1 or
 2 cases at this cohort size gives hundreds at the shipped one, which moves several of the comparisons
-off the lattice that item 9 is about.
+off the exact path and onto the numeric one, where twenty seeds say much more
+([docs/equivalence-method.md](equivalence-method.md) §5.3).
 
 So this is worth doing once, on a machine that can be left alone for a few days, and the stored
-reference would be large — which is item 8.
+reference would be large — which is item 8. It is also where the seed-80 divergence of item 2 would
+next show up, if it is a property of the cohort rather than of this pack.
 
-### 5. A second country for the FINCH surface — `validation`, and it needs upstream
+### 6. A second country for the FINCH surface — `validation`, and it needs upstream
 
 **Value: high. Effort: unknown, and not all of it is here.** The FINCH equivalence evidence is one
 pack, one country. The obvious second is `KevinHall_India`, which uses the same `StaticLinear` and
@@ -122,57 +174,6 @@ reports it as a located internal error. [docs/examples.md](examples.md) has both
 Nothing here can fix that: raising the curve or lowering the bound would be inventing a number for
 somebody else's fitted model. What this item needs is upstream to say which of the two is wrong.
 Until then the FINCH surface has one country, and that is the largest single gap in the validation.
-
-### 6. The comparison's allowance is estimated from the draws it is judging — `validation`
-
-**Value: medium-high. Effort: medium, and all of it is statistics rather than code.** Found this
-run, by the comparison reaching four times as many series and then by re-scoring a 60-seed run over
-subsets of itself.
-
-The allowance for a statistic is `4.5 × sqrt((s_b² + s_n²)/n)` — built from the **sample** standard
-deviations of the two 20-draw samples. That estimate is itself noisy. When a seed set happens to
-give a tight sample the allowance shrinks, and any series sitting at a small **persistent, signed**
-offset then fails in *every year at once*, because the offset is in every year.
-
-The measurement, on `KevinHall_FINCH` with every output family compared:
-
-| 20 seeds drawn from a 60-seed run | Out of tolerance, of ~111,800 |
-|---|---|
-| seeds 1–20 | 3 |
-| seeds 21–40 | 1 |
-| seeds 41–60 | 1 |
-| 100 random draws of twenty | min 0, median 2, mean 3.4, **max 45**; 28 of 100 had none |
-
-**The worst draw's 45 failures are 32 in one whole-population series** —
-`result/std_polyunsaturatedfattyacid`, which is about **−1.1%** of the baseline's at its worst cell
-while its mean agrees to −0.109%, and which uses 0.60× of its allowance over all 60 seeds. Six
-groups account for all 45. So this is **not** about the stratified files, and it is older than this
-run: what this run did was add four times as many groups for it to show up in.
-
-**This is the third time a normal-theory allowance has been applied where it does not hold**, and
-the first two were fixed rather than widened: a point mass, and then the median of a lattice-valued
-series ([docs/equivalence-method.md](equivalence-method.md) §5). Candidates worth measuring here: a
-variance estimate pooled across the years of one series rather than taken per year, which is where
-the stability is; a floor on the allowance derived from the baseline's own printed precision times
-the *value* rather than only from the sample spread; or a test of the whole series at once — a
-signed-rank over its years — instead of one comparison per year, which is the shape the failures
-actually take.
-
-**Two things to be careful of.** The small signed offsets are worth understanding in their own
-right before the rule is changed: `std_polyunsaturatedfattyacid` and `std_fat` are both about 1%
-low, their means agree to a tenth of a percent, and both are two-stage factors whose spread depends
-on the fraction of people at zero. That may be a real, tiny difference rather than noise, and a
-rule change that hides it would be the wrong fix. And **do not reach for the sigma limit**: it is a
-Bonferroni correction over "the ~5,000 independent series" and there are now about 25,300, so 4.76
-is the honest value rather than 4.5 — but that clears one of the three cells at seeds 1–20 and
-neither of the 60-seed ones, it makes the threshold stricter for the smaller sweeps where
-`HLM_India` sits at 0.987× of its allowance, and it does nothing about a whole series failing
-together.
-
-**Until it is done there is a failure budget of 3 on one example**, the first this project has had
-since the fifth run, recorded with the measurement that sized it
-([docs/equivalence.md](equivalence.md), *There is a failure budget again*). Closing this item is
-what removes it.
 
 ### 7. A fallback donor for immigration into an empty band — `correctness`
 
@@ -291,6 +292,7 @@ them by number.
 
 | Was | | |
 |---|---|---|
+| **6** | The comparison's allowance is estimated from the draws it is judging | done, and the two things the item warned about were both answered rather than assumed. The allowance is gone: the rule is a family-wise false-positive rate of **1%** over every test a run performs, controlled by Holm, with Welch's t for location, Brown–Forsythe for spread and the existing exact test for a lattice ([ADR 0048](decisions/0048-a-comparison-with-a-stated-false-positive-rate.md)). It was **calibrated on a null before adoption** — 30 pairs of twenty seeds across all three runnable examples, 922,564 tests, 0 failures against 0.30 expected — and the calibration is a CTest test at reduced scale. The **failure budget is gone from every example**, and the harness has no flag that could grant one. And the item's own warning not to hide the `std_polyunsaturatedfattyacid` offset was honoured the other way round: 200 seeds of both implementations say **the offset is not real**, at +0.135% rather than −1.1%, with nothing significant ([docs/equivalence.md](equivalence.md)) |
 | **2** | The weight-category columns are counts and both reductions treat them as means | done, and it was **not** a deviation from the baseline: the baseline emits head counts and so does this build, so the defect was in this project's own two reductions and in the income series that never filled the four columns at all. No compatibility flag — ADR 0041's flag is for a deliberate difference from the baseline, and there was none here. All four stored references regenerated against the baseline binary ([docs/equivalence.md](equivalence.md)) |
 | **9** | `DataSeries` keyed by channel name | done; the analysis module resolves its channels once a year instead of per person per year, byte-identical on `HLM_France` and `KevinHall_FINCH`, and on `HLM_India` at the cohort it ships ([docs/performance.md](performance.md)) |
 

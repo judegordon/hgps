@@ -27,6 +27,18 @@ not there. The sections describing them are kept as written, because how that cl
 identified is the more interesting half, and [§ Measured directly](#the-deviation-measured-directly)
 below has what the flag then said about it.
 
+> **The threshold changed in the ninth run, and everything below that quotes "×the allowance" or
+> "out of tolerance" is written in the old units.** A comparison used to pass when the difference of
+> two summary statistics was within `4.5 ×` an estimated standard error. It now passes unless a test
+> of the series has a Holm-adjusted p-value at or below a family-wise **α = 0.01**, over every test
+> the run performs. Why, what was wrong with the old rule, and the measurements that say the new one
+> delivers the rate it claims are in [§ The failure budget is
+> gone](#the-failure-budget-is-gone-on-every-example-and-so-is-the-flag-that-could-grant-one) and in
+> [ADR 0048](decisions/0048-a-comparison-with-a-stated-false-positive-rate.md); the rule itself is
+> in [docs/equivalence-method.md](equivalence-method.md) §4. The older sections are kept as written
+> because how each residual was *identified* is the part worth keeping, and every one of them was
+> re-scored under the new rule: none fails.
+
 ## The deviation, measured directly
 
 The three runs made after the compatibility flag existed, 20 seeds each:
@@ -1054,7 +1066,26 @@ again over 60, every scenario and both sexes:
 - the residual failures that survived that were, twice, defects in the **test** rather than in
   either implementation — a normal-theory allowance applied first to a point mass and then to a
   quantile of a lattice — and both are now compared by an exact test of the counts, with the
-  harness's own **50** tests pinning the rules;
+  harness's own **94** tests pinning the rules;
+- **and the third such defect was the threshold itself.** The allowance was 4.5 *estimated* standard
+  errors, which is a *z* threshold on a quantity that is not σ: measured over 400 seeds, a
+  twenty-seed `s` is between 0.63 and 1.38 of the truth at the 1st and 99th percentiles, so the
+  allowance was between about 2.8 and 8.8 true sigma depending on the draw. The rule now states a
+  family-wise false-positive rate of **1%**, controlled by Holm over every test a run performs, and
+  that rate has been **measured on a null** — 30 pairs of twenty seeds of one build against itself
+  across all three runnable examples, 921,875 tests, **0 failures against 0.30 expected**, with the
+  raw p-value tail below uniform at every threshold
+  ([ADR 0048](decisions/0048-a-comparison-with-a-stated-false-positive-rate.md)). **There is no
+  failure budget on any example, and no flag that could grant one**;
+- **the 1.1% `std_polyunsaturatedfattyacid` offset the eighth run flagged is not real.** Two hundred
+  seeds of both implementations put it at **+0.135%** — the other sign — with 0 of its 44 series
+  below p = 0.05, and `std_fat` at +0.070% with none surviving its own Bonferroni. It was a
+  twenty-seed artefact of the allowance, answered before the new rule was adopted so that the rule
+  could not be what decided it;
+- **and two hundred seeds found something twenty could not**: this build refuses `KevinHall_FINCH`
+  at seed 80, deterministically, when the energy balance diverges for one person in simulated year
+  2031 after a visible three-year precursor. The baseline finished all 200 of its own seeds. One in
+  two hundred here, none there, unexplained ([docs/backlog.md](backlog.md) item 2);
 - and since this run, **the comparison runs with the deliberate deviations put back**, so the two
   residual clusters above are not there at all and the deviation that caused them is *measured*
   rather than inferred: **131,061 comparisons across three runs, zero out of tolerance**. See
@@ -1074,49 +1105,200 @@ asserts that incidence falls in the intervention scenario, that the baseline sce
 the last bit, and that a PIF run is as reproducible as any other. Against the real baseline it is
 validated **not at all**, and that cannot change until upstream fixes the pack.
 
-**What would make this stronger**, in order: a second *country* for the FINCH surface, so that
-evidence is not one data pack — which needs `KevinHall_India` to be runnable at all, and it is not
-([docs/examples.md](examples.md)); `HLM_India` compared at the cohort it ships rather than at a
-hundredth of it; a lattice detector that classifies on the numerator, so the six rare-rate residuals
-above are either explained or gone; and more of the output compared at the band level rather than
-only after reduction.
+**What would make this stronger**, in order: an explanation of the energy-balance divergence at
+seed 80, which is the only thing in this document that is both unexplained and a run that does not
+finish; a second *country* for the FINCH surface, so that evidence is not one data pack — which
+needs `KevinHall_India` to be runnable at all, and it is not ([docs/examples.md](examples.md));
+`HLM_India` compared at the cohort it ships rather than at a hundredth of it; and more of the output
+compared at the band level rather than only after reduction.
+
+**What the new rule costs, stated rather than buried.** A rule with a stated rate is a weaker rule
+than one whose threshold is partly luck, and the places it is weaker are written down: a
+20-against-20 location test now needs t = 6.30 where the old one asked for z = 4.5 of the same
+estimated standard error ([docs/equivalence-method.md](equivalence-method.md) §4.2), and a
+rare-event series on the exact path needs 17 of 20 seeds to move rather than 14 (§5.3). Neither is a
+loss of information: the first is the estimation noise the old rule ignored, and the second is the
+price of one multiplicity family instead of two levels that never had to agree.
 
 ## Reproducing this
 
-### There is a failure budget again, on one example, and here is what sized it
+### The failure budget is gone, on every example, and so is the flag that could grant one
 
-**For two runs there was none, and this run spends it.** `scripts/check.sh` and CI now pass
-`--max-failures 3` on `KevinHall_FINCH` and nothing on anything else. That is a real weakening and
-it is recorded here rather than mentioned in a comment.
+**The eighth run spent a budget of 3 on `KevinHall_FINCH`. This one spends none, anywhere.**
+`run.py` has no `--max-failures`, `report` has no parameter that could hold one, `scripts/check.sh`
+and the CI matrix pass none, and `tests/equivalence/run_test.py` pins that.
 
-**Why.** Comparing every output family took `KevinHall_FINCH` from 22,616 comparisons to 111,836.
-Three are out of tolerance at 20 seeds and four at 60, **and no cell fails in both**. Re-scoring the
-60-seed run over 20-seed subsets of itself shows what that is: the allowance's width is estimated
-from the same twenty draws it is judging, so a series sitting at a small signed offset well inside
-its allowance fails in every year at once whenever a seed set gives a tight sample. The worst draw's
-45 failures are 32 in one **whole-population** series
-([§ What the failures actually are](#what-the-failures-actually-are-which-is-not-what-they-looked-like)).
+The budget existed because the rule then in force had no false-positive rate to appeal to, so a
+count was the only thing anyone could bound — and a count that ranged from **0 to 45 across equally
+valid seed sets** is not a quantity to budget against. What replaced it is a rule that states a rate
+and has been measured against it
+([ADR 0048](decisions/0048-a-comparison-with-a-stated-false-positive-rate.md),
+[docs/equivalence-method.md](equivalence-method.md) §4). At twenty seeds against the stored
+references:
 
-**What sized it.** The same measurement. Of the three disjoint 20-seed thirds of the 60-seed run,
-seeds 1–20 — which is what `check.sh` runs — give **3**, and the other two give **1** each. The
-budget is **3**: what this build produces at the seeds the check actually uses, and no margin. A
-margin would be a number nobody could justify, and the point of a budget that is exactly the
-observed count is that **any increase fails**.
+| Example | Tests | Failed | Waived by the printed-precision floor | Was |
+|---|---:|---:|---:|---|
+| `HLM_France` | 16,486 | **0** | 125 | 38,386 comparisons, 0 out of tolerance |
+| `KevinHall_FINCH` | 45,544 | **0** | 798 | 111,836 comparisons, **3** out of tolerance, budget 3 |
+| `HLM_India`, `simple` *(reduced cohort)* | 31,365 | **0** | 250 | 73,627 comparisons, 0 out of tolerance |
+| `HLM_India`, `food_labelling` *(reduced)* | 31,371 | **0** | 254 | 73,645 comparisons, 0 out of tolerance |
+| **all four stored references** | **124,766** | **0** | 1,427 | |
 
-**What it hides, stated plainly.** Up to three out-of-tolerance comparisons on one example, of any
-kind — a count budget cannot tell a series at the edge of a shrunken allowance from a real
-regression. What limits the damage is that the other 111,833 comparisons on that example, and every
-comparison on the other three sweeps, still have a budget of zero; that the whole-population file is
-0 of 22,616 at 20 seeds and 0 of 22,715 at 60 with no budget at all; and that
-`scripts/column-coverage.py` checks a different property entirely and has no budget either.
+**All four were re-scored under the new rule and none fails**, which is the check that the rule did
+not simply become blind: the two HLM_India runs and the HLM_France one had nothing out of tolerance
+before either, and `KevinHall_FINCH`'s three are gone because they were what the old rule's
+estimated threshold did to a 1.5-standard-error difference, not a difference in the code — see
+*Is the 1.1% offset real?* below.
 
-**And a count that ranges from 0 to 45 across equally valid seed sets is the reason this is
-temporary rather than a threshold change.** It is not a quantity to budget against; it is a rule
-that needs fixing. [docs/backlog.md](backlog.md) item 6 is that work, and closing it removes this
-budget.
+The test count falls because five statistics per series became two, and because a lattice-valued
+series now gets one exact test rather than that test *and* a mean.
 
-Everything else that replaced the previous run's budget of 60 still holds, and each of these is
-stricter than a budget rather than looser:
+### The rule was calibrated on a null before it was adopted
+
+**Every failure in the table below is a false positive by construction**: one build against itself,
+on disjoint seed sets of twenty, same config, nothing perturbed, only the seeds differ. So the
+observed count is the rule's realised family-wise rate and can be held against the 1% it promises.
+It is `tests/equivalence/calibrate.py --mode null`, scored over sweeps of 400, 400 and 200 seeds.
+
+| Example | Pairs of 20 | Tests the floor does not waive | Runs with ≥1 failure | Expected at α = 0.01 |
+|---|---:|---:|---:|---:|
+| `HLM_France` | 10 | 163,505 | **0** | 0.10 |
+| `HLM_India` *(reduced cohort)* | 10 | 311,370 | **0** | 0.10 |
+| `KevinHall_FINCH` | 10 | 447,689 | **0** | 0.10 |
+| **total** | **30** | **922,564** | **0** | **0.30** |
+
+`KevinHall_FINCH`'s ten are 4 pairs of this build and 4 of the **baseline against itself** from the
+200-seed sweep below, plus 2 more of this build from a supplementary 80-seed sweep. The main sweep
+gives nine blocks of twenty rather than ten because one seed was refused — see *One seed in two
+hundred* below — and the supplement is what makes up the difference rather than a pairing that
+reuses a block. The baseline-against-itself pairs are not required by the method and are reported
+because they were free and because they test the rule against a second implementation's
+variability, which is a thing no self-check can do.
+
+**Thirty runs cannot see a rate of 1% with any precision, and the table above is not where the
+confidence comes from.** A run's verdict turns only on whether *any* raw p-value falls below about
+`α/m`, so the honest check is the whole tail of the raw p-values, pooled over every test the floor
+does not waive. Under the null they should be uniform:
+
+Each cell is **observed of expected**, and expected is the threshold times the number of tests:
+
+| p below | `HLM_France` | `HLM_India` | `KevinHall_FINCH` | all three |
+|---|---:|---:|---:|---:|
+| 10⁻² | 965 of 1,635 | 1,829 of 3,114 | 2,958 of 4,477 | **5,752 of 9,226** |
+| 10⁻³ | 42 of 164 | 167 of 311 | 206 of 448 | **415 of 923** |
+| 10⁻⁴ | 1 of 16.4 | 16 of 31.1 | 17 of 44.8 | **34 of 92.3** |
+| 10⁻⁵ | 0 of 1.64 | 2 of 3.11 | 1 of 4.48 | **3 of 9.23** |
+| 10⁻⁶ | 0 of 0.16 | 0 of 0.31 | 0 of 0.45 | **0 of 0.92** |
+| 10⁻⁷ | 0 of 0.02 | 0 of 0.03 | 0 of 0.04 | **0 of 0.09** |
+
+**Observed is below expected at every threshold on every example.** The rule is *conservative*,
+which is the safe direction for a family-wise bound — the 1% is an upper bound and the realised rate
+is below it — and the reason is not mysterious: a large minority of these series are pinned by
+calibration or are a handful of events, and both of the tests that handle those (the exact test, and
+the printed-precision floor) are conservative by construction. Anti-conservative behaviour in that
+tail is what would have stopped the rule being adopted, and there is none.
+
+The same measurement runs at every commit at a scale CTest can pay for:
+`tests/equivalence/null_check.py`, four pairs of twenty seeds of the synthetic fixture pack in about
+fifteen seconds, asserting that at most one reports anything
+([docs/equivalence-method.md](equivalence-method.md) §7.4).
+
+### What the old allowance was actually measuring
+
+The rule before this one was `4.5 × sqrt((s_b² + s_n²)/n)` — 4.5 **estimated** standard errors. How
+much a twenty-seed `s` wanders was never measured until now. Over every series that really varies
+and every disjoint block of twenty in the 400-seed sweeps, as a ratio to the whole sweep's standard
+deviation:
+
+| | 1st pct | 5th | 25th | median | 75th | 95th | 99th | worst |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `HLM_France`, 108,920 (series, block) pairs | 0.633 | 0.729 | 0.876 | 0.982 | 1.092 | 1.257 | 1.377 | 1.958 |
+| `HLM_India`, 296,080 pairs | 0.000 | 0.681 | 0.863 | 0.979 | 1.099 | 1.292 | 1.497 | 4.472 |
+
+**So `4.5 s` was somewhere between about 2.8 and 8.8 true sigma**, depending on which twenty seeds
+were drawn. That is the whole defect in one table, and it is why the failure count ranged over an
+order of magnitude across equally valid seed sets. It is also the measurement that chose between the
+two candidate replacements: a stored reference variance would fix the baseline's half of that and
+leave this build's half estimated, and this build is the thing that changes
+([ADR 0048](decisions/0048-a-comparison-with-a-stated-false-positive-rate.md)).
+
+### Is the 1.1% offset real? Two hundred seeds say no
+
+The eighth run reported `result/std_polyunsaturatedfattyacid` as **about 1.1% below** the baseline's
+at its worst cell, with `std_fat` about 1% low beside it, and flagged it as possibly a real
+difference in a two-stage factor model rather than noise. **It was noise, and the answer was
+obtained before the new rule was adopted so that the rule could not be what decided it.**
+
+Two hundred seeds of *both* implementations on `KevinHall_FINCH` — 199 after one was refused — every
+(scenario, sex, year) series tested directly, with no multiplicity correction because the point is
+to measure an effect rather than police a family:
+
+| | Series | Mean difference | Median | Range | Largest, in standard errors | Below p = 0.05 |
+|---|---:|---:|---:|---|---:|---:|
+| `std_polyunsaturatedfattyacid` | 44 | **+0.135%** | +0.152% | −0.227% to +0.441% | **1.95** | **0 of 44** |
+| `std_fat` | 44 | **+0.070%** | +0.071% | −0.177% to +0.438% | **2.59** | 5 of 44 |
+| `mean_polyunsaturatedfattyacid` | 38 | | +0.004% | largest −0.074% | | 4 of 38 |
+| `mean_fat` | 31 | | −0.001% | largest −0.039% | | 3 of 31 |
+
+**The sign is wrong, the size is wrong, and nothing is significant.** At 199 seeds this build's
+`std_polyunsaturatedfattyacid` is a tenth of a percent *above* the baseline's, not one percent
+below; no series of the 44 reaches p = 0.05 where two would be expected by chance; and the largest
+of the 44 t-statistics is 1.95, which is what the largest of 44 correlated draws from a null looks
+like. `std_fat`'s 5 of 44 below p = 0.05 against 2.2 expected is not a result either — none survives
+a Bonferroni correction over its own 44 series, let alone the run's family.
+
+The dispersion test agrees: 0 of 44 below p = 0.05 for `std_polyunsaturatedfattyacid` and 0 of 44
+for `std_fat`, so the two implementations agree about how much these series move from seed to seed
+as well as about where they sit.
+
+**So the eighth run's −1.1% was a twenty-seed artefact**, which is the same thing the failure count
+ranging 0 to 45 was. There is no mechanism to find in the two-stage factor model, nothing to fix,
+and nothing to flag under [ADR 0041](decisions/0041-deliberate-deviations-are-switchable.md). What
+there *was* is a rule that could turn a 1.5-standard-error difference into a failure in every year at
+once whenever a seed set gave a tight sample, and that is gone.
+
+**The honest reading of how close this came to being a finding.** At twenty seeds a difference of
+1.5 standard errors is not detectable by any rule with a stated false-positive rate — the old rule
+appeared to detect it only because its threshold was partly luck. The way to answer a question like
+this is more seeds, and it cost ninety-five minutes.
+
+### One seed in two hundred: this build refuses `KevinHall_FINCH` at seed 80
+
+The 200-seed sweep found something the twenty-seed comparison never could. **At seed 80, this build
+stops with a located internal error and the baseline completes.**
+
+```
+person 1222 (male, age 24) weighs -1.702e+283 kg after the energy balance, below the
+configured minimum of 1 kg for 'Weight'. The energy balance has produced a body the rest
+of the model cannot describe; check the model's nutrient and energy coefficients
+```
+
+What is known, all of it measured:
+
+- **It is deterministic and reproducible** — the same config and seed, three times, the same person
+  and the same number.
+- **It is not a compatibility flag.** `--baseline-compat none` fails identically, so it is not one
+  of the baseline behaviours this build reproduces.
+- **It happens in simulated year 2031**, the tenth of the horizon: stopping at 2030 completes and
+  exits zero.
+- **There is a three-year precursor.** The largest band mean weight in the run is flat at 87.28 kg
+  through 2027 and then 87.32 (2028), **92.1** (2029), **98.5** (2030) before the divergence in
+  2031. So a run that stopped at 2030 would exit zero and write a contaminated number.
+- **The baseline finished all 200 of its own seeds**, and over the 199 seeds both sides completed,
+  the largest band mean weight is 123.3 kg in the baseline and 123.5 kg here. The two
+  implementations draw different random streams, so "seed 80" is not the same cohort on both sides
+  and this is **not** proof the instability is ours rather than the model's — but it is 1 in 200
+  here and 0 in 200 there, and it is unexplained.
+
+It is not a comparison failure and the comparison has nothing to say about it: a run that does not
+finish is a failure, and `run.py` treats it as one. `sweep.py --tolerate-failures` drops the seed
+from both sides and records it, because a two-hundred-seed *study* losing its other 199 runs to one
+seed would be the wrong trade — and the dropped seed is itself the measurement. This is
+[docs/backlog.md](backlog.md) item 2 and the run's fourth finding.
+
+### And everything that replaced the sixth run's budget of 60 still holds
+
+Each of these is stricter than a budget rather than looser:
 
 - the emptying bands are **excluded from the reduction on both sides** by a rule derived from the
   data, so the comparison no longer includes a quantity the two implementations do not both report;
@@ -1128,14 +1310,24 @@ stricter than a budget rather than looser:
 - a family, or a series, that only one implementation reports **always fails**, whatever else is
   configured, and the two recorded exceptions — `std_income` and the `IndividualIDTracking` family —
   hold only while the baseline's own column or file stays empty;
-- **the harness has its own tests** — `tests/equivalence/run_test.py`, **63** of them, run by CTest as
-  `EquivalenceHarness.Rules` and therefore by `scripts/check.sh`. That matters more here than
-  anywhere else in the repository: a mistake in the harness does not produce a wrong number, it
+- **the harness has its own tests** — `tests/equivalence/run_test.py`, **94** of them (was 63), run
+  by CTest as `EquivalenceHarness.Rules` and therefore by `scripts/check.sh`. That matters more here
+  than anywhere else in the repository: a mistake in the harness does not produce a wrong number, it
   produces the word PASS. Two of its rules have now been wrong once each, and both times what found
   it was a twenty-minute run of the real thing. The tests check Fisher's exact test against the
   lady-tasting-tea table and against 2/C(20,10), the type-7 quantiles against numpy's, the
   printed-precision bucketing, the count-weighted reduction and its band exclusion, and — directly
   — that the eighteen medians which failed now pass while a rate that really differs still fails.
+  **The thirty-one added this run** pin the new rule's arithmetic away from this code: the
+  regularized incomplete beta against the arcsine closed form and against its own reflection
+  identity, Student's tail against a table value and against the Cauchy, Welch's t against a case
+  whose statistic and degrees of freedom can be done by hand, Holm's step-down including the case
+  where a later test inherits an earlier one, that the location test's 5% level rejects 5% of two
+  thousand normal null samples and no more of two thousand heavy-tailed ones, and that there is no
+  parameter anywhere that could hold a failure budget;
+- **and the rule's false-positive rate is itself a CTest test** — `null_check.py`, four null
+  comparisons of the fixture pack at every commit, against the rate the rule claims
+  ([docs/equivalence-method.md](equivalence-method.md) §7.4).
 
 ```bash
 # The full check, running the baseline binary as well (about five minutes).

@@ -13,11 +13,23 @@ fraction, six intervention types — reading your configurations through a conve
 ## What it proves, and what it does not
 
 **Proved.** Three of your six examples — `HLM_France`, `HLM_India`, `KevinHall_FINCH` — run end to
-end in both implementations and agree statistically: **187,754 comparisons over four sweeps of
-twenty seeds, none out of tolerance** ([docs/equivalence.md](equivalence.md)). Each comparison is a
-hypothesis test per (scenario, year, sex, variable) rather than a tolerance on a number, because two
-Monte Carlo runs cannot agree exactly; [docs/equivalence-method.md](equivalence-method.md) has the
-rules, and the harness is tested both ways.
+end in both implementations and agree statistically: **124,766 tests over four sweeps of twenty
+seeds, none failing** ([docs/equivalence.md](equivalence.md)). Each test is a hypothesis test per
+(scenario, year, sex, variable) rather than a tolerance on a number, because two Monte Carlo runs
+cannot agree exactly; [docs/equivalence-method.md](equivalence-method.md) has the rules, and the
+harness is tested three ways.
+
+**And the threshold is now a number we chose rather than one we discovered.** A comparison used to
+pass when a difference was within 4.5 *estimated* standard errors — a z threshold on a quantity that
+is not sigma, so the same build against the same baseline produced anywhere between 0 and 45
+failures depending on which twenty seeds were drawn. It is now a **family-wise false-positive rate
+of 1%**, controlled by Holm over every test a run performs, and that rate was **measured on a null
+before the rule was adopted**: 30 pairs of twenty seeds of one build against itself, across all
+three examples, 922,564 tests, **zero failures against 0.30 expected**
+([ADR 0048](decisions/0048-a-comparison-with-a-stated-false-positive-rate.md)). There is no failure
+budget on any example. If you want to check the rule rather than take it, §4 of
+[docs/equivalence-method.md](equivalence-method.md) is written so that you can, without reading the
+script.
 
 **Not proved.** `HLM_India` is compared at a hundredth of the cohort it ships — 12,406 people
 against 1,240,613 — because a full-scale sweep is days of machine time. The FINCH surface is one
@@ -90,6 +102,24 @@ cohorts. No seed, cohort size or horizon avoids it ([docs/examples.md](examples.
 be inventing a number for a fitted model. It blocks two of your six examples and the only
 population-impact-fraction comparison there could be.
 
+## One seed in two hundred, and we do not know whose it is
+
+Running `KevinHall_FINCH` two hundred times — which neither implementation had been, before this —
+found **one seed on which our energy balance diverges and yours does not**. At seed 80, in simulated
+year 2031, one 24-year-old man's weight reaches −1.7×10²⁸³ kg and this build stops rather than
+writing it. It is deterministic, it is not one of the baseline behaviours we reproduce, and there is
+a three-year precursor: the largest band mean weight is flat at 87.28 kg through 2027 and then 87.3,
+**92.1**, **98.5** in 2028–2030, so a run that stopped in 2030 would have written a contaminated
+number and exited zero.
+
+**Your binary finished all two hundred of its own seeds** — but the two implementations draw
+different random streams, so seed 80 is not the same cohort on both sides, and this is not evidence
+that the instability is ours rather than the model's. **It is one in two hundred here and none in
+two hundred there, and it is unexplained.** If the energy-balance coefficients admit a runaway for
+some combination of intake and expenditure, it is worth knowing on your side too, because nothing in
+your code stops it being written out ([docs/backlog.md](backlog.md) item 2,
+[docs/equivalence.md](equivalence.md)).
+
 ## A question about interventions on the Kevin Hall surface
 
 B-25 leaves a choice. This build refuses such a configuration at load time, naming the intervention,
@@ -119,6 +149,7 @@ tests/equivalence/self_check.py --mode seeds        --example Synthetic --seeds 
 tests/equivalence/self_check.py --mode perturbation --example Synthetic --seeds 20
 ```
 
-`--verbose` adds the largest differences that *passed*, which is how a shift sitting inside an
-allowance becomes visible; `--json FILE` writes the whole outcome. There is no failure budget.
+`--verbose` adds the ten tests with the strongest evidence that still *passed*, which is how a shift
+sitting just inside the threshold becomes visible; `--json FILE` writes the whole outcome, every
+test with its raw and Holm-adjusted p-value. There is no failure budget, on any example.
 [docs/SUMMARY.md](SUMMARY.md) is the long form.
