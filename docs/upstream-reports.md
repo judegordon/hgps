@@ -4,7 +4,7 @@ Five findings belong to whoever owns the baseline and the example data rather th
 repository: this build cannot fix any of them without inventing a number or a mechanism for someone
 else's fitted model. They are written here as five separate reports, each with the one command that
 reproduces it and the evidence behind it, so that filing them is a copy rather than a rewrite.
-[docs/backlog.md](backlog.md) item 13 is the item this file closes the *writing* half of; the other
+[docs/backlog.md](backlog.md) item 14 is the item this file closes the *writing* half of; the other
 half is somebody sending them.
 
 Everything here was measured against Health-GPS `3.0.0.0` built as

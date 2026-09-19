@@ -123,7 +123,58 @@ Nothing here can fix that: raising the curve or lowering the bound would be inve
 somebody else's fitted model. What this item needs is upstream to say which of the two is wrong.
 Until then the FINCH surface has one country, and that is the largest single gap in the validation.
 
-### 6. A fallback donor for immigration into an empty band — `correctness`
+### 6. The comparison's allowance is estimated from the draws it is judging — `validation`
+
+**Value: medium-high. Effort: medium, and all of it is statistics rather than code.** Found this
+run, by the comparison reaching four times as many series and then by re-scoring a 60-seed run over
+subsets of itself.
+
+The allowance for a statistic is `4.5 × sqrt((s_b² + s_n²)/n)` — built from the **sample** standard
+deviations of the two 20-draw samples. That estimate is itself noisy. When a seed set happens to
+give a tight sample the allowance shrinks, and any series sitting at a small **persistent, signed**
+offset then fails in *every year at once*, because the offset is in every year.
+
+The measurement, on `KevinHall_FINCH` with every output family compared:
+
+| 20 seeds drawn from a 60-seed run | Out of tolerance, of ~111,800 |
+|---|---|
+| seeds 1–20 | 3 |
+| seeds 21–40 | 1 |
+| seeds 41–60 | 1 |
+| 100 random draws of twenty | min 0, median 2, mean 3.4, **max 45**; 28 of 100 had none |
+
+**The worst draw's 45 failures are 32 in one whole-population series** —
+`result/std_polyunsaturatedfattyacid`, which is about **−1.1%** of the baseline's at its worst cell
+while its mean agrees to −0.109%, and which uses 0.60× of its allowance over all 60 seeds. Six
+groups account for all 45. So this is **not** about the stratified files, and it is older than this
+run: what this run did was add four times as many groups for it to show up in.
+
+**This is the third time a normal-theory allowance has been applied where it does not hold**, and
+the first two were fixed rather than widened: a point mass, and then the median of a lattice-valued
+series ([docs/equivalence-method.md](equivalence-method.md) §5). Candidates worth measuring here: a
+variance estimate pooled across the years of one series rather than taken per year, which is where
+the stability is; a floor on the allowance derived from the baseline's own printed precision times
+the *value* rather than only from the sample spread; or a test of the whole series at once — a
+signed-rank over its years — instead of one comparison per year, which is the shape the failures
+actually take.
+
+**Two things to be careful of.** The small signed offsets are worth understanding in their own
+right before the rule is changed: `std_polyunsaturatedfattyacid` and `std_fat` are both about 1%
+low, their means agree to a tenth of a percent, and both are two-stage factors whose spread depends
+on the fraction of people at zero. That may be a real, tiny difference rather than noise, and a
+rule change that hides it would be the wrong fix. And **do not reach for the sigma limit**: it is a
+Bonferroni correction over "the ~5,000 independent series" and there are now about 25,300, so 4.76
+is the honest value rather than 4.5 — but that clears one of the three cells at seeds 1–20 and
+neither of the 60-seed ones, it makes the threshold stricter for the smaller sweeps where
+`HLM_India` sits at 0.987× of its allowance, and it does nothing about a whole series failing
+together.
+
+**Until it is done there is a failure budget of 3 on one example**, the first this project has had
+since the fifth run, recorded with the measurement that sized it
+([docs/equivalence.md](equivalence.md), *There is a failure budget again*). Closing this item is
+what removes it.
+
+### 7. A fallback donor for immigration into an empty band — `correctness`
 
 **Value: low-medium. Effort: low.** When an age-sex band is empty there is nobody to clone an
 immigrant from, so both implementations skip it and the cohort falls short of the demographic
@@ -137,7 +188,7 @@ that misses its own target. The baseline has a nearest-age search in its demogra
 achievable, at the cost of nudging the age distribution. It changes results, so it needs a
 deviation entry, an ADR and a re-run of both references.
 
-### 7. More seeds, and a smaller stored reference — `validation`
+### 8. More seeds, and a smaller stored reference — `validation`
 
 **Value: low-medium. Effort: low.** Both references are 20 seeds, confirmed at 60 and then
 discarded. Keeping the 60-seed references would be about 12 MB gzipped. The alternative is to
@@ -145,7 +196,7 @@ store the reduction rather than the raw results — the harness reduces to (scen
 variable) before it compares anything, and the reduction is two orders of magnitude smaller — at
 the cost of not being able to change the reduction without a re-run.
 
-### 8. Windows — `platform`
+### 9. Windows — `platform`
 
 **Value: unknown. Effort: medium, and better understood than it was.** Not targeted
 ([ADR 0013](decisions/0013-platforms-linux-and-macos.md)). The code avoids PSTL and
@@ -167,7 +218,7 @@ Still only worth doing if someone needs it.
 
 ## Smaller things
 
-### 9. Run the sanitizer presets' tests in parallel — `platform`
+### 10. Run the sanitizer presets' tests in parallel — `platform`
 
 **Value: low-medium, and lower than it was. Effort: low, and the risk is what makes it an item
 rather than a one-liner.** This run took the other half of the problem instead: TSan runs one
@@ -183,7 +234,7 @@ found rather than assumed, and under a sanitizer the memory cost multiplies too.
 change most likely to make a flaky test look like a real one, which is the thing a test suite can
 least afford.
 
-### 10. A schema for the model definition files — `docs`
+### 11. A schema for the model definition files — `docs`
 
 **Value: medium. Effort: low.** `schemas/v2/` covers the config. The static and dynamic model
 files have no published schema, which is why their member names were wrong for a week in the
@@ -192,14 +243,14 @@ and its R row-index columns. The shapes are documented only in `src/config/model
 the three loader test files. Write them, and extend `schema_agreement_test.cpp` to cover them the
 way it covers the config.
 
-### 11. Sector, and `demographic_models` — `scope`
+### 12. Sector, and `demographic_models` — `scope`
 
 **Value: low. Effort: low.** `person.sector` (urban/rural) is assigned nowhere; the channel
 appears if the mapping declares the factor. `modelling.demographic_models` is carried through as
 opaque JSON, deliberately — its shape belongs to the model family that reads it — and no model
 family reads it yet.
 
-### 12. The fixture pack's top-age artefact — `validation`
+### 13. The fixture pack's top-age artefact — `validation`
 
 **Value: low. Effort: low.** The synthetic pack's population table stops at the same age as the
 config's `age_range`, so anyone reaching the top age leaves the cohort and the pack's simulated
@@ -207,7 +258,7 @@ death rate runs above what its mortality table implies. Recorded in the pack's o
 Extending the pack's age range by a few years above the configured one would remove the artefact;
 nothing depends on it, because no test reads the pack's death rates as a check on anything.
 
-### 13. Report four things upstream — `docs`
+### 14. Report four things upstream — `docs`
 
 **Value: low here, high upstream. Effort: what is left of it is not ours.** The four reports are
 written: [docs/upstream-reports.md](upstream-reports.md) has each one with the command that

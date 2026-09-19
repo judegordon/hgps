@@ -169,7 +169,7 @@ have by design, and each of which is listed above with the ADR that says why.
 Counts verified on 2026-09-19 with `hgps_tests --gtest_list_tests` (**863** tests, 102 suites),
 `ctest --preset release -N` (**866**) and `python3 -m unittest discover -s tests/equivalence`
 (**63**), against the baseline's `HealthGPS.Tests --gtest_list_tests` (471). None of them is counted
-by hand. `ctest --preset tsan -N` reports **TSANCOUNT**, for the reason
+by hand. `ctest --preset tsan -N` reports **773**, for the reason
 [ADR 0046](decisions/0046-what-runs-under-which-sanitizer.md) gives.
 
 The growth from 738 to 845 was the sixth run's and the five above it are the seventh's; none of it is
@@ -211,7 +211,7 @@ That is **863** in 102 suites, and **866** CTest entries. The harness's own suit
 **63**, which is where the family machinery is tested: it is one run old and it decides what the
 comparison looks at.
 
-**Under ThreadSanitizer the count is TSANCOUNT, and that is deliberate.** The `Packs/` suites run
+**Under ThreadSanitizer the count is 773, and that is deliberate.** The `Packs/` suites run
 against the first pack only there, which is 92 tests rather than 184; every other preset runs both
 ([ADR 0046](decisions/0046-what-runs-under-which-sanitizer.md)). Eleven of this run's thirteen are
 unparameterised and run everywhere; the twelfth and thirteenth are one test, run twice outside TSan
