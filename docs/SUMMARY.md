@@ -1,5 +1,28 @@
 # Summary of the tenth build run
 
+## State of the project
+
+For somebody opening this repository cold, in five sentences.
+
+A deterministic C++20 reimplementation of the Health-GPS microsimulation — the whole upstream model
+surface, usable as a library, from a command line and from a browser — written to be compared
+against the original run for run. **What is proven** is that three of the six upstream examples run
+in both implementations and agree statistically, at 62,030 tests over two examples' stored
+references this run with none failing and no failure budget, on a build whose 885 C++ tests pass
+under release, debug, ASan+UBSan and ThreadSanitizer with 16 of 16 CI jobs green. **What is open**
+is scale and coverage rather than correctness: `HLM_India` has only ever been compared at a
+hundredth of the cohort it ships, population impact fraction has never met the baseline because the
+one example that uses it cannot run, and no comparison here is tighter than the six significant
+digits the baseline prints. **What needs an upstream decision** is two things, both of them
+blocking: where a policy should apply on the Kevin Hall surface, which leaves four of the six
+examples runnable only with a no-op intervention, and whether the newborn weight bound or the
+quantile curve is wrong in `KevinHall_India`, which stops the other two in their first simulated
+year. Read [docs/READING-GUIDE.md](READING-GUIDE.md) if you are going through the repository end to
+end, [docs/briefing.md](briefing.md) if you have twenty minutes, and the rest of this file for the
+numbers behind every claim above.
+
+## What this file is
+
 What was built, what is proven, and where it stops. Written at the end of the run it describes.
 Earlier runs' summaries are in the history of this file: the first covered the HLM surface, the
 second the FINCH one, the third the library split and the index-keyed store, the fourth `HLM_India`
@@ -38,7 +61,7 @@ write the impossible person out**.
 | Tests, the frontend | **48** unit, **21** end to end in a browser |
 | Comparisons against the baseline this run | **62,030** tests over two examples' stored references, **0** failures, **no budget** — plus a **1,000-run census** of both implementations and **1,060 paired runs** compared byte for byte |
 | Source | `src/` 153 files, `include/` 6; `tests/` 74 files; 48,432 lines of C++ between them; the equivalence harness 4,656 lines of Python in seven files; `web/src/` 18 TypeScript files and `web/e2e/` 6, 3,136 lines |
-| Documents | **14**, plus **1 finding write-up** and **50 ADRs** |
+| Documents | **16**, plus **1 finding write-up** and **50 ADRs** behind an index `scripts/check.sh` keeps in sync |
 | CI | **16 jobs** — see below |
 | Findings this run | **6** |
 

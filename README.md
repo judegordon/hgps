@@ -15,9 +15,9 @@ statement of derivation.
 An audit of the upstream baseline, its data and examples, and an earlier rewrite is in
 [docs/audit/](docs/audit) — start with [SUMMARY.md](docs/audit/SUMMARY.md). It found 19 confirmed
 defects in the baseline, six of them high severity, and a rewrite that fixed twelve of them while
-deleting the 471-test suite that was the only evidence any of it was correct. Seven more baseline
+deleting the 471-test suite that was the only evidence any of it was correct. Nine more baseline
 defects were found here, by running code the baseline's own tests never reach; they are in
-[docs/deviations.md](docs/deviations.md) as B-21 to B-24 and B-26 to B-28.
+[docs/deviations.md](docs/deviations.md) as B-21 to B-24 and B-26 to B-30.
 
 The one requirement that shapes everything here follows from what the model is *for*. A comparison
 you cannot reproduce is not evidence, so:
@@ -75,7 +75,9 @@ configuration names files to read and a folder to write
 | [docs/backlog.md](docs/backlog.md) | what is left, ranked |
 | [docs/SUMMARY.md](docs/SUMMARY.md) | what was built, what passes, what is still open |
 | [docs/briefing.md](docs/briefing.md) | the short form for the upstream authors: what this proves, what it found in the baseline, and what only they can decide |
-| [docs/upstream-reports.md](docs/upstream-reports.md) | four findings written up as bug reports against the baseline, each with the command that reproduces it there |
+| [docs/upstream-reports.md](docs/upstream-reports.md) | seven findings written up as bug reports against the baseline, each with the command that reproduces it there |
+| [docs/READING-GUIDE.md](docs/READING-GUIDE.md) | the ordered path through everything above, for somebody reading this repository end to end |
+| [docs/glossary.md](docs/glossary.md) | every project term a reader meets, one sentence each, with a pointer to where it is defined properly |
 
 ## Building
 
@@ -202,10 +204,10 @@ Validation has two layers ([ADR 0006](docs/decisions/0006-validation-strategy.md
   does not exist here by design — the event bus, the sync channel, the lazy repository, the printed
   summary boxes. [docs/test-port-map.md](docs/test-port-map.md) says which, suite by suite. **The 35
   tests the baseline skips run here**, and finding out whether they pass is how four defects were
-  found. Of the **863** tests here, most are in files the baseline has no counterpart for —
+  found. Of the **885** tests here, most are in files the baseline has no counterpart for —
   byte-for-byte reproducibility at one thread and at N for every intervention, a modulo-bias
   regression test, ordered-sampling tests, and a test that an unseeded config is rejected, among
-  others. A further **63** test the equivalence harness's own statistics, because a mistake there
+  others. A further **94** test the equivalence harness's own statistics, because a mistake there
   says PASS rather than producing a wrong number. Every test that runs a configuration runs against
   **two** synthetic packs, which differ in every way a program might have assumed they did not
   ([ADR 0044](docs/decisions/0044-two-fixture-packs-and-a-parameterised-suite.md)) — one of them
@@ -217,15 +219,14 @@ Validation has two layers ([ADR 0006](docs/decisions/0006-validation-strategy.md
 - **Statistical equivalence against the baseline** on three examples — `HLM_France` for the HLM
   surface, `KevinHall_FINCH` for the FINCH one, and `HLM_India` for the `EBHLM` dynamic model at a
   reduced cohort — over at least 20 seeds and again at 60, comparing means, standard deviations and
-  percentiles per output variable per year per scenario per sex, within tolerances argued for in
-  [docs/equivalence.md](docs/equivalence.md). Any divergence that is not explained by a recorded
-  deviation fails the check. There is one failure budget, of **3 comparisons on `KevinHall_FINCH`**
-  out of 111,836, and it exists because the allowance's width is estimated from the same twenty
-  draws it is judging: a series at a small signed offset well inside its allowance fails in every
-  year at once when a seed set happens to give a tight sample. Three are out of tolerance at 20
-  seeds and four at 60, and no cell fails in both.
-  [docs/equivalence.md](docs/equivalence.md) records the measurement that sized it and
-  [docs/backlog.md](docs/backlog.md) item 6 is the work that removes it.
+  percentiles per output variable per year per scenario per sex. Pass or fail is a **family-wise
+  false-positive rate of 1%**, controlled by Holm over every test a run performs and measured on a
+  null before the rule was adopted, rather than a tolerance on a number
+  ([ADR 0048](docs/decisions/0048-a-comparison-with-a-stated-false-positive-rate.md),
+  [docs/equivalence-method.md](docs/equivalence-method.md) §4). Any divergence that is not explained
+  by a recorded deviation fails the check. **There is no failure budget on any example**, and the
+  harness has no flag that could grant one; the budget of 3 on `KevinHall_FINCH` that stood under
+  the previous rule is what [docs/equivalence.md](docs/equivalence.md) records removing.
 
 Bit-exact agreement with the baseline is deliberately **not** a goal: it would require reproducing
 several of the audit's confirmed defects on purpose. One of them is now visible in the numbers —
