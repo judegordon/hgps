@@ -15,26 +15,31 @@ Tags:
   or the data, and guessing would put an invented number into somebody else's fitted model.
 - `docs`
 
-**This run closed item 6, and item 6 was the only thing the previous run made worse.** The
-comparison's threshold is no longer an allowance somebody chose: it is a family-wise false-positive
-rate of 1%, controlled by Holm over every test a run performs, and **measured on a null before it
-was adopted** — 30 pairs of twenty seeds of one build against itself across all three runnable
-examples, 922,564 tests, zero failures against 0.30 expected, with the raw p-value tail below
-uniform at every threshold
-([ADR 0048](decisions/0048-a-comparison-with-a-stated-false-positive-rate.md),
-[docs/equivalence-method.md](equivalence-method.md) §4). **The failure budget is gone from every
-example and there is no flag that could grant one.** All four stored references were re-scored and
-none fails.
+**This run closed item 2, which was the only correctness item on this list and the only thing in
+the project that was both a run that did not finish and not understood.** It is not ours. The
+partition coefficient in the Kevin Hall energy balance, `p = C / (C + F)`, has a pole at
+**F = −2.001 kg**; neither implementation floors body fat between years, and the baseline's own
+statements produce the same −1.7×10²⁸³ kg on the state this build traced
+([docs/findings/seed-80.md](findings/seed-80.md)). It is bounded now rather than fatal, with a
+compatibility flag so that what the bound is worth is a measurement
+([ADR 0049](decisions/0049-the-energy-balance-is-integrated-only-where-it-is-defined.md)).
 
-Two things came out of the work rather than out of the plan:
+Three things came out of the work rather than out of the plan:
 
-- **The 1.1% `std_polyunsaturatedfattyacid` offset the previous run flagged is not real.** Two
-  hundred seeds of both implementations put it at **+0.135%** — the other sign — with 0 of its 44
-  series below p = 0.05. It was a twenty-seed artefact of the allowance, and it was answered before
-  the new rule was adopted so that the rule could not be what decided it.
-- **This build refuses `KevinHall_FINCH` at seed 80**, deterministically, when the energy balance
-  diverges for one person in simulated year 2031. That is the new item 2 below, and it is the only
-  correctness item on this list.
+- **Four seeds in five hundred, not one.** A body fat mass goes below zero on seeds 80, 143, 178
+  and 208, and only the first goes past the pole. On the other three the unguarded run
+  **completes and writes the person out** — so the silent case is three times as common as the
+  loud one, in both implementations, and it is the silent case that reaches a results file.
+- **The `NaN` that would have hidden it.** Looking for what *should* have caught the first defect
+  found a second: the analysis module counts a risk factor that is not a number as **zero** while
+  accumulating the year's means, and says nothing; an infinity it does not look at at all. That
+  is deviation B-30 and
+  [ADR 0050](decisions/0050-no-output-carries-a-number-that-cannot-exist.md), and the invariant
+  it replaces is now a property of the engine rather than of one module.
+- **The ninth run's "three-year precursor" is withdrawn.** It was a maximum over a three-person
+  band of 96-year-old men in the intervention arm, it happens on seeds that never diverge, and
+  in the baseline arm the band means are pinned flat by the weight calibration. The true
+  statement is worse: the aggregate output shows nothing at all before the failure.
 
 What is left is otherwise what it was: **one modelling question that belongs to you** (interventions
 on Kevin Hall models), the validation this project's own documents hedge about, and Windows.
@@ -67,44 +72,36 @@ work. Until it is answered, four of the six upstream examples can only be run wi
 
 See [docs/deviations.md](deviations.md) B-25 and `tests/config/intervention_reach_test.cpp`.
 
-### 2. The energy balance diverges on one seed in two hundred — `correctness`
+### 2. `HLM_India` at the cohort it ships — `validation`
 
-**Value: high. Effort: unknown, and that is most of the item.** Found this run by a two-hundred-seed
-sweep of `KevinHall_FINCH`, which is the first time either implementation has been run that many
-times on that example.
+**Value: high, and higher than it was. Effort: medium, and all of it is machine time.** It was
+item 5; it moves up because the item above it on that list is closed, because it is the largest
+single gap in this project's validation, and because it is now also where the energy balance's
+domain boundary would next appear if reaching it is a property of a cohort rather than of one
+pack. `HLM_India` is now compared against
+the baseline at 20 and 60 seeds — but at `size_fraction` 1e-5, which is **12,406 people against the
+1,240,613 it ships** ([docs/equivalence.md](equivalence.md)). That was the only way to have the
+comparison at all: at full scale one seed is about 40 minutes in this build and over an hour in the
+baseline, so twenty seeds of both is about a day and sixty is three.
 
-At **seed 80** this build stops with a located internal error and the baseline completes:
+What the reduction cannot tell you is anything that only appears at scale. Two candidates are
+specific rather than hypothetical: the emptying-band exclusion is **1,641 bands at 12,406 people**
+against 785 on `HLM_France`, and at 1.24 million almost none of those bands would empty at all — so
+the full-scale comparison would exclude far less and test more; and a rare disease that gives 0, 1 or
+2 cases at this cohort size gives hundreds at the shipped one, which moves several of the comparisons
+off the exact path and onto the numeric one, where twenty seeds say much more
+([docs/equivalence-method.md](equivalence-method.md) §5.3).
 
-```
-person 1222 (male, age 24) weighs -1.702e+283 kg after the energy balance, below the
-configured minimum of 1 kg for 'Weight'
-```
+So this is worth doing once, on a machine that can be left alone for a few days, and the stored
+reference would be large — which is item 7.
 
-What is measured ([docs/equivalence.md](equivalence.md), *One seed in two hundred*):
-
-- **deterministic and reproducible** — same config, same seed, same person, same number, three
-  times;
-- **not a compatibility flag**: `--baseline-compat none` fails identically, so it is not a baseline
-  behaviour this build reproduces;
-- **simulated year 2031**, the tenth of the horizon; stopping at 2030 completes and exits zero;
-- **a three-year precursor**: the largest band mean weight is flat at 87.28 kg through 2027, then
-  87.32, **92.1**, **98.5** in 2028–2030. So the 2029 and 2030 numbers on that seed are already
-  contaminated, and a shorter run would have written them and exited zero;
-- **1 in 200 here, 0 in 200 in the baseline** — but the two draw different random streams, so seed
-  80 is not the same cohort on both sides and this is not proof the instability is ours rather than
-  the model's.
-
-**The next step is to find out which of those it is**, and it is cheap to start: the divergence is
-one person over four simulated years, so instrumenting `KevinHall_model`'s energy balance for that
-person and that seed would show whether the intake, the expenditure or the integration is what runs
-away. If it is the integration, it is ours and it is fixable; if it is a coefficient combination the
-model admits, it belongs upstream beside the other reports and the honest fix here is to clamp and
-count rather than to refuse.
-
-**Until then the refusal is the right behaviour** and should not be softened: the alternative is
-writing 1e283 kg into a results file. The bound check is `validate_weight` in
-`src/model/riskfactor/kevin_hall/weight_height.cpp`, and it already treats *above* the configured
-maximum as a counted metric rather than an error, which is the shape a clamp would take.
+**And it is now the natural next test of the energy balance's boundary.** Over 500 seeds of
+`KevinHall_FINCH` a body fat mass goes below zero on four of them, and that is 500 draws of one
+pack's cohort of 6,858. `HLM_India` at the shipped 1.24 million is a hundred times the people per
+seed, on a different country's fitted intakes — which is the cheapest way to find out whether
+four in five hundred is a property of the FINCH pack or of the Kevin Hall model. The census that
+would answer it is one command (`tests/equivalence/seed_scan.py`), and the guard means the runs
+finish.
 
 ### 3. Individual-level tracking output — `scope`
 
@@ -140,27 +137,7 @@ raising the curve or lowering the bound would both be inventing a number for som
 model. This is item 6's question asked again from a second direction, and answering it would unblock
 two examples rather than one, plus the only PIF equivalence comparison there could be.
 
-### 5. `HLM_India` at the cohort it ships — `validation`
-
-**Value: medium. Effort: medium, and all of it is machine time.** `HLM_India` is now compared against
-the baseline at 20 and 60 seeds — but at `size_fraction` 1e-5, which is **12,406 people against the
-1,240,613 it ships** ([docs/equivalence.md](equivalence.md)). That was the only way to have the
-comparison at all: at full scale one seed is about 40 minutes in this build and over an hour in the
-baseline, so twenty seeds of both is about a day and sixty is three.
-
-What the reduction cannot tell you is anything that only appears at scale. Two candidates are
-specific rather than hypothetical: the emptying-band exclusion is **1,641 bands at 12,406 people**
-against 785 on `HLM_France`, and at 1.24 million almost none of those bands would empty at all — so
-the full-scale comparison would exclude far less and test more; and a rare disease that gives 0, 1 or
-2 cases at this cohort size gives hundreds at the shipped one, which moves several of the comparisons
-off the exact path and onto the numeric one, where twenty seeds say much more
-([docs/equivalence-method.md](equivalence-method.md) §5.3).
-
-So this is worth doing once, on a machine that can be left alone for a few days, and the stored
-reference would be large — which is item 8. It is also where the seed-80 divergence of item 2 would
-next show up, if it is a property of the cohort rather than of this pack.
-
-### 6. A second country for the FINCH surface — `validation`, and it needs upstream
+### 5. A second country for the FINCH surface — `validation`, and it needs upstream
 
 **Value: high. Effort: unknown, and not all of it is here.** The FINCH equivalence evidence is one
 pack, one country. The obvious second is `KevinHall_India`, which uses the same `StaticLinear` and
@@ -176,7 +153,7 @@ Nothing here can fix that: raising the curve or lowering the bound would be inve
 somebody else's fitted model. What this item needs is upstream to say which of the two is wrong.
 Until then the FINCH surface has one country, and that is the largest single gap in the validation.
 
-### 7. A fallback donor for immigration into an empty band — `correctness`
+### 6. A fallback donor for immigration into an empty band — `correctness`
 
 **Value: low-medium. Effort: low.** When an age-sex band is empty there is nobody to clone an
 immigrant from, so both implementations skip it and the cohort falls short of the demographic
@@ -190,7 +167,7 @@ that misses its own target. The baseline has a nearest-age search in its demogra
 achievable, at the cost of nudging the age distribution. It changes results, so it needs a
 deviation entry, an ADR and a re-run of both references.
 
-### 8. More seeds, and a smaller stored reference — `validation`
+### 7. More seeds, and a smaller stored reference — `validation`
 
 **Value: low-medium. Effort: low.** Both references are 20 seeds, confirmed at 60 and then
 discarded. Keeping the 60-seed references would be about 12 MB gzipped. The alternative is to
@@ -198,7 +175,7 @@ store the reduction rather than the raw results — the harness reduces to (scen
 variable) before it compares anything, and the reduction is two orders of magnitude smaller — at
 the cost of not being able to change the reduction without a re-run.
 
-### 9. Windows — `platform`
+### 8. Windows — `platform`
 
 **Value: unknown. Effort: medium, and better understood than it was.** Not targeted
 ([ADR 0013](decisions/0013-platforms-linux-and-macos.md)). The code avoids PSTL and
@@ -220,7 +197,7 @@ Still only worth doing if someone needs it.
 
 ## Smaller things
 
-### 10. Run the sanitizer presets' tests in parallel — `platform`
+### 9. Run the sanitizer presets' tests in parallel — `platform`
 
 **Value: low-medium, and lower than it was. Effort: low, and the risk is what makes it an item
 rather than a one-liner.** This run took the other half of the problem instead: TSan runs one
@@ -236,7 +213,7 @@ found rather than assumed, and under a sanitizer the memory cost multiplies too.
 change most likely to make a flaky test look like a real one, which is the thing a test suite can
 least afford.
 
-### 11. A schema for the model definition files — `docs`
+### 10. A schema for the model definition files — `docs`
 
 **Value: medium. Effort: low.** `schemas/v2/` covers the config. The static and dynamic model
 files have no published schema, which is why their member names were wrong for a week in the
@@ -245,14 +222,14 @@ and its R row-index columns. The shapes are documented only in `src/config/model
 the three loader test files. Write them, and extend `schema_agreement_test.cpp` to cover them the
 way it covers the config.
 
-### 12. Sector, and `demographic_models` — `scope`
+### 11. Sector, and `demographic_models` — `scope`
 
 **Value: low. Effort: low.** `person.sector` (urban/rural) is assigned nowhere; the channel
 appears if the mapping declares the factor. `modelling.demographic_models` is carried through as
 opaque JSON, deliberately — its shape belongs to the model family that reads it — and no model
 family reads it yet.
 
-### 13. The fixture pack's top-age artefact — `validation`
+### 12. The fixture pack's top-age artefact — `validation`
 
 **Value: low. Effort: low.** The synthetic pack's population table stops at the same age as the
 config's `age_range`, so anyone reaching the top age leaves the cohort and the pack's simulated
@@ -260,12 +237,29 @@ death rate runs above what its mortality table implies. Recorded in the pack's o
 Extending the pack's age range by a few years above the configured one would remove the artefact;
 nothing depends on it, because no test reads the pack's death rates as a check on anything.
 
-### 14. Report four things upstream — `docs`
+### 13. Report seven things upstream — `docs`
 
-**Value: low here, high upstream. Effort: what is left of it is not ours.** The four reports are
+**Value: low here, high upstream. Effort: what is left of it is not ours.** The reports are
 written: [docs/upstream-reports.md](upstream-reports.md) has each one with the command that
 reproduces it against the baseline's own binary and data. What is not done is **sending them**,
-which is a thing a person does with an account on somebody else's tracker. The four:
+which is a thing a person does with an account on somebody else's tracker. **Two were added this
+run and they are the two worth sending first**, because both are defects in code that is still
+running upstream rather than questions about a fitted model:
+
+6. **The energy balance admits a body fat mass below zero**, and one year later the weight
+   overflows to −1.7×10²⁸³ kg. The partition coefficient `p = C / (C + F)` has a pole at
+   `F = −C`; `initialise_kevin_hall_state` floors a negative fat estimate for exactly that reason
+   and `kevin_hall_run` never does. Four seeds in five hundred reach it, three of them silently.
+   And because `validate_weight_in_config_range` only *warns* above the configured maximum, a
+   runaway of the upward sign exits **zero** with the number in the results file — confirmed
+   directly, 67,668 warnings and exit code 0.
+7. **A risk factor that is `NaN` is counted as zero** in the year's means
+   (`analysis_module.cpp:385-391`), so the mean is wrong and nothing says so; `std::isnan` is
+   false for `±inf`, so an infinity is not looked at at all. This is the last place a value
+   passes through before it becomes output, and a substitution here turns every defect upstream
+   of it — including 6 — into a results file that is quietly wrong.
+
+And the five that were already here:
 
 1. **`KevinHall_India` cannot be run by its own baseline** — its `Weight` lower bound is above what
    its weight quantile curve produces (item 3), and its `new_config.json` contradicts itself
@@ -286,13 +280,14 @@ which is a thing a person does with an account on somebody else's tracker. The f
 Each is reproducible from this repository with one command, which is most of the work of a good bug
 report and is why writing them up was worth doing before anybody had agreed to file them.
 
-## Closed this run
+## Closed, and what the numbers used to be
 
-Kept as a record of what the numbers above used to be, because three documents and a test reference
-them by number.
+Kept as a record, because documents and comments refer to items by number and a renumbered list
+otherwise strands them. The first row is this run's; the rest are the ninth's.
 
 | Was | | |
 |---|---|---|
+| **2** | The energy balance diverges on one seed in two hundred | done, and the answer is that it is **not ours**. `p = C / (C + F)` has a pole at **F = −2.001 kg**, neither implementation floors body fat between years, and the baseline's own statements produce the same `-1.7019180456941172e+283` on the state this build traced. Five hundred seeds of each: a body fat mass goes below zero on **4 of 500** here and the run dies on **1**; the baseline refuses **0 of 500**, but that is its cohorts rather than its arithmetic, and on three of the four the unguarded run *completes and writes the person out*, which is the case that reaches a results file. The fix is a bounded guard rather than a bug fix and so carries flag **B-29** ([ADR 0049](decisions/0049-the-energy-balance-is-integrated-only-where-it-is-defined.md)); 496 of the 499 seeds that complete both ways are **byte-identical**, and seeds 1–20 of all three examples are byte-identical to the binary that predates it. Two upstream reports came out of it — the pole, and the `NaN`-to-zero substitution in `analysis_module.cpp` that would have hidden it ([docs/findings/seed-80.md](findings/seed-80.md)). **And the ninth run's "three-year precursor" is withdrawn**: it was a three-person band of 96-year-olds in the intervention arm, and it happens on seeds that never diverge |
 | **6** | The comparison's allowance is estimated from the draws it is judging | done, and the two things the item warned about were both answered rather than assumed. The allowance is gone: the rule is a family-wise false-positive rate of **1%** over every test a run performs, controlled by Holm, with Welch's t for location, Brown–Forsythe for spread and the existing exact test for a lattice ([ADR 0048](decisions/0048-a-comparison-with-a-stated-false-positive-rate.md)). It was **calibrated on a null before adoption** — 30 pairs of twenty seeds across all three runnable examples, 922,564 tests, 0 failures against 0.30 expected — and the calibration is a CTest test at reduced scale. The **failure budget is gone from every example**, and the harness has no flag that could grant one. And the item's own warning not to hide the `std_polyunsaturatedfattyacid` offset was honoured the other way round: 200 seeds of both implementations say **the offset is not real**, at +0.135% rather than −1.1%, with nothing significant ([docs/equivalence.md](equivalence.md)) |
 | **2** | The weight-category columns are counts and both reductions treat them as means | done, and it was **not** a deviation from the baseline: the baseline emits head counts and so does this build, so the defect was in this project's own two reductions and in the income series that never filled the four columns at all. No compatibility flag — ADR 0041's flag is for a deliberate difference from the baseline, and there was none here. All four stored references regenerated against the baseline binary ([docs/equivalence.md](equivalence.md)) |
 | **9** | `DataSeries` keyed by channel name | done; the analysis module resolves its channels once a year instead of per person per year, byte-identical on `HLM_France` and `KevinHall_FINCH`, and on `HLM_India` at the cohort it ships ([docs/performance.md](performance.md)) |

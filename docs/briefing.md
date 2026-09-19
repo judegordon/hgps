@@ -56,6 +56,8 @@ Each has its evidence and a test in [docs/deviations.md](deviations.md).
 | **B-25** | an intervention on the Kevin Hall surface has no effect, and the run reports success | `KevinHall_FINCH` with `simple` and with `marketing`: identical result files |
 | **B-21** | immigration into an empty age-sex band abandons that band's target silently, so the cohort falls short of its own projection | 197 of the baseline's band counts short on `HLM_France`, all of them empty bands |
 | **B-26, B-27** | a fraction the PIF store cannot supply is a silent no-op and a gap inside a table reads as zero; and the published PIF schema has the sex column backwards from both the loader and the data | `KevinHall_PIF`: four of fifteen diseases have no `Smoking` table. `cervicalcancer` is non-zero only at `Gender=1`, 600 cells of 3,330 |
+| **B-29** | the energy balance integrates a body fat mass through zero and past the pole of its own partition coefficient, so a starved draw runs away to an impossible weight | seed 80 of `KevinHall_FINCH`: −2.224 kg of body fat in 2030, −1.7×10²⁸³ kg in 2031, reproduced by your own statements on the same state |
+| **B-30** | a risk factor that is `NaN` is counted as **zero** while the year's means are accumulated, so the mean is wrong and nothing says so; an infinity is not looked at at all | `analysis_module.cpp:385-391`, unambiguous. Three people of 80 kg, one `NaN`, report a mean weight of 53.3 kg |
 | **B-22, B-05, B-06** | `std_income` is emitted and never filled; a seed can give a different answer on a different standard library, twice over; an absent seed runs from `std::random_device` and is then recorded as `0` | 0 in all 4,884 rows of a FINCH run; `static_linear_model.cpp:1952`; `mtrandom.cpp:8` |
 
 **New this run, and it is not in that table because this build reproduces it rather than fixing
@@ -102,23 +104,49 @@ cohorts. No seed, cohort size or horizon avoids it ([docs/examples.md](examples.
 be inventing a number for a fitted model. It blocks two of your six examples and the only
 population-impact-fraction comparison there could be.
 
-## One seed in two hundred, and we do not know whose it is
+## Your energy balance admits a body fat mass below zero, and one year later the weight overflows
 
-Running `KevinHall_FINCH` two hundred times — which neither implementation had been, before this —
-found **one seed on which our energy balance diverges and yours does not**. At seed 80, in simulated
-year 2031, one 24-year-old man's weight reaches −1.7×10²⁸³ kg and this build stops rather than
-writing it. It is deterministic, it is not one of the baseline behaviours we reproduce, and there is
-a three-year precursor: the largest band mean weight is flat at 87.28 kg through 2027 and then 87.3,
-**92.1**, **98.5** in 2028–2030, so a run that stopped in 2030 would have written a contaminated
-number and exited zero.
+The previous version of this briefing said we had found one seed in two hundred on which our
+energy balance diverged and yours did not, and that we did not know whose it was. **We do now, and
+it is the model's.** The whole trace is
+[docs/findings/seed-80.md](findings/seed-80.md); the short version is three lines.
 
-**Your binary finished all two hundred of its own seeds** — but the two implementations draw
-different random streams, so seed 80 is not the same cohort on both sides, and this is not evidence
-that the instability is ours rather than the model's. **It is one in two hundred here and none in
-two hundred there, and it is unexplained.** If the energy-balance coefficients admit a runaway for
-some combination of intake and expenditure, it is worth knowing on your side too, because nothing in
-your code stops it being written out ([docs/backlog.md](backlog.md) item 2,
-[docs/equivalence.md](equivalence.md)).
+`p = C / (C + F)` — the partition coefficient in `kevin_hall_run` — has a **pole at
+`F = -C = -2.001 kg`**. Nothing in either implementation stops body fat going there: you floor a
+negative fat estimate at initialisation (`kevin_hall_model.cpp:920`, and your comment says it is
+to keep `p` finite) and never again, and neither did we. Past the pole, `p`, the determinant and
+`tau` all change sign, and `exp(-365.0 / tau)` at a `tau` of −0.559 days is 652 e-foldings: the
+weight comes out at −1.7×10²⁸³ kg.
+
+**It is your arithmetic as much as ours.** We copied the statements of `kevin_hall_run` into a
+program sharing no code with this project, fed them the state we traced, and got
+`-1.7019180456941172e+283` against our `-1.7019180456941046e+283`. The year before, the same
+person's step returns `F = -2.2240198893612395` from an ordinary 5.86 kg — after a single year in
+which their modelled energy intake fell 30% and their physical activity rose, both of which your
+fitted models draw.
+
+**Why it is worth your attention at one seed in five hundred.**
+`validate_weight_in_config_range` **throws** below the configured minimum but only prints a
+warning and **returns** above the maximum. So a runaway of the upward sign leaves your binary
+exiting **zero** with an impossible number in the results file. We confirmed that path exits zero:
+`KevinHall_FINCH` with `Weight.range` set to `[1, 50]` prints 67,668 `[WEIGHT RANGE WARNING]`
+lines, writes its results and returns 0.
+
+**And one thing we got wrong last time, which we are withdrawing.** We reported a "three-year
+precursor" — the largest band mean weight rising 87.3 → 92.1 → 98.5 over 2028–2030 — and said a
+run stopping in 2030 would have written a visibly contaminated number. That was an artefact: the
+rising series is the *intervention* arm's maximum over a **three-person band of 96-year-old men**,
+it appears on seeds that never diverge (seed 251 reaches 98.6 kg in 2030 and completes), and the
+baseline arm's band means are pinned flat at 87.2845 kg by the weight calibration. The true
+statement is worse: **there is no warning at all in the aggregate output before it fails.**
+
+**What we do about it**, in case it is useful to you: we integrate the year only as far as the
+model is defined — to the instant body fat reaches zero, which is `exp(-t*/tau) = F* / (F* - F0)`,
+with lean tissue taken to the same instant — and record every occurrence as a located warning in
+the run manifest. On 500 seeds of `KevinHall_FINCH` that changes **nothing**: every seed but one
+is byte-identical with the guard on and off. See [docs/upstream-reports.md](upstream-reports.md)
+reports 6 and 7 — the second is a separate finding in `analysis_module.cpp`, where a risk factor
+that is `NaN` is counted as **zero** in the year's mean and nothing says so.
 
 ## A question about interventions on the Kevin Hall surface
 

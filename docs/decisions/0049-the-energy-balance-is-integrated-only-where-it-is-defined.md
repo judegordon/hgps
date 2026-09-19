@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted, 2026-09-19. Closes [docs/backlog.md](../backlog.md) item 2. Applies
+Accepted, 2026-09-19. Closes the tenth run's [docs/backlog.md](../backlog.md) item 2. Applies
 [ADR 0041](0041-deliberate-deviations-are-switchable.md)'s rule to the deviation it creates
 (**B-29**), and is the reason [ADR 0050](0050-no-output-carries-a-number-that-cannot-exist.md)'s
 invariant check exists as a second line rather than as the only one.

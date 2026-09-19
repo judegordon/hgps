@@ -2,7 +2,8 @@
 
 The ninth run found that this build **refuses** seed 80 of `KevinHall_FINCH` and the baseline
 completes it ([docs/SUMMARY.md](../SUMMARY.md), *One seed in two hundred*;
-[docs/backlog.md](../backlog.md) item 2). What it could not say was whether the instability was
+[docs/backlog.md](../backlog.md), then item 2). What it could not say was whether the
+instability was
 ours. This document is the trace that answers it.
 
 **The answer: it is the model's, and both implementations compute it identically.** The
@@ -178,7 +179,7 @@ and neither implementation checks.
 The ninth run recorded a **three-year precursor** — "the largest band mean weight is flat at
 87.28 kg through 2027 and then 87.32, **92.1**, **98.5** in 2028–2030" — and concluded that a run
 stopping in 2030 would have written a contaminated number and exited zero
-([docs/equivalence.md](../equivalence.md), [docs/backlog.md](../backlog.md) item 2).
+([docs/equivalence.md](../equivalence.md), and [docs/backlog.md](../backlog.md), then item 2).
 
 **That is not a precursor, and this run withdraws it.** Three things are wrong with it:
 

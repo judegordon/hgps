@@ -101,7 +101,8 @@ compared the intersection would have the same blind spot with more code in it. T
 exception is the baseline's individual-tracking file, which it opens for every run whose config
 enables tracking and writes nothing into; the exclusion holds **only while that file is empty** and
 turns back into a failure with its reason if it ever has a row
-([docs/deviations.md](deviations.md), [docs/backlog.md](backlog.md) item 2).
+([docs/deviations.md](deviations.md), and *individual-level tracking output* in
+[docs/backlog.md](backlog.md)).
 
 **What this still cannot see**, and why `scripts/column-coverage.py` exists beside it: a column
 that is zero on *both* sides. On `HLM_France` and `HLM_India` nobody has an income category, so
@@ -185,7 +186,8 @@ the same one in each case, stated once here:
 - **§2.1, the `IndividualIDTracking` family.** The same test, one level up: the baseline opens the
   file and writes nothing into it, so there is no number on either side and a flag would have
   nothing to toggle. What it is instead is a **scope** gap — this build does not write the file at
-  all ([docs/backlog.md](backlog.md) item 2) — and the exclusion is what records that honestly while
+  all (*individual-level tracking output* in [docs/backlog.md](backlog.md)) — and the exclusion
+  is what records that honestly while
   the baseline's own file stays empty. **Keep.**
 
 **And the 45 columns the eighth run filled were none of these.** They were the third case, which

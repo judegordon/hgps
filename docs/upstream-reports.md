@@ -1,10 +1,12 @@
-# Five reports for upstream
+# Seven reports for upstream
 
-Five findings belong to whoever owns the baseline and the example data rather than to this
-repository: this build cannot fix any of them without inventing a number or a mechanism for someone
-else's fitted model. They are written here as five separate reports, each with the one command that
-reproduces it and the evidence behind it, so that filing them is a copy rather than a rewrite.
-[docs/backlog.md](backlog.md) item 14 is the item this file closes the *writing* half of; the other
+Seven findings belong to whoever owns the baseline and the example data rather than to this
+repository. Five of them this build cannot fix without inventing a number or a mechanism for
+someone else's fitted model; the last two it *has* fixed, and they are here as well because the
+fix is a guard rather than a modelling change and the defect is still upstream. They are written
+as separate reports, each with the one command that reproduces it and the evidence behind it, so
+that filing them is a copy rather than a rewrite. *Report seven things upstream* in
+[docs/backlog.md](backlog.md) is the item this file closes the *writing* half of; the other
 half is somebody sending them.
 
 Everything here was measured against Health-GPS `3.0.0.0` built as
@@ -192,11 +194,117 @@ pins the reproduced behaviour by name and says why.
 
 ---
 
+## 6. The energy balance admits a body fat mass below zero, and one year later the weight overflows
+
+**What happens.** `KevinHallModel::kevin_hall_run` integrates body fat straight through zero. Once
+it is below **−2.001 kg** the model's own partition coefficient is past a pole, and the next year's
+weight is a number like **−1.7×10²⁸³ kg**.
+
+**Why.** The yearly step is the closed-form solution of a two-compartment relaxation, and one of
+that relaxation's own coefficients is
+
+```
+p = C / (C + F),     C = 10.4 * rho_L / rho_F = 2.001012658227848 kg
+```
+
+which is undefined at `F = −C`. Past it, `p` is negative, `a1*b2 − a2*b1` is negative, `tau` is
+negative, and `exp(-365.0 / tau)` is an exponential *away* from the steady state. At a `tau` of
+−0.559 days that is 652 e-foldings in one call.
+
+`initialise_kevin_hall_state` already floors a negative body fat estimate at `F = 0.2 * BW`
+(`kevin_hall_model.cpp:920`), and the reason is the same one: a non-positive fat mass makes the
+partition coefficient meaningless. **That floor is never applied to the yearly update**, which is
+the only place integration can take `F` there.
+
+**Reproduce.** It is about one seed in five hundred of `KevinHall_FINCH`, and your binary's
+cohorts are not ours, so the honest reproduction is the arithmetic rather than a seed. Feed
+`kevin_hall_run`'s own statements the state below — one real person, traced out of a real run —
+and it returns `BW = -1.7019180456941172e+283`:
+
+```
+age 24, male, BW_0 55.848205648994693, H 171.67238876297318, PAL 1.7771963443015526,
+CI_0 405.23122522563074, CI 583.79583355280693, EI_0 3030.6442817726597, EI 4828.6449430126222,
+G_0 0.92450226451031092, Na_0 4.505747672185052, Na 4.4136891989841027,
+ECF_0 17.202140148866199, F_0 -2.2324094172489493, L_0 37.457816538689301, K -3048.8515237582928
+```
+
+The year before it, the same person's step returns `F = -2.2240198893612395` from a perfectly
+ordinary `F_0` of 5.86 kg — a 30% fall in energy intake and a rise in physical activity in the
+same year, both of which the fitted models draw.
+
+**How bad is it in practice.** In **500 seeds** of `KevinHall_FINCH` we saw it once. The reason it
+is worth a report anyway is the sign: `validate_weight_in_config_range` **throws** below the
+configured minimum but only **prints a warning and returns** above the maximum
+(`kevin_hall_model.cpp:1191-1193`). A runaway that goes up rather than down therefore leaves your
+binary exiting **zero**, with an impossible number in the results file. We confirmed the warning
+path exits zero directly, by running `KevinHall_FINCH` with `Weight.range` set to `[1, 50]`:
+**67,668 `[WEIGHT RANGE WARNING]` lines and exit code 0**, results written.
+
+**What we do about it.** We integrate the year only as far as the model is defined — to the
+instant body fat reaches zero, which is `exp(-t*/tau) = F* / (F* - F0)`, with lean tissue taken to
+the same instant — and we record every occurrence as a located warning in the run's manifest. On
+the same 500 seeds the guard changes **nothing**: 499 of them are byte-identical with it on and
+off, and the five-hundredth is the difference between a results file and no results file.
+[docs/findings/seed-80.md](findings/seed-80.md) is the whole trace;
+[ADR 0049](decisions/0049-the-energy-balance-is-integrated-only-where-it-is-defined.md) is why
+that particular bound and not another.
+
+---
+
+## 7. A risk factor that is not a number becomes a zero in the reported mean, silently
+
+**What happens.** `AnalysisModule::calculate_historical_statistics` accumulates each year's risk
+factor means over the population, and does this to every value on the way in
+(`analysis_module.cpp:385-391`):
+
+```cpp
+double factor_value = 0.0;
+if (entity.risk_factors.contains(item.first)) {
+    factor_value = entity.risk_factors.at(item.first);
+    if (std::isnan(factor_value)) {
+        factor_value = 0.0;
+    }
+}
+item.second[entity.gender] += factor_value;
+```
+
+A `NaN` becomes a zero, it is added to the sum, and the sum is divided by the **whole** head
+count. So a cohort of three people weighing 80 kg, one of whom has a `NaN` weight, reports a mean
+weight of **53.3 kg**. Nothing in the output, the log or the exit code says a value was
+substituted.
+
+**And an infinity is not looked at at all.** `std::isnan` is false for `±inf`, so an infinite risk
+factor goes into the sum and the whole band's mean becomes infinite — which at least is visible,
+unlike the NaN.
+
+**Why it matters more than it looks.** This is the *last* place a value passes through before it
+becomes output, and it is the last place that still knows which person it belongs to. A guard here
+costs one `isfinite` on a value already in a register. A substitution here converts every upstream
+defect — including report 6 — from a run that fails loudly into a results file that is quietly
+wrong.
+
+**Reproduce.** Any model that can produce a `NaN` will do it; the shortest path is a risk factor
+whose `range` is absent and whose linear model produces `log(0)`. Reading the eight lines above is
+faster, and they are unambiguous.
+
+**What we do about it.** The run stops, with an error naming the person, the year, the factor and
+the value, and saying why the value cannot be carried. Values with a physical meaning are bounded
+as well as checked for finiteness — a weight must be between a gram and a tonne, energy intake
+must not be negative — and those bounds are deliberately far outside any configured modelling
+range, so crossing one is evidence of a defect rather than of an unusual draw. It is switchable
+(`--baseline-compat B-30`) so that the difference your behaviour makes can be measured rather than
+argued. [ADR 0050](decisions/0050-no-output-carries-a-number-that-cannot-exist.md).
+
+---
+
 ## What this file is not
 
-It is not a patch set. Three of the four need a decision that belongs to whoever fitted the models
-or assembled the data packs, and the fourth is a concurrency defect in a design this implementation
-deliberately does not share, so a fix from here would be a rewrite rather than a patch.
+It is not a patch set. Three of the first five need a decision that belongs to whoever fitted the
+models or assembled the data packs, and the fourth is a concurrency defect in a design this
+implementation deliberately does not share, so a fix from here would be a rewrite rather than a
+patch. Reports 6 and 7 are the two this build *has* acted on, and they are here because a guard in
+a reimplementation does nothing for anybody running yours — the fix for both is a few lines in
+code we do not own.
 
 [docs/deviations.md](deviations.md) has the differences between the two implementations that this build has already fixed,
 each with its evidence and the test that pins it; those are recorded rather than reported because

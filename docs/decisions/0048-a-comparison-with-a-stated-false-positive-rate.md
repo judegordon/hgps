@@ -5,7 +5,8 @@
 Accepted, 2026-09-19. Replaces the threshold rule in
 [ADR 0006](0006-validation-strategy.md)'s validation strategy — the strategy itself is unchanged;
 what changes is how "differ by sampling noise alone" is decided. Closes
-[docs/backlog.md](../backlog.md) item 6 and removes the failure budget the eighth run introduced.
+the ninth run's [docs/backlog.md](../backlog.md) item 6 and removes the failure budget the
+eighth run introduced.
 
 ## Context
 
@@ -67,7 +68,8 @@ threshold is the right threshold. It was rejected, and the reason is not cost al
 - **The machine time is per example per configuration, and it recurs.** 200 baseline seeds is
   about 40 minutes for `KevinHall_FINCH` and about 12 for `HLM_France` on the machine this was
   measured on; `HLM_India` ships two comparable configurations and runs at a hundredth of its
-  cohort, and at full scale (backlog item 4) a 200-seed baseline sweep is not a thing anyone will
+  cohort, and at full scale (*`HLM_India` at the cohort it ships* in
+  [docs/backlog.md](../backlog.md)) a 200-seed baseline sweep is not a thing anyone will
   run. So the design has a size of example it cannot be applied to.
 - **It adds a second artefact that can silently disagree with the first.** The stored reduction is
   keyed by the config hash and regenerated whenever the reduction changes — which has happened in

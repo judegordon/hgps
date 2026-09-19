@@ -185,7 +185,8 @@ each:
   and fails if it is not, so a column this build fills and the baseline does not cannot be an
   accident.
 - `KevinHall_FINCH · IndividualIDTracking` is a **family** the baseline writes and this build does
-  not ([docs/backlog.md](backlog.md) item 2). The baseline opens the file for every run whose config
+  not (*individual-level tracking output* in [docs/backlog.md](backlog.md)). The baseline opens
+  the file for every run whose config
   enables tracking and writes nothing into it — not even a header — when no person passes the
   filter, which on `KevinHall_FINCH` is everybody: it asks for ages 80–110 in four named regions.
   The exclusion holds **only while that file is empty**, and the script fails if it ever has a row.
@@ -427,7 +428,7 @@ applied where normal theory does not hold — to a point mass, and then to the m
 lattice-valued series — and both times the answer was to fix the rule rather than widen it
 ([docs/equivalence-method.md](equivalence-method.md) §5). The third instance is an allowance whose
 width is estimated from the same twenty draws it is judging. Fixing it is a piece of statistical
-work rather than a constant: it is [docs/backlog.md](backlog.md) item 6.
+work rather than a constant: it was the ninth run's backlog item 6, and that run closed it.
 
 **What was not done, and why.** The obvious lever is the 4.5σ limit, which is a Bonferroni
 correction at α = 0.05 over "the ~5,000 independent series" — and this run multiplied the number of
@@ -1084,10 +1085,12 @@ again over 60, every scenario and both sexes:
   below p = 0.05, and `std_fat` at +0.070% with none surviving its own Bonferroni. It was a
   twenty-seed artefact of the allowance, answered before the new rule was adopted so that the rule
   could not be what decided it;
-- **and two hundred seeds found something twenty could not**: this build refuses `KevinHall_FINCH`
-  at seed 80, deterministically, when the energy balance diverges for one person in simulated year
-  2031 after a visible three-year precursor. The baseline finished all 200 of its own seeds. One in
-  two hundred here, none there, unexplained ([docs/backlog.md](backlog.md) item 2);
+- **and five hundred seeds answered what two hundred could only raise**: the energy balance takes a
+  body fat mass below zero on **4 of 500** seeds, and past the pole of its own partition
+  coefficient on 1 of them. It is the *model's* arithmetic — the baseline's own statements produce
+  the same 10²⁸³ on the same state — so it is deviation **B-29** and a bounded guard rather than a
+  bug fix, and over the 499 seeds both behaviours complete, **496 are byte-identical and 3 move by
+  at most 0.85% in `std_weight` alone**;
 - and since this run, **the comparison runs with the deliberate deviations put back**, so the two
   residual clusters above are not there at all and the deviation that caused them is *measured*
   rather than inferred: **131,061 comparisons across three runs, zero out of tolerance**. See
@@ -1264,39 +1267,116 @@ once whenever a seed set gave a tight sample, and that is gone.
 appeared to detect it only because its threshold was partly luck. The way to answer a question like
 this is more seeds, and it cost ninety-five minutes.
 
-### One seed in two hundred: this build refuses `KevinHall_FINCH` at seed 80
+### Five hundred seeds each: the energy balance's runaway, and whose it is
 
-The 200-seed sweep found something the twenty-seed comparison never could. **At seed 80, this build
-stops with a located internal error and the baseline completes.**
+The ninth run's two-hundred-seed sweep found one seed this build refused and the baseline
+completed, and could not say whose instability it was. This run ran **five hundred seeds of each
+implementation** and traced the one that failed.
+[docs/findings/seed-80.md](findings/seed-80.md) is the trace; this is the census.
 
-```
-person 1222 (male, age 24) weighs -1.702e+283 kg after the energy balance, below the
-configured minimum of 1 kg for 'Weight'. The energy balance has produced a body the rest
-of the model cannot describe; check the model's nutrient and energy coefficients
-```
+**The mechanism.** `p = C / (C + F)`, the partition coefficient in the energy balance, is a
+coefficient of the very relaxation the yearly step solves, and it has a **pole at
+`F = -C = -2.001012658227848 kg`**. Neither implementation looks at body fat between years — both
+floor a negative estimate at *initialisation*, for exactly this reason, and neither floors it in
+the update. Past the pole `p`, the determinant and the time constant all change sign, and
+`exp(-365/tau)` at `tau = -0.559` days is 652 e-foldings.
 
-What is known, all of it measured:
+**It is the model's arithmetic, not this implementation's.** The baseline's own statements, copied
+into a program that shares no code with this project and fed the state traced here, return
+`-2.2240198893612395` and `-1.7019180456941172e+283` against this build's `-2.2240198893612368`
+and `-1.7019180456941046e+283`.
 
-- **It is deterministic and reproducible** — the same config and seed, three times, the same person
-  and the same number.
-- **It is not a compatibility flag.** `--baseline-compat none` fails identically, so it is not one
-  of the baseline behaviours this build reproduces.
-- **It happens in simulated year 2031**, the tenth of the horizon: stopping at 2030 completes and
-  exits zero.
-- **There is a three-year precursor.** The largest band mean weight in the run is flat at 87.28 kg
-  through 2027 and then 87.32 (2028), **92.1** (2029), **98.5** (2030) before the divergence in
-  2031. So a run that stopped at 2030 would exit zero and write a contaminated number.
-- **The baseline finished all 200 of its own seeds**, and over the 199 seeds both sides completed,
-  the largest band mean weight is 123.3 kg in the baseline and 123.5 kg here. The two
-  implementations draw different random streams, so "seed 80" is not the same cohort on both sides
-  and this is **not** proof the instability is ours rather than the model's — but it is 1 in 200
-  here and 0 in 200 there, and it is unexplained.
+#### The census
 
-It is not a comparison failure and the comparison has nothing to say about it: a run that does not
-finish is a failure, and `run.py` treats it as one. `sweep.py --tolerate-failures` drops the seed
-from both sides and records it, because a two-hundred-seed *study* losing its other 199 runs to one
-seed would be the wrong trade — and the dropped seed is itself the measurement. This is
-[docs/backlog.md](backlog.md) item 2 and the run's fourth finding.
+Five hundred seeds of `KevinHall_FINCH` per column, every output file of every run read rather
+than only the exit code — because a weight above the configured maximum leaves **both**
+implementations exiting zero (`tests/equivalence/seed_scan.py`).
+
+| Over 500 seeds | this build, before | this build, after | the baseline |
+|---|---:|---:|---:|
+| runs refused | **1** — seed 80 | **0** | **0** |
+| non-finite value in any output file | 0 | 0 | 0 |
+| a weight above the configured maximum, run exiting zero | 1 — seed 48 | 1 — seed 48 | 0 |
+| a body fat mass below zero | **4** — seeds 80, 143, 178, 208 | 4, every one bounded and named in the manifest | not measurable from outside; the arithmetic is identical and nothing in it looks at body fat |
+| runs lost to the baseline's signal flake (B-01/B-02) | — | — | **2**, both succeeding on the retry |
+
+**Four seeds in five hundred, not one, and that is the finding the ninth run could not see.** On
+three of them — 143, 178, 208 — body fat goes to −0.80, −0.15 and −0.79 kg, stays *inside* the
+pole, and the run **completes and writes the person out**. Only seed 80 goes past −2.001 kg, and
+only then does anything fail. So the silent case is three times as common as the loud one, in both
+implementations, and it is the silent case that reaches a results file.
+
+#### What the guard is worth, measured over every seed
+
+Each of the 500 seeds was run twice — once with `--baseline-compat B-29`, which is the unguarded
+behaviour, and once without — and the two runs' **output files compared byte for byte**, every
+family:
+
+| | |
+|---|---:|
+| seeds compared (both runs completing) | 499 |
+| **byte-identical** | **496** |
+| moved | **3** — seeds 143, 178, 208 |
+| completes only with the guard | 1 — seed 80 |
+
+And where it moves, it moves by very little, in one place:
+
+| Seed | cells differing, of 586,080 | largest | where |
+|---|---:|---:|---|
+| 143 | 7 | 0.76% | `std_bmi`, males aged 31, 2032 |
+| 178 | 27 | 0.09% | `std_weight`, males aged 40, 2029 |
+| 208 | 28 | 0.85% | `std_weight`, males aged 25, 2029 |
+
+**Every differing cell is a `std_`, and no mean moves at all.** That is the weight calibration:
+the Kevin Hall model pins each (sex, age) band's *mean* weight onto the `FactorsMean` table, so
+correcting one person's weight is absorbed by the adjustment and redistributed across their band
+— leaving the mean exactly where it was and moving only the spread. It is also the first thing
+the dispersion test added by the previous run could have caught and nothing else could; the
+previous run wrote that it "has never found anything", and this is the class of difference it
+exists for.
+
+#### Byte identity on the reference seeds, against the binary that predates the fix
+
+The pre-fix binary was rebuilt from the commit before the fix — it does not know the `B-29` flag
+exists — and run against the fixed one on the seeds every stored reference is built from, all
+three runnable examples, comparing every output family:
+
+| Example | seeds | identical | differ |
+|---|---:|---:|---:|
+| `KevinHall_FINCH` | 1–20 | **20** | 0 |
+| `HLM_France` | 1–20 | **20** | 0 |
+| `HLM_India` *(at 1e-5)* | 1–20 | **20** | 0 |
+
+So none of the four stored references can have moved, and the harness runs in `scripts/check.sh`
+confirm it rather than inferring it.
+
+#### What this leaves for upstream
+
+Two things, both in [docs/upstream-reports.md](upstream-reports.md):
+
+- **report 6**, the energy balance's pole. The reason it matters at four seeds in five hundred is
+  the sign: `validate_weight_in_config_range` **throws** below the configured minimum but only
+  prints a warning and **returns** above the maximum, so a runaway upward leaves the baseline
+  exiting zero with an impossible number in the results file. Confirmed directly: running
+  `KevinHall_FINCH` with `Weight.range` set to `[1, 50]` prints **67,668** `[WEIGHT RANGE
+  WARNING]` lines, writes its results and returns **0**. That is also the positive control for
+  the census's zero in the table above — the detector fires when there is something to detect.
+- **report 7**, found while looking for what *should* have caught the first one:
+  `analysis_module.cpp` replaces a `NaN` risk factor with **zero** while accumulating the year's
+  means, and says nothing; `std::isnan` is false for `±inf`, so an infinity is not looked at at
+  all. That is deviation **B-30** and [ADR 0050](decisions/0050-no-output-carries-a-number-that-cannot-exist.md).
+
+#### And the "three-year precursor" is withdrawn
+
+The ninth run reported that the largest band mean weight rose 87.3 → 92.1 → 98.5 kg over 2028–2030
+on seed 80, and concluded that a run stopping in 2030 would have written a visibly contaminated
+number. **That was an artefact and this run withdraws it.** The rising series is the *intervention*
+arm's maximum over a three-person band of 96-year-old men; seed 251 completes cleanly and reaches
+98.6 kg the same way; and in the baseline arm the band means are pinned flat by the weight
+calibration — 79.468944 kg for males aged 22 in 2029 on seed 80, and the same to the last printed
+digit on seeds 1 and 5. The true statement is worse: **the aggregate output shows nothing at all
+before the failure**, which is the argument for checking a value where it still belongs to a
+person rather than after it has become a mean.
 
 ### And everything that replaced the sixth run's budget of 60 still holds
 
@@ -1356,7 +1436,8 @@ result files are 80 MB and the reduction is exactly the granularity the comparis
 They grew when the comparison started covering every output family — `KevinHall_FINCH`'s from 1.2 MB
 to 5.4 MB, because it now holds four stratum files' worth of reduced values as well as the
 whole-population one. That is the cost of the coverage, and it is the reason the 60-seed references
-are still not checked in ([docs/backlog.md](backlog.md) item 8).
+are still not checked in (*more seeds, and a smaller stored reference* in
+[docs/backlog.md](backlog.md)).
 
 The excluded set is part of the reference, not of the harness: it was computed from the baseline
 and this build together at the time the reference was written, so a later run against that
