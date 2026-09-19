@@ -341,13 +341,20 @@ One result file, by name, from that run's directory. `name` must be one of the n
 
 ### `GET /api/runs/{id}/summary`
 
-The result CSV reduced for charting: one value per (scenario, year, variable), summed or
+One result CSV reduced for charting: one value per (scenario, year, variable), summed or
 count-weighted over age bands and sexes the way the equivalence harness reduces
 ([docs/equivalence-method.md](equivalence-method.md#2-the-reduction-from-rows-to-series)).
 
 ```json
 {
   "id": "…",
+  "family": "result",
+  "file": "HealthGPS_Result_2026-09-19_05-12-33.csv",
+  "families": [
+    { "family": "HighIncome", "file": "…_HighIncome.csv" },
+    { "family": "LowIncome",  "file": "…_LowIncome.csv" },
+    { "family": "result",     "file": "…csv" }
+  ],
   "reduction": "count-weighted mean over age bands; head counts — count, deaths, emigrations and the four weight categories — summed, the same rule docs/equivalence-method.md reduces by",
   "scenarios": ["Baseline", "Intervention"],
   "years": [2010, 2011, …],
@@ -364,6 +371,24 @@ year of a flow variable, for instance. A client plots it without a lookup.
 
 `?sex=male|female|all` and `?variable=a,b,c` narrow it. The default is `all` and every variable,
 because the first thing a client does is ask what there is.
+
+**`?family=…` chooses which of the run's CSVs is reduced**, and it is new in this run. A run writes
+the whole-population file and one file per configured income category, and until now this endpoint
+could reduce the first and nothing else — so a stratified series could be downloaded and not
+charted, by this frontend or by anything else. That is part of how 45 of those files' columns came
+to be empty with nothing noticing ([docs/equivalence.md](equivalence.md)).
+
+The family names are the ones the harness and `scripts/column-coverage.py` use: `result` for the
+whole population, and the income category's own name — `LowIncome`, `LowerMiddleIncome`,
+`MiddleIncome`, `UpperMiddleIncome`, `HighIncome` — for a stratified one. The default is `result`,
+so a client that knows nothing about families sees exactly what it saw before. `families` is in
+**every** response whichever one was asked for, so a selector needs no second request, and an
+unknown family is a `400` naming the ones the run did write.
+
+Every family has the same columns, because a stratum file carries the whole-population file's
+header. That is what lets one variable selector serve all of them, and it is also why a column that
+is meaningful in one and empty in another is invisible from here — the coverage script is what
+checks that ([docs/equivalence.md](equivalence.md), *Every column of every family*).
 
 This is the one endpoint that computes rather than reports, and it earns its place: the alternative
 is every client re-implementing a reduction the harness already had to get right, and getting a

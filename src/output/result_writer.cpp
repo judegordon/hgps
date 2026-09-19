@@ -12,32 +12,7 @@
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
 
-namespace hgps::output {
-namespace {
-
-/// A fixed, locale-independent rendering for every number in the CSV.
-///
-/// {:.10g} keeps ten significant digits, which is enough to distinguish any two values the model
-/// produces and short enough to keep the files readable. Using std::format rather than an
-/// ostream also means the output cannot be changed by another part of the program setting a
-/// stream flag.
-std::string format_value(double value) { return fmt::format("{:.10g}", value); }
-
-std::string utc_timestamp() {
-    const auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-    std::tm parts{};
-    ::gmtime_r(&now, &parts);
-
-    std::array<char, 32> buffer{};
-    const auto written = std::strftime(buffer.data(), buffer.size(), "%Y-%m-%dT%H:%M:%SZ", &parts);
-    return std::string{buffer.data(), written};
-}
-
-nlohmann::json to_json(const model::ResultByGender &value) {
-    return nlohmann::json{{"male", value.male}, {"female", value.female}};
-}
-
-} // namespace
+namespace hgps::api {
 
 std::string_view output_family_name(OutputFamily family) noexcept {
     switch (family) {
@@ -91,6 +66,35 @@ OutputFamily output_family_of(const std::filesystem::path &path) {
 
     return OutputFamily::result;
 }
+
+} // namespace hgps::api
+
+namespace hgps::output {
+namespace {
+
+/// A fixed, locale-independent rendering for every number in the CSV.
+///
+/// {:.10g} keeps ten significant digits, which is enough to distinguish any two values the model
+/// produces and short enough to keep the files readable. Using std::format rather than an
+/// ostream also means the output cannot be changed by another part of the program setting a
+/// stream flag.
+std::string format_value(double value) { return fmt::format("{:.10g}", value); }
+
+std::string utc_timestamp() {
+    const auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+    std::tm parts{};
+    ::gmtime_r(&now, &parts);
+
+    std::array<char, 32> buffer{};
+    const auto written = std::strftime(buffer.data(), buffer.size(), "%Y-%m-%dT%H:%M:%SZ", &parts);
+    return std::string{buffer.data(), written};
+}
+
+nlohmann::json to_json(const model::ResultByGender &value) {
+    return nlohmann::json{{"male", value.male}, {"female", value.female}};
+}
+
+} // namespace
 
 ResultWriter::ResultWriter(std::filesystem::path base_path, RunMetadata metadata,
                            bool write_income_files, core::IncomeCategoryLayout income_layout)

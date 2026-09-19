@@ -15,6 +15,7 @@
 #include <utility>
 
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 #include <httplib.h>
 #include <nlohmann/json.hpp>
 
@@ -699,12 +700,35 @@ class Server::Impl {
             return;
         }
 
-        const auto csv = record->result_csv();
-        if (csv.empty()) {
+        // Every CSV the run wrote, by output family: the whole-population one and one per income
+        // category. Until this run the endpoint could only reduce the first, so the results screen
+        // could not chart a stratified series at all — and neither could anything else, which is
+        // part of why 45 columns of those files were empty for as long as they have existed
+        // (docs/SUMMARY.md).
+        const auto files = record->result_csvs();
+        if (files.empty()) {
             send_error(response, 404, "not_found",
                        fmt::format("run {} has written no result CSV yet", record->id()));
             return;
         }
+
+        auto family = std::string{"result"};
+        if (request.has_param("family")) {
+            family = request.get_param_value("family");
+        }
+        const auto chosen = files.find(family);
+        if (chosen == files.end()) {
+            std::vector<std::string> available;
+            available.reserve(files.size());
+            for (const auto &[name, unused] : files) {
+                available.push_back(name);
+            }
+            send_error(response, 400, "bad_request",
+                       fmt::format("run {} has no output family called '{}'; it wrote {}",
+                                   record->id(), family, fmt::join(available, ", ")));
+            return;
+        }
+        const auto &csv = chosen->second;
 
         SummaryFilter filter;
         if (request.has_param("sex")) {
@@ -728,6 +752,17 @@ class Server::Impl {
         try {
             auto document = summarise_results(csv, filter);
             document["id"] = record->id();
+            document["family"] = family;
+            document["file"] = csv.filename().string();
+
+            // Every family this run wrote, whichever one was asked for, so a client can offer the
+            // selector without a second request.
+            auto families = nlohmann::json::array();
+            for (const auto &[name, path] : files) {
+                families.push_back({{"family", name}, {"file", path.filename().string()}});
+            }
+            document["families"] = std::move(families);
+
             send_json(response, document);
         } catch (const std::exception &failure) {
             send_error(response, 500, "internal_error", failure.what());

@@ -12,6 +12,7 @@
 #include <condition_variable>
 #include <cstddef>
 #include <filesystem>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -93,6 +94,14 @@ class RunRecord {
 
     /// @brief The result files beside the manifest, by name.
     std::vector<std::string> results() const;
+
+    /// @brief Every result CSV this run wrote, by output family.
+    ///
+    /// The key is `"result"` for the whole-population file and the income category's own name —
+    /// `"LowIncome"`, `"UpperMiddleIncome"` — for a stratified one, which is the same family
+    /// naming `tests/equivalence/run.py` and `scripts/column-coverage.py` use. Ordered, because a
+    /// client renders the selector in this order.
+    std::map<std::string, std::filesystem::path> result_csvs() const;
 
     /// @brief The main result CSV, or empty. Not an income-stratified one.
     std::filesystem::path result_csv() const;

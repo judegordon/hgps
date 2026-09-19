@@ -5,7 +5,7 @@
 // existed, and **no fixture produced one**: both synthetic packs were HLM, only the StaticLinear
 // family gives a person an income category, so no test that ran a configuration could reach the
 // code that fills those files. Forty-five of their columns were empty and nothing said so
-// (docs/SUMMARY.md, docs/backlog.md item 2).
+// (docs/SUMMARY.md).
 //
 // The gap was not "a missing test for a function". It was that nothing anywhere enumerated what
 // the engine puts on disk, so "is every output covered?" was not a question anything could be

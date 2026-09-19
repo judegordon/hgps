@@ -159,7 +159,7 @@ Baseline,1,2010,male,1,90,40,30,20,50
 )";
 
 TEST(SummaryReduction, TheWeightCategoriesAreSummedBecauseTheyAreHeadCounts) {
-    // The defect docs/backlog.md item 2 recorded, in the half of it a user could see: the chart's
+    // The defect this run closed, in the half of it a user could see: the chart's
     // level. Count-weighting these gave (10*6 + 90*40) / 100 = 36.6 for `normal_weight` where the
     // population figure is 46 — the average band's count, which is a number with no meaning. The
     // shape of the series was right, which is why it never looked wrong.

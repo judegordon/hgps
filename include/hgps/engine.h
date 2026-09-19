@@ -15,6 +15,8 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <span>
+#include <string_view>
 #include <memory>
 #include <optional>
 #include <string>
@@ -216,6 +218,51 @@ struct RunOptions {
     /// a real one (docs/equivalence-method.md §7.2).
     std::string perturbation;
 };
+
+/// @brief The kinds of file a run writes.
+///
+/// This enumeration is the whole answer to "what does this engine put on disk", and it exists
+/// because the seventh run found out what happens when nothing enumerates that: the
+/// income-stratified CSVs had been written for as long as this build has existed with no
+/// comparison, no test and no fixture that produced one, and 45 of their columns were empty
+/// (docs/SUMMARY.md).
+///
+/// It is in the **public** header rather than beside the writer because it is part of what a
+/// caller is told about a run: `RunSummary::outputs` is a list of paths, and this is how a caller
+/// — the CLI, the local server, a GUI — knows which of them is which without matching names by
+/// eye. Adding a member here without a fixture pack that produces it fails
+/// `OutputFamilies.EveryFamilyTheEngineCanWriteIsProducedByAFixture`.
+enum class OutputFamily {
+    /// The whole-population result CSV.
+    result,
+    /// One CSV per configured income category, with the same columns as `result`.
+    income_stratum,
+    /// The result metadata JSON, beside the result CSV and with its name.
+    metadata,
+    /// The run manifest JSON.
+    manifest,
+};
+
+/// @brief A stable, lower-case name for a family, as the API and the comparison harness spell it.
+std::string_view output_family_name(OutputFamily family) noexcept;
+
+/// @brief Every family this engine can write, in a fixed order.
+std::span<const OutputFamily> all_output_families() noexcept;
+
+/// @brief Which family a written file belongs to, from its name.
+///
+/// The rule is the naming the writer implements, read back: `<stem>_manifest.json` is the
+/// manifest, any other `.json` is the result metadata, a `.csv` whose stem ends in one of the
+/// income categories' file names is a stratum file, and anything else is the result itself. It is
+/// the same rule `tests/equivalence/run.py` applies to the baseline's output, which is what lets
+/// the two sides be grouped by the same families.
+///
+/// Matching the category names rather than the *shape* of a CamelCase suffix is deliberate: a
+/// configured output name can end in one, and one this repository generates does —
+/// `synthland_{TIMESTAMP}_B.csv`.
+///
+/// @throws std::invalid_argument for a path that is not one of this engine's outputs at all.
+OutputFamily output_family_of(const std::filesystem::path &path);
 
 /// @brief What a run produced.
 struct RunSummary {

@@ -117,9 +117,18 @@ export const api = {
       { method: 'POST', body: '{}' },
     ),
 
-  summary: (id: string, options: { sex?: string; variables?: string[] } = {}) => {
+  /**
+   * The reduced results of one output family.
+   *
+   * `family` defaults to `result`, the whole-population file. An income-stratified file is asked
+   * for by its category — `LowIncome`, `UpperMiddleIncome` — and the response lists every family
+   * the run wrote whichever one was asked for.
+   */
+  summary: (id: string,
+            options: { sex?: string; variables?: string[]; family?: string } = {}) => {
     const query = new URLSearchParams();
     if (options.sex) query.set('sex', options.sex);
+    if (options.family) query.set('family', options.family);
     if (options.variables?.length) query.set('variable', options.variables.join(','));
     const suffix = query.toString() ? `?${query}` : '';
     return request<ResultSummary>(`/api/runs/${encodeURIComponent(id)}/summary${suffix}`);

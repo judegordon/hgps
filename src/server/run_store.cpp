@@ -1,5 +1,7 @@
 #include "run_store.h"
 
+#include "hgps/engine.h"
+
 #include "json_view.h"
 
 #include <algorithm>
@@ -192,20 +194,41 @@ std::optional<std::filesystem::path> find_manifest(const std::filesystem::path &
     return std::nullopt;
 }
 
-std::filesystem::path RunRecord::result_csv() const {
-    // The main CSV, not one of the income-stratified ones. Their names are the main one's stem
-    // plus a suffix, so the shortest `.csv` name is the main one — which is stabler than matching
-    // "LowIncome", "MiddleIncome" and "HighIncome" by spelling.
-    std::filesystem::path best;
+std::map<std::string, std::filesystem::path> RunRecord::result_csvs() const {
+    // Classified by the writer's own rule rather than by a heuristic here. The heuristic this
+    // replaced was "the shortest .csv name is the main one", which is true of every file this
+    // engine writes and is not a rule anything enforces — and the family a file belongs to is now
+    // something three other places need to agree about (docs/SUMMARY.md).
+    std::map<std::string, std::filesystem::path> found;
     for (const auto &name : results()) {
-        if (std::filesystem::path{name}.extension() != ".csv") {
+        const std::filesystem::path path{name};
+        if (path.extension() != ".csv") {
             continue;
         }
-        if (best.empty() || name.size() < best.filename().string().size()) {
-            best = folder_ / name;
+
+        switch (api::output_family_of(path)) {
+        case api::OutputFamily::result:
+            found.emplace("result", folder_ / name);
+            break;
+        case api::OutputFamily::income_stratum: {
+            // The category's own name, which is the suffix the writer gave the file.
+            const auto stem = path.stem().string();
+            const auto underscore = stem.rfind('_');
+            found.emplace(underscore == std::string::npos ? stem : stem.substr(underscore + 1),
+                          folder_ / name);
+            break;
+        }
+        default:
+            break;
         }
     }
-    return best;
+    return found;
+}
+
+std::filesystem::path RunRecord::result_csv() const {
+    const auto files = result_csvs();
+    const auto main = files.find("result");
+    return main == files.end() ? std::filesystem::path{} : main->second;
 }
 
 std::vector<std::string> RunRecord::results() const {

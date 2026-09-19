@@ -48,6 +48,50 @@ test.describe('the results screen', () => {
     await expect(panel(page).locator('p.empty')).toHaveCount(0);
   });
 
+  test('charts an income-stratified file through the family selector', async ({ page }) => {
+    // The second pack, and only the second: it is the one whose `StaticLinear` model gives a
+    // person an income category, so it is the only fixture that writes stratum files at all
+    // (ADR 0047). Until this run the summary endpoint could reduce the whole-population file and
+    // nothing else, so a stratified series could be downloaded and not looked at — which is part
+    // of how 45 of its columns stayed empty for as long as they did.
+    await runToCompletion(page, 'synthetic-b');
+    await panel(page).getByRole('button', { name: 'See the results' }).click();
+
+    const screen = panel(page);
+    const family = screen.locator('#family');
+    await expect(family).toBeEnabled();
+
+    // One option per CSV the run wrote: the whole population and the three income categories the
+    // pack's configuration declares.
+    const options = await family.locator('option').allInnerTexts();
+    expect(options).toEqual(['HighIncome', 'LowIncome', 'MiddleIncome', 'result']);
+
+    const whole = await screen.locator('p#reduction').innerText();
+
+    await family.selectOption('LowIncome');
+    const stratified = panel(page).locator('p#reduction');
+    // The note names the file that was reduced, so the screen says which one is on show rather
+    // than leaving the reader to trust the selector.
+    await expect(stratified).toContainText('LowIncome.csv');
+    expect(await stratified.innerText()).not.toBe(whole);
+
+    // And it is a chart of that file, drawn, rather than an empty state.
+    await expect(panel(page).locator('div.chart-card').first()).toBeVisible();
+    await expect(panel(page).locator('div.chart-card svg path').first()).toBeVisible();
+    await expect(panel(page).locator('p.empty')).toHaveCount(0);
+  });
+
+  test('the family selector is disabled for a run with only one CSV', async ({ page }) => {
+    // The first pack has no income model, so there is one file and nothing to choose between. A
+    // selector offering one option would be a control that does nothing.
+    await runToCompletion(page, 'Synthetic');
+    await panel(page).getByRole('button', { name: 'See the results' }).click();
+
+    const family = panel(page).locator('#family');
+    await expect(family).toBeDisabled();
+    await expect(family.locator('option')).toHaveCount(1);
+  });
+
   test('downloads the result CSV the run actually wrote', async ({ page }) => {
     // The second pack, deliberately: its output is not called `result.csv` and is not called the
     // same thing twice, so a link built from a remembered name would fail here and nowhere else.

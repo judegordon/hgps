@@ -147,10 +147,22 @@ export interface SummarySeries {
   values: Array<number | null>;
 }
 
+/** One output family a run wrote: the whole-population CSV, or one income category's. */
+export interface SummaryFamily {
+  family: string;
+  file: string;
+}
+
 export interface ResultSummary {
   id: string;
   reduction: string;
   sex: string;
+  /** Which family this summary reduced: `result`, or an income category such as `LowIncome`. */
+  family: string;
+  /** The file it reduced, by the name the run wrote it under. */
+  file: string;
+  /** Every family the run wrote, so a client can offer the selector without a second request. */
+  families: SummaryFamily[];
   scenarios: string[];
   years: number[];
   variables: string[];

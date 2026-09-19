@@ -638,6 +638,74 @@ TEST_P(ServerApi, TheSummaryReducesTheResultCsvForCharting) {
     const auto refused = client.Get("/api/runs/" + id + "/summary?sex=other");
     ASSERT_TRUE(refused);
     EXPECT_EQ(400, refused->status);
+
+    // Which output family was reduced, and every one the run wrote. `result` is the default, so a
+    // client that knows nothing about families gets the whole-population file as it always did.
+    EXPECT_EQ("result", document.at("family").get<std::string>());
+    ASSERT_TRUE(document.contains("families"));
+    ASSERT_FALSE(document.at("families").empty());
+
+    // The listing is in family-name order, not "the default first": a client renders a selector
+    // from it and an order that depended on which family was asked for would reshuffle the options
+    // every time one was chosen.
+    bool listed = false;
+    for (const auto &entry : document.at("families")) {
+        if (entry.at("family") == "result") {
+            listed = true;
+            EXPECT_EQ(document.at("file").get<std::string>(),
+                      entry.at("file").get<std::string>());
+        }
+    }
+    EXPECT_TRUE(listed) << document.at("families").dump(2);
+
+    const auto bad_family = client.Get("/api/runs/" + id + "/summary?family=Nonesuch");
+    ASSERT_TRUE(bad_family);
+    EXPECT_EQ(400, bad_family->status);
+    // The message names what the run did write, so a client can recover without a second request.
+    EXPECT_NE(std::string::npos, bad_family->body.find("result"));
+}
+
+TEST_P(ServerApi, TheSummaryReducesEveryOutputFamilyTheRunWrote) {
+    // The endpoint could reduce the whole-population CSV and nothing else until this run, so a
+    // run's income-stratified files could be downloaded and never looked at — which is part of
+    // how 45 of their columns stayed empty (docs/SUMMARY.md).
+    ServedFixture served{"api_summary_families"};
+    auto client = served.client();
+
+    const nlohmann::json body{{"example", example()}};
+    const auto created = client.Post("/api/runs", body.dump(), "application/json");
+    ASSERT_EQ(201, created->status) << created->body;
+    const auto id = json_body(created).at("id").get<std::string>();
+    ASSERT_EQ("completed", served.wait_for_run(id).value("state", std::string{}));
+
+    const auto document = json_body(client.Get("/api/runs/" + id + "/summary"));
+
+    // How many families this pack writes is the pack's business, and it is read out of its own
+    // configuration rather than assumed: one for the whole population, plus one per income
+    // category when the project asks for the stratified output at all.
+    const auto configuration =
+        json_body(client.Get(std::string{"/api/examples/"} + example())).at("document");
+    const auto &income = configuration.at("project_requirements").at("income");
+    const std::size_t strata =
+        income.at("enabled").get<bool>() && income.at("income_based_csv_output").get<bool>()
+            ? std::stoul(income.at("categories").get<std::string>())
+            : 0U;
+    ASSERT_EQ(strata + 1U, document.at("families").size()) << document.at("families").dump(2);
+
+    // Every one of them reduces, and to the same years and columns as the main file: the stratum
+    // files carry the whole-population header, which is the whole reason a client can offer one
+    // selector over all of them.
+    for (const auto &entry : document.at("families")) {
+        const auto family = entry.at("family").get<std::string>();
+        const auto response = client.Get("/api/runs/" + id + "/summary?family=" + family);
+        ASSERT_TRUE(response);
+        ASSERT_EQ(200, response->status) << response->body;
+
+        const auto one = json_body(response);
+        EXPECT_EQ(family, one.at("family").get<std::string>());
+        EXPECT_EQ(entry.at("file").get<std::string>(), one.at("file").get<std::string>());
+        EXPECT_EQ(document.at("years"), one.at("years")) << family;
+    }
 }
 
 TEST(ServerApi, AnUnknownApiPathIsA404AndNotTheIndexPage) {

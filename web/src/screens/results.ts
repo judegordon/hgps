@@ -17,6 +17,11 @@ interface State {
   run: RunInfo | null;
   summary: ResultSummary | null;
   sex: string;
+
+  /// Which output family is charted: `result`, or an income category. A run that wrote stratum
+  /// files had no way to show them at all before this run — the endpoint could only reduce the
+  /// whole-population one.
+  family: string;
   selected: Set<string>;
   view: 'charts' | 'table';
   error: unknown;
@@ -35,6 +40,7 @@ export function resultsScreen(root: HTMLElement): { load: (runId?: string) => vo
     run: null,
     summary: null,
     sex: 'all',
+    family: 'result',
     selected: new Set(),
     view: 'charts',
     error: null,
@@ -52,7 +58,11 @@ export function resultsScreen(root: HTMLElement): { load: (runId?: string) => vo
 
       if (chosen) {
         state.run = await api.run(chosen);
-        state.summary = await api.summary(chosen, { sex: state.sex });
+        // A different run may not have the family the last one was showing — one with income
+        // analysis off has only `result` — so the selection falls back rather than 400ing.
+        state.summary = await api.summary(chosen, { sex: state.sex, family: state.family })
+          .catch(() => api.summary(chosen, { sex: state.sex }));
+        state.family = state.summary.family;
         if (state.selected.size === 0) {
           const offered = PREFERRED.filter((v) => state.summary?.variables.includes(v));
           state.selected = new Set(offered.length > 0 ? offered.slice(0, 3)
@@ -76,7 +86,8 @@ export function resultsScreen(root: HTMLElement): { load: (runId?: string) => vo
     state.busy = true;
     render();
     try {
-      state.summary = await api.summary(state.runId, { sex: state.sex });
+      state.summary = await api.summary(state.runId, { sex: state.sex, family: state.family });
+      state.family = state.summary.family;
       state.error = null;
     } catch (error) {
       state.error = error;
@@ -180,6 +191,23 @@ export function resultsScreen(root: HTMLElement): { load: (runId?: string) => vo
       void reloadSummary();
     });
 
+    // The output family. One option per CSV the run wrote — the whole population, and one per
+    // income category — so a stratified series can be charted rather than only downloaded.
+    const families = state.summary?.families ?? [{ family: 'result', file: '' }];
+    const family = el('select', { id: 'family' });
+    for (const entry of families) {
+      const option = el('option', { value: entry.family, text: entry.family });
+      if (entry.family === state.family) option.selected = true;
+      family.append(option);
+    }
+    family.disabled = families.length < 2;
+    family.addEventListener('change', () => {
+      state.family = family.value;
+      // The variable selection is kept: every family has the same columns, which is the whole
+      // reason the stratum files carry the main file's header.
+      void reloadSummary();
+    });
+
     const toggle = el('button', { class: 'action quiet', type: 'button' });
     toggle.textContent = state.view === 'charts' ? 'Show the table' : 'Show the charts';
     toggle.addEventListener('click', () => {
@@ -189,6 +217,7 @@ export function resultsScreen(root: HTMLElement): { load: (runId?: string) => vo
 
     const row = el('div', { class: 'row' },
       el('label', { for: 'result-run', text: 'Run' }), chooser,
+      el('label', { for: 'family', text: 'File' }), family,
       el('label', { for: 'sex', text: 'Sex' }), sex,
       toggle);
 
@@ -207,7 +236,8 @@ export function resultsScreen(root: HTMLElement): { load: (runId?: string) => vo
       return;
     }
 
-    root.append(el('p', { class: 'note', text: state.summary.reduction }));
+    root.append(el('p', { class: 'note', id: 'reduction' },
+                    `${state.summary.file}: ${state.summary.reduction}`));
 
     const picker = el('div', { class: 'row' });
     for (const variable of state.summary.variables) {
