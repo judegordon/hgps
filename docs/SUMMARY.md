@@ -1,13 +1,13 @@
-# Summary of the eighth build run
+# Summary of the ninth build run
 
 What was built, what is proven, and where it stops. Written at the end of the run it describes.
 Earlier runs' summaries are in the history of this file: the first covered the HLM surface, the
 second the FINCH one, the third the library split and the index-keyed store, the fourth `HLM_India`
 and the first CI workflow, the fifth the local server, the frontend and switchable deviations, the
 sixth a second fixture pack, a browser in CI, and nine findings, the seventh the weight categories,
-the ThreadSanitizer split and the analysis module's channels. A comment in the code that cites
-"`docs/SUMMARY.md`, finding N" means the run that wrote the comment; `git log -p docs/SUMMARY.md`
-is where to find it.
+the ThreadSanitizer split and the analysis module's channels, the eighth the 45 empty columns and
+the comparison over every output family. A comment in the code that cites "`docs/SUMMARY.md`,
+finding N" means the run that wrote the comment; `git log -p docs/SUMMARY.md` is where to find it.
 
 ## The short version
 
@@ -15,29 +15,29 @@ A deterministic C++20 reimplementation of the Health-GPS microsimulation, with t
 model surface implemented, three examples compared against the baseline, and three ways to use it:
 as a library, from a command line, and from a browser.
 
-**This run had one subject seen from six sides**: the previous run found that 45 columns of every
-income-stratified result file were identically zero in this build and filled in the baseline's, and
-that **nothing had ever compared those files at all**. The columns are filled, the comparison covers
-every CSV a run writes, a script asks of the files themselves which columns are empty on each side,
-a fixture produces every output family this engine can write, the server and the frontend can chart
-a stratified series, and the whole lot runs in CI.
+**This run changed what the word "equivalent" is worth.** The previous run found that the
+comparison's threshold was `4.5 ×` an *estimated* standard error and that the same build against
+the same baseline therefore produced anywhere between 0 and 45 failures depending on which twenty
+seeds were drawn. It spent a failure budget of 3 rather than pretend otherwise. This run replaced
+the threshold with a **family-wise false-positive rate of 1%**, measured it on a null before
+adopting it, and removed the budget from every example.
 
-> **The check that would have caught it is the one that was missing, and it is not the comparison.**
-> A statistical comparison cannot express "the baseline has numbers here and we have nothing": a
-> column of zeros against a column of numbers either fails for ever, or — where the column is
-> legitimately absent for an example — is skipped on both sides and says nothing. On the two HLM
-> examples, where nobody has an income category, the stratum files are empty on *both* sides and
-> agree about nothing. `scripts/column-coverage.py` asks the blunter question of the files
-> themselves, and is a CI job.
+> **A threshold is not a rate, and the difference is the whole run.** `4.5 s` asks how many
+> estimated standard errors a difference is, and then treats the estimate as if it were the truth.
+> Measured here for the first time, over 400 seeds: a twenty-seed standard deviation is between
+> **0.63 and 1.38** of the whole sweep's at the 1st and 99th percentiles, so `4.5 s` was anywhere
+> between about **2.8 and 8.8 true sigma**. Welch's t is the same statistic referred to the
+> distribution it actually has; Holm over every test a run performs is the multiplicity count the
+> code keeps rather than a number in a comment. Together they make the rate something chosen.
 
 | | |
 |---|---:|
-| Tests, C++ | **863** in 102 suites — 866 CTest entries — passing under release, debug, ASan+UBSan and TSan, where 773 of them run ([ADR 0046](decisions/0046-what-runs-under-which-sanitizer.md)) |
-| Tests, the equivalence harness's own | **63** (was 50) |
+| Tests, C++ | **863** in 102 suites — **867** CTest entries — passing under release, debug, ASan+UBSan and TSan, where **773** of them run ([ADR 0046](decisions/0046-what-runs-under-which-sanitizer.md)) |
+| Tests, the equivalence harness's own | **94** (was 63) |
 | Tests, the frontend | **48** unit, **21** end to end in a browser |
-| Comparisons against the baseline this run | **297,494** over four stored references, **3** out of tolerance, plus a 60-seed confirmation of 112,871 — all four references regenerated |
-| Source | `src/` 153 files; `tests/` 73 files; 46,678 lines of C++ between them; `web/src/` 18 TypeScript files and `web/e2e/` 6, 3,136 lines |
-| Documents | **14**, plus **47 ADRs** |
+| Comparisons against the baseline this run | **124,766** tests over four stored references, **0** failures, **no budget on any example** — plus **922,564** null tests calibrating the rule and a **200-seed** study of both implementations |
+| Source | `src/` 153 files; `tests/` 73 files; 46,713 lines of C++ between them; the equivalence harness 4,226 lines of Python in six files; `web/src/` 18 TypeScript files and `web/e2e/` 6, 3,136 lines |
+| Documents | **14**, plus **48 ADRs** |
 | CI | **16 jobs** — see below |
 | Findings this run | **5** |
 
@@ -45,293 +45,296 @@ a stratified series, and the whole lot runs in CI.
 
 | | Task | Outcome |
 |---:|---|---|
-| 1 | Orientation, pre-flight, CI on HEAD | **15 of 15 green** on `1ef6062`, run 35405669788, read per job with `gh`. |
-| 2 | The column inventory and the coverage script | **Done.** `scripts/column-coverage.py`, and the starting state recorded: **198 findings** — 45 columns in each of `KevinHall_FINCH`'s four stratum files, and `mean_age`, `mean_age2`, `mean_age3` in each of the six stratum files of the two HLM examples. |
-| 3 | The fixtures | **Done**, and it needed a new model family. The second pack's static model is now `StaticLinear` — the only family that assigns an income category, and the only one whose model file carries the region and ethnicity prevalence ([ADR 0047](decisions/0047-the-second-pack-carries-the-stratified-dimensions.md)). **Two findings.** |
-| 4 | The harness over every file family | **Done.** Every CSV a run writes is reduced and compared, with its own counts, and a family one side writes and the other does not is a failure rather than a skip. All four references regenerated against the baseline binary. |
-| 5 | The 45 columns | **Done.** `column coverage: PASS` on all three examples, every all-zero count matching the baseline's. The whole-population CSV is **byte-identical** before and after on both examples that have one. **One finding**, and it belongs to upstream. |
-| 6 | The coverage CI job | **Done.** `column coverage · three examples`, sixteenth job, and a step in `scripts/check.sh`. |
-| 7 | The server and the frontend | **Done.** `GET /api/runs/{id}/summary?family=…`, a selector on the results screen, two more end-to-end tests. |
-| + | What it cost | `KevinHall_FINCH` is **3% slower and 11% heavier**, measured against the commit before the change on the same machine. Both are the price of the columns and both are accounted for. |
+| 1 | Orientation, pre-flight, CI on HEAD | **16 of 16 green** on `65e9a22`, run 35423786489, read per job with `gh`. |
+| 2 | The 200-seed runs, and the candidate rule | **Done.** `sweep.py` (run many seeds once, store the reductions) and `calibrate.py` (score them many ways) are the new shape: a study never re-runs a sweep. 200 seeds of both implementations on `KevinHall_FINCH`, 400 of this build on `HLM_France` and on `HLM_India`. **One finding, and it stopped the first sweep dead.** |
+| 3 | Is the `std_polyunsaturatedfattyacid` offset real? | **No**, and the numbers are not close: **+0.135%** at 199 seeds where twenty seeds said −1.1%, the other sign, with **0 of its 44 series** below p = 0.05. Answered before the rule was adopted, so the rule could not be what decided it. **One finding.** |
+| 4 | Null calibration on all three examples | **30 pairs of twenty seeds, 922,564 tests, 0 failures against 0.30 expected**, with the raw p-value tail below uniform at every threshold on every example. No iteration was needed: the rule was conservative on the first measurement and is conservative for a reason that can be stated. |
+| 5 | Detection against the perturbation set | **All three previously-detected cases still detected**, at twelve, twenty and sixty seeds. **At six they are not, and that is a finding** rather than a regression — found by the ThreadSanitizer preset on the first full `check.sh` after the change. |
+| 6 | Adopt: harness, references, `check.sh`, CI | **Done**, with **zero budget on every example**. All four stored references re-scored under the new rule; none fails. `--max-failures` is gone from the harness entirely. |
+| 7 | Docs | [equivalence-method.md](equivalence-method.md) §4 rewritten around the rule, with the calibration tables; [equivalence.md](equivalence.md) with the 200-seed answer and the null tables; [ADR 0048](decisions/0048-a-comparison-with-a-stated-false-positive-rate.md); backlog re-ranked with a new correctness item at 2. |
 
 ## The five findings, and what found each
 
 | | What | Found by |
 |---|---|---|
-| 1 | **`AssignedAttributes::region` and `::ethnicity` were never set by anything**, so the two branches in `initialise_output_channels` that read them had never fired. `KevinHall_FINCH`'s `mean_region` column is there because its config declares `Region` as a level-0 risk factor and the mapping loop adds it, not because of the branch meant to decide it | giving the second fixture pack a region and finding it had no column |
-| 2 | **Classifying a stratum file by the *shape* of its CamelCase suffix is wrong.** The second pack's configured output name is `synthland_{TIMESTAMP}_B.csv`, and `_B` is a CamelCase suffix that is not a family | the enumeration test counting four stratum files where the pack writes three |
-| 3 | **Every demographic standard deviation that is also a declared risk factor has its square root taken twice in the baseline.** `std_region` is 0.122097 in a band of 50 whose spread is 0.745, and 0.122097 is `sqrt(0.745/50)`. The finishing loop walks the mapping and then a fixed list of demographic names, and a name in both is finished twice | writing the stratified standard-deviation pass beside the baseline's and asking why the two loops overlap |
-| 4 | **The enumeration test asserted the whole family list where only one fixture pack runs.** Under ThreadSanitizer the second pack does not run ([ADR 0046](decisions/0046-what-runs-under-which-sanitizer.md)), so "every family the engine can write is produced by a fixture" is false there — and asserting it is asserting something about the sanitizer. It derives the expectation from each pack's own configuration now, and makes the whole-enumeration claim only where both packs run | running the TSan preset, which is the only configuration in which the test was wrong |
-| 5 | **The comparison's allowance is estimated from the same twenty draws it is judging**, so a series at a small signed offset well inside its allowance fails in *every year at once* when a seed set gives a tight sample. It is why the failure count on one example ranges from 0 to 45 across equally valid seed sets, and it is a property of the whole-population comparison that is older than this run | three comparisons out of tolerance at twenty seeds, four at sixty and no cell in common — then re-scoring the sixty-seed run over subsets of itself, which contradicted the obvious explanation |
+| 1 | **The comparison's threshold had no false-positive rate, and how much it wandered is now measured rather than argued.** A twenty-seed standard deviation is 0.63 to 1.38 of the 400-seed one at the 1st and 99th percentiles, and as far as 1.96 and 4.47 at the extremes — so `4.5 s` was between about 2.8 and 8.8 true sigma depending on the draw | running 400 seeds of two examples and scoring every disjoint block of twenty against the whole sweep |
+| 2 | **The 1.1% `std_polyunsaturatedfattyacid` offset is not real.** At 199 seeds of both implementations it is **+0.135%**, not −1.1%; the largest of its 44 series is 1.95 standard errors and none reaches p = 0.05. `std_fat` is +0.070% with nothing surviving its own Bonferroni | two hundred seeds, because the only way to answer a question about a difference this small is more seeds |
+| 3 | **This build refuses `KevinHall_FINCH` at seed 80 and the baseline does not.** The energy balance diverges for one 24-year-old man in simulated year 2031, to −1.7×10²⁸³ kg, deterministically, with no compatibility flag involved — and with a **three-year precursor** visible in the band means, so a run that stopped in 2030 would have written a contaminated number and exited zero | the 200-seed sweep, which killed itself on seed 80 the first time it was run |
+| 4 | **At six seeds the perturbed self-check can no longer see a shifted point mass, and the old rule only appeared to.** A point mass shifted by any amount gives an exact p-value of `2/C(2n, n)`, doubled for the two values tested — 4.3×10⁻³ at n = 6, which Holm over the run's tests cannot take near α. The old rule detected it at any seed count because it compared a point mass against the printed-precision *floor* rather than testing it | the ThreadSanitizer preset, which is the only configuration that runs the self-checks at six seeds |
+| 5 | **The report and the stored JSON picked the "worst" comparison with a key that saturates.** Holm-adjusted p is exactly 1 for almost every test in a clean run, so ordering on it alone left thousands of ties and reported whichever one happened to be built first — which is how `std_polyunsaturatedfattyacid` appeared to have a worst-case p of 0.649 in a run where it did not. A defect in code this run wrote, in the first output it produced | reading a report rather than running a test, which is the uncomfortable half |
 
-Finding 3 is reproduced here rather than fixed, and [docs/upstream-reports.md](upstream-reports.md)
-is the fifth report. A standard deviation is a number somebody may have published; changing it is a
-decision that belongs with the model rather than with a reimplementation, and the harness compares
-these files column for column, so a quiet correction would be a difference nobody chose.
+## What the rule is now
 
-## What the 45 columns were, and what they are now
+The rules themselves are [docs/equivalence-method.md](equivalence-method.md) §4, written so that a
+reviewer can check them without reading the script. In brief:
 
-`calculate_income_based_series` accumulated `count`, the factor means, `mean_income`,
-`mean_physical_activity` and the diseases' prevalence and incidence, and nothing else. The stratum
-files carry the whole-population file's header and the writer writes a zero for a channel with no
-stratified counterpart — which is right for a channel that has none and wrong for one that should.
+```
+alpha = 0.01, family-wise, per example, over every test the run performs
+```
 
-It is now the whole-population series of `series.cpp`, per stratum, written to be read beside it:
-the same two passes, the same denominators, the same resolve-once discipline. What that added:
+Per series, per (family, scenario, year, sex, variable), on the two samples of twenty seeds:
 
-| | Columns | Where they come from |
-|---|---:|---|
-| `deaths`, `emigrations` | 2 | somebody who left this year, counted in the stratum they were in — this file skipped every inactive person outright |
-| `mean_yll`, `mean_yld`, `mean_daly` | 3 | over the living **plus** the year's dead, which is the denominator the whole-population series uses |
-| `mean_age`, `mean_age2`, `mean_age3` | 3 | the row's own key, written for **every** configured stratum whether or not anybody is in it |
-| `mean_gender`, `mean_region`, `mean_ethnicity`, `mean_income_category` | 4 | read off the person rather than out of the factor map |
-| the `std_` columns | 33 | a second pass over the population, from the finished mean |
-| **total** | **45** | |
-
-**All 45 are matched. None is a flagged deviation and none is a documented exclusion**, which is the
-tally the ruling asked for: this build had no number where the baseline had one, so there was nothing
-to differ about on purpose. The two documented exclusions this example has are unchanged and belong
-to the whole-population file and to a family, not to these columns: `std_income` (**B-22**, the
-baseline emits the column and never fills it) and the `IndividualIDTracking` family
-([docs/backlog.md](backlog.md) item 2).
-
-The check that says so is not one test but three:
-
-- **`column coverage: PASS`** on all three runnable examples: every all-zero count now matches the
-  baseline's, family by family ([docs/equivalence.md](equivalence.md)).
-- **The comparison**, which now covers those files: `KevinHall_FINCH` went from 22,616 comparisons
-  to **111,836**, and from **15,390 out of tolerance to 3**.
-- **Eleven unit tests** over a cohort small enough to add up in the head
-  (`tests/model/analysis_income_test.cpp`), which is the only way to say a column means what the
-  baseline's definition says rather than that it agrees with a number we also produced.
-
-**And the whole-population CSV did not change**: byte for byte, `HLM_France` and `KevinHall_FINCH`,
-before and after.
-
-**What it cost, measured rather than assumed.** Five runs of each binary, alternating, on an idle
-machine, against the shipped configurations ([docs/performance.md](performance.md)):
-
-| | Wall, best of 5 | Peak memory |
+| The series | What is tested | With |
 |---|---|---|
-| `HLM_France` | 1.01 → **1.02 s** | 42.7 → **43.7 MiB** |
-| `KevinHall_FINCH` | 3.38 → **3.49 s, 3% slower** | 78.8 → **87.6 MiB, +11%** |
+| continuous | location | Welch's t on the two samples |
+| continuous | dispersion | Welch's t on each sample's absolute deviations from its own median — the two-sample Brown–Forsythe test |
+| lattice-valued or a point mass | the whole discrete distribution | the exact test that was already there |
 
-The 3% is the second pass over the population that a standard deviation from the finished mean
-needs. The 8.8 MiB is arithmetic and the multiplier is the horizon: 46 more channels per (stratum,
-sex) is 327 KB per year-result, and `Engine::run` holds every year of a scenario before any of it is
-written, because the row order is the output contract
-([ADR 0020](decisions/0020-output-single-owner-defined-row-order.md)). Twenty-two year-results is
-7.2 MB, and the map nodes are most of the rest. There is nothing to optimise: the channels exist
-because the columns are written.
+Every p-value goes into **one** Holm correction. A test fails when its adjusted p-value is at most
+0.01 *and* its difference is larger than the baseline's six printed digits can express — the second
+clause can only remove failures, so the 1% stays an upper bound.
 
-## The three marginal comparisons, and what they turned out to be
+**Five statistics became two.** The mean, the standard deviation and the 5th, 50th and 95th
+percentiles were five noisy functions of one twenty-seed sample, each with its own allowance and
+each taking a slot in the family. A lattice series keeps only its exact test, because its mean is a
+function of the counts that test already covers. `KevinHall_FINCH` went from 111,836 comparisons to
+**45,544 tests**, and from three out of tolerance to **none**.
 
-`KevinHall_FINCH` is the one example whose stratum files have numbers in them, so it is where the
-change to what is compared shows: **22,616 comparisons became 111,836, and 15,390 out of tolerance
-became 3.** The three are the only thing in this run that is not simply better than before, so they
-get the space.
+**What it costs, stated rather than buried.** A rule with a stated rate is weaker than one whose
+threshold is partly luck, and the two places it is weaker are written down: a 20-against-20
+location test needs **t = 6.30** where the old rule asked for **z = 4.5** of the same estimated
+standard error, and a rare-event series on the exact path needs **17 of 20** seeds to move rather
+than 14. Neither is a loss of information. The first is exactly the estimation noise the old rule
+ignored; the second is the price of one multiplicity family instead of two levels — `4.5 sigma` and
+`0.05/5000` — that never had to agree.
 
-**They are not reproducible.** At 60 seeds there are 4 out of 112,871 — and **not one of them is a
-cell that failed at 20**. A defect fails harder with more seeds; these move. The whole-population
-file is 0 of 22,616 at 20 seeds and 0 of 22,715 at 60, with no budget at all.
+## The calibration, which is the part that makes the rate a fact
 
-**The obvious explanation was wrong, and the measurement that showed it is the finding.** The first
-reading was that these are stratified low-count series — a rate or a spread built from a handful of
-events inside one income stratum, where income category is itself a draw. It fits every cell that
-failed. Re-scoring the 60-seed run over 20-seed subsets of itself says otherwise:
+**Every failure in this table is a false positive by construction**: one build against itself, on
+disjoint seed sets of twenty, same config, nothing perturbed, only the seeds differ.
 
-| 20 seeds drawn from the 60 | Out of tolerance |
+| Example | Pairs of 20 | Tests the floor does not waive | Runs with ≥1 failure | Expected at α = 0.01 |
+|---|---:|---:|---:|---:|
+| `HLM_France` | 10 | 163,505 | **0** | 0.10 |
+| `HLM_India` *(reduced cohort)* | 10 | 311,370 | **0** | 0.10 |
+| `KevinHall_FINCH` | 10 | 447,689 | **0** | 0.10 |
+| **total** | **30** | **922,564** | **0** | **0.30** |
+
+**Thirty runs cannot see a rate of 1% with any precision, and that table is not where the
+confidence comes from.** A run's verdict turns only on whether any raw p-value falls below about
+`alpha/m`, so the honest check is the whole tail, pooled — observed of expected:
+
+| p below | `HLM_France` | `HLM_India` | `KevinHall_FINCH` | all three |
+|---|---:|---:|---:|---:|
+| 10⁻² | 965 of 1,635 | 1,829 of 3,114 | 2,958 of 4,477 | **5,752 of 9,226** |
+| 10⁻³ | 42 of 164 | 167 of 311 | 206 of 448 | **415 of 923** |
+| 10⁻⁴ | 1 of 16.4 | 16 of 31.1 | 17 of 44.8 | **34 of 92.3** |
+| 10⁻⁵ | 0 of 1.64 | 2 of 3.11 | 1 of 4.48 | **3 of 9.23** |
+| 10⁻⁶ | 0 of 0.16 | 0 of 0.31 | 0 of 0.45 | **0 of 0.92** |
+| 10⁻⁷ | 0 of 0.02 | 0 of 0.03 | 0 of 0.04 | **0 of 0.09** |
+
+Observed is **below** expected at every threshold on every example, so the rule is conservative and
+the 1% is an upper bound. That is the safe direction, and the reason is not mysterious: a large
+minority of these series are pinned by calibration or are a handful of events, and both rules that
+handle those — the exact test and the printed-precision floor — are conservative by construction.
+Anti-conservative behaviour in that tail is what would have stopped the rule being adopted.
+
+**And the measurement is a test rather than a document.** `tests/equivalence/null_check.py` runs
+four null comparisons of the synthetic fixture pack in about fifteen seconds at every commit, and
+asserts at most one reports anything. The bound is one rather than zero, and the file says why: at
+most zero would fail 4% of the time for no reason, which over the ten build configurations CI runs
+is a flake a third of the time.
+
+## The 200-seed answer
+
+The previous run flagged `std_polyunsaturatedfattyacid` as **about 1.1% below** the baseline's and
+warned that a rule change hiding it would be the wrong fix. So the question was answered first,
+with two hundred seeds of both implementations, and independently of the rule:
+
+| | Series | Mean difference | Range | Largest, in standard errors | Below p = 0.05 |
+|---|---:|---:|---|---:|---:|
+| `std_polyunsaturatedfattyacid` | 44 | **+0.135%** | −0.227% to +0.441% | **1.95** | **0 of 44** |
+| `std_fat` | 44 | **+0.070%** | −0.177% to +0.438% | 2.59 | 5 of 44 |
+| `mean_polyunsaturatedfattyacid` | 38 | +0.004% median | largest −0.074% | | 4 of 38 |
+| `mean_fat` | 31 | −0.001% median | largest −0.039% | | 3 of 31 |
+
+**The sign is wrong, the size is wrong, and nothing is significant.** There is no mechanism to find
+in the two-stage factor model, nothing to fix and nothing to flag under
+[ADR 0041](decisions/0041-deliberate-deviations-are-switchable.md). What there was is a rule that
+could turn a 1.5-standard-error difference into a failure in every year at once whenever a seed set
+gave a tight sample.
+
+The honest reading of how close this came to being a finding: **at twenty seeds a
+1.5-standard-error difference is not detectable by any rule with a stated rate.** The old rule
+appeared to detect it because its threshold was partly luck. The way to answer a question like this
+is more seeds, and it cost ninety-five minutes.
+
+## One seed in two hundred, which is the run's uncomfortable finding
+
+Running `KevinHall_FINCH` two hundred times — which neither implementation had been — found a seed
+this build **refuses** and the baseline completes:
+
+```
+person 1222 (male, age 24) weighs -1.702e+283 kg after the energy balance, below the
+configured minimum of 1 kg for 'Weight'
+```
+
+Deterministic and reproducible; **not** a compatibility flag, since `--baseline-compat none` fails
+identically; in simulated year **2031**, the tenth of the horizon, with stopping at 2030 completing
+cleanly. And there is a **three-year precursor**: the largest band mean weight is flat at 87.28 kg
+through 2027 and then 87.32, **92.1**, **98.5** in 2028–2030. A shorter run would have written
+those and exited zero.
+
+The baseline finished all two hundred of its own seeds, and over the 199 both sides completed the
+largest band mean weight is 123.3 kg there against 123.5 kg here. **But the two draw different
+random streams, so seed 80 is not the same cohort on both sides**, and this is not proof the
+instability is ours rather than the model's. It is one in two hundred here, none in two hundred
+there, and unexplained. It is [docs/backlog.md](backlog.md) item 2 — the only correctness item on
+that list — and it is in [docs/briefing.md](briefing.md), because if the coefficients admit a
+runaway it matters upstream too, where nothing stops it being written out.
+
+`sweep.py --tolerate-failures` drops such a seed from both sides and records it, because a
+two-hundred-seed study losing its other 199 runs to one seed would be the wrong trade. **A
+comparison never does this**: a run that does not finish is a failure and `run.py` treats it as
+one.
+
+## The separation that made all of this affordable
+
+`run.py` runs both implementations and compares them in one process, which is right for a check and
+wrong for a study: answering "does the rule deliver its rate?" means scoring the *same* seeds many
+different ways, and re-running a two-hundred-seed sweep for each way is hours of machine time for
+nothing. So a sweep is now separate from a scoring:
+
+| | |
 |---|---|
-| seeds 1–20 (what `check.sh` runs) | **3** |
-| seeds 21–40 | **1** |
-| seeds 41–60 | **1** |
-| 100 random draws of twenty | min **0**, median **2**, mean **3.4**, max **45**; **28 of 100** had none |
+| `sweep.py` | many seeds of one example, run once, reduced once, stored in the reference format `run.py` already reads |
+| `calibrate.py` | the studies: `--mode null` (the calibration), `--mode series` (one variable tested directly), `--mode spread` (how far a twenty-seed standard deviation wanders) |
+| `null_check.py` | the calibration at a scale CTest can pay for, as a test |
 
-**The worst draw's 45 failures are 32 in one whole-population series** —
-`result/std_polyunsaturatedfattyacid`, 21 years of it on the mean and 11 on the median — with seven
-more in `result/std_fat`. Six groups in all, in the file this project has been comparing for eight
-runs. The mechanism is the allowance: it is `4.5 × sqrt((s_b² + s_n²)/n)`, estimated from the same
-twenty draws it is judging, so a tight sample shrinks it and any small **signed** offset in that
-series fails in every year at once. `std_polyunsaturatedfattyacid` sits about **1.1%** below the
-baseline's while its mean agrees to **0.109%**, and it uses 0.60× of its allowance over all 60 seeds.
-
-So this run **spends a failure budget** — the first since the fifth run: `--max-failures 3` on
-`KevinHall_FINCH` and zero everywhere else, in `scripts/check.sh` and in the CI matrix entry, sized
-at exactly what this build produces at the seeds the check runs and therefore failing on any
-increase. What it hides is stated where it is set. [docs/backlog.md](backlog.md) item 6 is the work
-that removes it, and it is statistics rather than a constant — **the sigma limit was deliberately
-not touched**, because re-deriving it clears one of the three cells and neither 60-seed one, makes
-the threshold stricter for the smaller sweeps where `HLM_India` sits at 0.987× of its allowance, and
-does nothing about a whole series failing together.
-
-## The harness now compares every file a run writes
-
-`find_result_csv` existed precisely to *exclude* the stratified files. It is gone; `result_families`
-returns every CSV by family, the reduction's key begins with the family, and the report has a
-section per family with its own counts. Three decisions inside that are worth stating because none
-of them is a consequence of the others ([docs/equivalence-method.md](equivalence-method.md) §2.1):
-
-- **A rate's head count is its own family's.** The lattice detector rebuilds a count-weighted
-  variable's numerator as `value × count`; reading the whole population's count for a stratum's rate
-  would give it a number two or three times too large and classify the series wrongly.
-- **The emptying-band exclusion comes from the whole-population file and applies to every family.**
-  A band is excluded because immigration cannot refill it once it empties, so the two
-  implementations' *cohorts* disagree there (B-21). A stratum band being empty is not that, and
-  excluding those would drop the stratified output of every band nobody is in — which on the two
-  HLM examples is every band there is.
-- **A family one side writes and the other does not is a failure, not a skip.** The one recorded
-  exception is the baseline's individual-tracking file, and its premise is checked rather than
-  trusted: the exclusion holds only while that file is *empty*, and turns back into a failure with
-  its reason if upstream ever puts a row in it.
-
-The reference format gained a `family` column, so all four stored references were regenerated
-against the baseline binary. A reference written before the change is refused **by name** rather
-than failing on its first row.
-
-## The fixtures, and the model family they needed
-
-Neither synthetic pack assigned an income category, so no test that ran a configuration could reach
-`calculate_income_based_series` at all. That is not a missing test — it is a place with nowhere to
-put one, because `person.income` is assigned by the `StaticLinear` family and by nothing else, and
-`RegionFile` and `EthnicityFile` are read from a `StaticLinear` model file and nowhere else.
-
-So the second pack's static model is now `StaticLinear`, with a categorical income model per
-category, region and ethnicity prevalence tables, a `RuralPrevalence` block and a simple
-physical-activity model — and its project requirements switch on every dimension those make
-possible ([ADR 0047](decisions/0047-the-second-pack-carries-the-stratified-dimensions.md)). It keeps
-its `EBHLM` dynamic model, because its active intervention has to reach a dynamic model that applies
-it (B-25). The first pack is unchanged and assigns none of this, which is what makes
-`TestSimulation.AChannelExistsOnlyWhenAModelActuallyAssignsIt` a test of **both** halves of its rule
-rather than only the half that says "no".
-
-`hgps::api::all_output_families()` is the enumeration, in the public header because it is part of
-what a caller is told about a run, and
-`OutputFamilies.EveryFamilyTheEngineCanWriteIsProducedByAFixture` fails if one has no pack behind
-it. Nothing enumerated that before, so "is every output covered?" was not a question anything could
-be asked.
-
-## The server and the frontend
-
-`GET /api/runs/{id}/summary?family=…` reduces any of a run's CSVs; `families` is in every response
-whichever one was asked for, so a selector needs no second request, and an unknown family is a 400
-naming the ones the run did write. The results screen has a **File** selector beside **Run** and
-**Sex**, disabled when there is one file to choose from, and the reduction note names the file it
-reduced rather than leaving the reader to trust the selector.
-
-`RunRecord::result_csv` used to pick "the shortest `.csv` name", which is true of every file this
-engine writes and is not a rule anything enforces. It classifies by the engine's own rule now.
+Everything in them comes from `run.py` — imported, not copied — so a sweep goes through exactly the
+code path the real comparison does, including the emptying-band exclusion taken as the union over
+the whole sweep. The three null calibrations, the 200-seed answer, the spread measurement and every
+re-score in this document came out of four sweeps and cost no extra simulation.
 
 ## CI, per matrix entry
 
-Sixteen jobs. Run **35421861281** on `d76b3b2`, every entry read with `gh run view` rather than from
+Sixteen jobs. Run **35435361005** on `3bc34d9`, every entry read with `gh run view` rather than from
 the run's own summary. **16 of 16 success.** The last column is the same job on the previous run's
-final commit, run 35405669788.
+final commit, run 35423786489.
 
 | Job | Result | Time | The previous run |
 |---|---|---:|---:|
-| `linux · clang · release` | **success** | 4m11s | 5m46s |
-| `linux · clang · debug` | **success** | 16m06s | 6m47s |
-| `linux · clang · asan-ubsan` | **success** | 28m30s | 22m32s |
-| `linux · clang · tsan` | **success** | 11m58s | 15m51s |
-| `linux · gcc · release` | **success** | 4m52s | 4m56s |
-| `linux · gcc · debug` | **success** | 12m41s | 13m03s |
-| `macos · appleclang · release` | **success** | 3m04s | 4m36s |
-| `macos · appleclang · debug` | **success** | 12m48s | 10m57s |
-| `macos · appleclang · asan-ubsan` | **success** | 28m13s | 26m43s |
-| `macos · appleclang · tsan` | **success** | 25m28s | 30m12s |
-| `equivalence · HLM_France · 20 seeds` | **success** | 6m56s | 4m27s |
-| `equivalence · KevinHall_FINCH · 20 seeds` | **success** | 8m56s | 6m03s |
-| **`column coverage · three examples`** | **success** | **3m55s** | — (new) |
-| `web · typecheck, test, build` | **success** | 0m12s | 0m12s |
-| `web · end-to-end` | **success** | 3m15s | 3m00s |
-| `performance · linux · indicative` | **success** | 4m22s | 5m23s |
+| `linux · clang · release` | **success** | 3m33s | 5m52s |
+| `linux · clang · debug` | **success** | 19m54s | 16m18s |
+| `linux · clang · asan-ubsan` | **success** | **53m31s** | 42m00s |
+| `linux · clang · tsan` | **success** | 12m01s | 13m12s |
+| `linux · gcc · release` | **success** | 5m11s | 3m49s |
+| `linux · gcc · debug` | **success** | 17m37s | 14m29s |
+| `macos · appleclang · release` | **success** | 4m54s | 3m14s |
+| `macos · appleclang · debug` | **success** | 13m24s | 10m48s |
+| `macos · appleclang · asan-ubsan` | **success** | **42m39s** | 29m21s |
+| `macos · appleclang · tsan` | **success** | 33m03s | 28m54s |
+| `equivalence · HLM_France · 20 seeds` | **success** | 5m30s | 6m02s |
+| `equivalence · KevinHall_FINCH · 20 seeds` | **success** | 9m06s | 5m48s |
+| `column coverage · three examples` | **success** | 5m34s | 5m25s |
+| `web · typecheck, test, build` | **success** | 0m12s | 0m18s |
+| `web · end-to-end` | **success** | 2m14s | 3m09s |
+| `performance · linux · indicative` | **success** | 3m19s | 5m30s |
 
-**The sixteenth job is the point of the table.** `column coverage · three examples` is the check
-that would have caught the 49, it needs no baseline binary, and it costs four minutes — of which
-most is fetching and extracting `HLM_India`'s data pack.
+**The two bold rows are this run's cost and they are worth naming.** The AddressSanitizer jobs are
+11 and 13 minutes longer, and that is `EquivalenceHarness.TheRuleFailsAsOftenAsItSaysItDoes`: 160
+runs of the synthetic fixture pack under ASan, so that the rule's false-positive rate is measured at
+every commit rather than in a document. It is the most expensive single test in the suite, it buys
+the one claim this run rests on, and it is skipped under ThreadSanitizer — whose two jobs moved by
+runner weather rather than by anything here — because it scores stored reductions with a rule that
+is arithmetic in Python and there is no third thing for TSan to watch.
 
-The two equivalence entries are longer by about half, which is what comparing five files per run
-rather than one costs: `KevinHall_FINCH` went from 22,616 comparisons to 111,836 for 2m53s. Nothing
-else in the table moved for a reason belonging to this run; the rest is runner weather, and the
-previous run's numbers are beside them so a reader can see which is which.
+`equivalence · KevinHall_FINCH` is 3 minutes longer for a reason that is not the rule: the job runs
+this build twenty times and then scores it, and the scoring is now 45,544 Welch and Fisher tests in
+Python where it was 111,836 threshold comparisons. Fewer tests, more arithmetic each. `HLM_France`
+is *shorter* on the same change, so most of that 3 minutes is runner weather too.
 
-This table is the run on `d76b3b2`, which carries every change this run made and every document but
+This table is the run on `3bc34d9`, which carries every change this run made and every document but
 this table. The push that updates it starts one more, on the same code and the same matrix — a fixed
 point a summary of its own run cannot reach, so what is quoted is the newest run that had reported
 when it was written.
 
 ## The same tree locally
 
-`scripts/check.sh` with nothing skipped, on the tree these commits leave behind — **38 minutes end
-to end, exit 0**:
+`scripts/check.sh` with nothing skipped, on the tree these commits leave behind — **exit 0**:
 
 | | Result | Time |
 |---|---|---:|
-| release | **866 / 866** | 33 s |
-| debug | **866 / 866** | 332 s |
-| asan-ubsan | **866 / 866** | 976 s |
-| tsan | **773 / 773** | 790 s |
+| release | **867 / 867** | 48 s |
+| debug | **867 / 867** | 623 s |
+| asan-ubsan | **867 / 867** | 1,441 s |
+| tsan | **773 / 773** | 1,210 s |
 | frontend, type-check and unit | **48 / 48** | under a second |
-| frontend, end to end in a browser | **21 / 21** | 6.4 s |
-| equivalence, `HLM_France` | **38,386** comparisons over four families, **0** out of tolerance | — |
-| equivalence, `KevinHall_FINCH` | **111,836** comparisons over five families, **3** out of tolerance, within the budget of 3 | — |
+| frontend, end to end in a browser | **21 / 21** | 15.6 s |
+| equivalence, `HLM_France` | **16,486** tests over four families, **0** failed | — |
+| equivalence, `KevinHall_FINCH` | **45,544** tests over five families, **0** failed, **no budget** | — |
 | column coverage, three examples | **13 families** compared column by column, **0** findings | — |
 
-The per-family split, which is the thing that did not exist before this run:
+The four presets' test phases alone are **55 minutes**, against 35 for the previous run. About
+seven of the twenty added minutes are the new
+`EquivalenceHarness.TheRuleFailsAsOftenAsItSaysItDoes` under AddressSanitizer, where 160 runs of
+the fixture pack cost what 160 runs of the fixture pack cost; the rest is that this machine was
+also running a two-hundred-seed sweep for much of it, so these are not comparable timings and
+should not be read as a slowdown. The test does not run under ThreadSanitizer, whose count is
+unchanged at 773 — it scores stored reductions with a rule that is arithmetic in Python, the engine
+it runs is already covered by the two self-checks beside it, and there is no third thing for TSan
+to watch.
 
-| Example | `result` | Each stratum file | Total |
-|---|---:|---|---:|
-| `HLM_France` | 31,546 | 2,280 × 3 | **38,386** |
-| `KevinHall_FINCH` | 22,616 | 21,897 / 22,617 / 22,485 / 22,221 | **111,836** |
-| `HLM_India`, `simple` | 66,787 | 2,280 × 3 | **73,627** |
-| `HLM_India`, `food_labelling` | 66,805 | 2,280 × 3 | **73,645** |
-
-**The whole-population column is unchanged in all four**, which is the check that the reduction did
-not move underneath the comparison: 31,546, 22,616, 66,787 and 66,805 are what the previous run
-produced. Everything else is new.
-
-`KevinHall_FINCH`'s stratum files carry nearly as many comparisons as its whole-population file
-because that is the one example where they have numbers in them. The other two are HLM examples,
-nobody in them has an income category, and their 2,280 per file are seven head counts agreeing that
-they are all zero.
+The two examples' figures are what the rule change did to the counts. `HLM_France` went from 38,386
+comparisons to 16,486 tests and `KevinHall_FINCH` from 111,836 to 45,544, because five statistics
+per series became two and a lattice series stopped being compared twice. **Nothing was dropped**:
+the series compared are the same series, and the two examples' four and five output families are
+the same families.
 
 ## The recommended next run
 
-**Fix the allowance** — [docs/backlog.md](backlog.md) item 6. It is first because it is the one
-thing this run made worse: there is a failure budget again, on one example, for the first time since
-the fifth run, and closing this item is what removes it. It is also the only item on the list that
-changes what the word "equivalent" is worth, because an allowance whose width is estimated from the
-same twenty draws it is judging is one whose threshold is partly luck. The measurement is already
-done and in [docs/equivalence.md](equivalence.md); what is left is choosing a rule and testing it,
-and the harness's 63 tests are where that is cheap.
+**Find out whose the seed-80 divergence is** — [docs/backlog.md](backlog.md) item 2. It is first
+because it is the only correctness item on the list, because it is the only thing in this project
+that is both a run that does not finish and not understood, and because it is cheap to start: the
+divergence is one person over four simulated years, so instrumenting the energy balance for that
+person and that seed would show whether the intake, the expenditure or the integration runs away.
+If it is the integration it is ours and fixable. If it is a coefficient combination the model
+admits, it belongs upstream beside the other four reports, and the honest fix here is to clamp and
+count rather than to refuse — `validate_weight` already treats *above* the configured maximum that
+way, so the shape exists.
 
-**Two things to be careful of, both written into the item.** The small signed offsets are worth
-understanding before the rule changes — `std_polyunsaturatedfattyacid` and `std_fat` are both about
-1% below the baseline's while their means agree to a tenth of a percent, both are two-stage factors
-whose spread depends on the fraction of people at zero, and that may be a real difference rather
-than noise. A rule change that hid it would be the wrong fix. And the sigma limit is not the lever:
-this run worked out what re-deriving it would do and did not do it.
+It also has a second half nobody can do from one event: **one in two hundred is a rate estimated
+from a single observation**, and the interval around it runs from about one in forty to one in two
+thousand. Another two hundred seeds would narrow it, and they now cost ninety-five minutes and one
+command.
 
-If a modelling answer arrives before then, **item 1 outranks it**: interventions on the Kevin Hall
-surface are a question for the upstream authors ([docs/briefing.md](briefing.md)), four of the six
-examples can only be run with a no-op policy until it is answered, and it has been first on this
-list for three runs because it is work nobody here can do.
+**If a modelling answer arrives before then, item 1 still outranks it**: interventions on the Kevin
+Hall surface are a question for the upstream authors ([docs/briefing.md](briefing.md)), four of the
+six examples can only be run with a no-op policy until it is answered, and it has been first on
+this list for four runs because it is work nobody here can do.
 
-**Item 2 is the cheapest real gain**: individual-level tracking output is the one output family the
-baseline writes and this build does not, and it is now carried by two explicit exclusions —
-the harness's and the coverage script's — whose premise is that the baseline's own file is empty.
-Writing the file would remove both. And **`HLM_India` at the cohort it ships** (item 4) is still the
-largest single gap in the validation: machine time rather than work.
+**Item 3 is the cheapest real gain**: individual-level tracking output is the one output family the
+baseline writes and this build does not, and it is carried by two explicit exclusions whose premise
+is that the baseline's own file is empty. And **`HLM_India` at the cohort it ships** (item 5) is
+still the largest single gap in the validation — machine time rather than work, and now also the
+place where item 2 would next show up if the divergence is a property of a cohort rather than of
+one pack.
+
+**One thing this run deliberately did not do.** The rule is *conservative* — the observed
+false-positive rate is below the 1% it promises at every threshold measured — and a conservative
+rule is a less sensitive one. Tightening it would mean finding out where the conservatism comes
+from, which is the exact test and the printed-precision floor, and neither can be tightened without
+the baseline printing more digits. That is worth writing down as a limit rather than as an item: it
+is the floor the method has, not a thing left undone.
 
 ## What a reader should still be sceptical about
 
+- **The seed-80 divergence is unexplained**, and it is the only thing in this project that is both a
+  run that does not finish and not understood. One in two hundred is also a rate estimated from one
+  event: the true rate could be anywhere between about 1 in 40 and 1 in 2,000.
+- **The null calibration is 30 draws of a 1% rate.** It cannot distinguish 1% from 0.1%, and it is
+  not meant to — the tail table is the measurement and the 30-run count is the headline. Both say
+  the rule is conservative; neither says by how much, and a conservative rule is a less sensitive
+  one.
+- **The dispersion test is new and has never found anything.** It is there because two
+  implementations can agree about a mean and disagree about how much it moves from seed to seed, and
+  nothing else would see that. It passed 30 null calibrations and it passes on all four references;
+  that is evidence it is not noisy, not evidence it is useful.
 - **India was compared at a hundredth of its cohort**, 12,406 people rather than 1,240,613. Nothing
-  in the India result is evidence about the example as shipped
-  ([docs/backlog.md](backlog.md) item 4).
-- **The two HLM examples' stratum files are empty on both sides.** Nobody in them has an income
-  category, so their stratified comparison tests the head counts and nothing else, and it should not
-  be read as a check on the 45 columns. `KevinHall_FINCH` is the only example that checks those, and
-  it is one country and one pack.
+  in the India result is evidence about the example as shipped ([docs/backlog.md](backlog.md) item
+  5) — including its null calibration, which is a calibration on that cohort.
+- **The two HLM examples' stratum files are empty on both sides.** `KevinHall_FINCH` is the only
+  example that checks the 45 income-stratified columns, and it is one country and one pack.
 - **Population impact fraction has never met the baseline.** Only the synthetic pack exercises it
   end to end; the one example that uses it cannot run.
 - **Four of the six upstream examples can only be compared with `simple` active**, because an
@@ -339,21 +342,13 @@ largest single gap in the validation: machine time rather than work.
   configuration rather than running it silently.
 - **The comparison's floor.** The baseline writes six significant digits, so no comparison is
   tighter than about 10⁻⁵ relative.
-- **There is a failure budget again**, of 3 comparisons on `KevinHall_FINCH` out of 111,836, and it
-  is the first since the fifth run. A count budget cannot tell a series at the edge of a shrunken
-  allowance from a real regression; what limits the damage is that everything else has a budget of
-  zero. [docs/backlog.md](backlog.md) item 6 removes it.
-- **A handful of series sit at a small signed offset well inside their allowance**, and whether that
-  shows up as a failure depends on how tight the seed set's sample standard deviation happens to be.
-  `std_polyunsaturatedfattyacid` is about 1.1% below the baseline's at its worst cell while its mean
-  agrees to 0.109%. Whether that 1% is real has not been established, and it is in the
-  whole-population file rather than in anything this run added.
-- **The harness has been wrong five times**, and its reduction was wrong about four columns until
-  the previous run. It has 63 tests, which is better than nothing and is not the same as being
-  right. What this run added to it — a family in every key, a per-family section, a family-presence
-  check — is thirteen more tests over machinery that is one run old.
-- **The second synthetic pack is a `StaticLinear` model paired with an `EBHLM` dynamic one**, which
-  is a combination no upstream example uses. It is a combination this engine accepts, and a fixture
-  is the right place to find out that it works; it is not evidence about any real configuration.
+- **The harness has been wrong six times**, and the sixth was this run's own new code — the
+  saturating sort key in finding 5, which was wrong in the first report it printed. It has 94 tests,
+  which is better than 63 and is not the same as being right. What this run added to it is a rule
+  one run old with thirty-one tests over it and one null calibration behind it.
+- **A rule with a stated rate is a weaker rule, and the weakening is real.** t = 6.30 rather than
+  z = 4.5 on a twenty-seed location test, and 17 of 20 rather than 14 of 20 on the exact path.
+  Everything the perturbed self-check detected at twenty seeds it still detects; at six, two of the
+  three are now out of reach.
 - **Nineteen end-to-end tests was not coverage and twenty-one is not either.** They cover each
   screen's principal job and the hand-offs between them, in one browser.

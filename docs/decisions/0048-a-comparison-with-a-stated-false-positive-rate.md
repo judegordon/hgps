@@ -144,12 +144,18 @@ in its own docstring, and [docs/equivalence-method.md](../equivalence-method.md)
 leaves, a 20-against-20 Welch test needs **t = 6.30** on its ~38 degrees of freedom where the old
 rule asked for **z = 4.5** of the same estimated standard error. Nothing about the data changed;
 what changed is that the gap between 4.5 and 6.30 — the noise in the estimate — is now counted
-rather than ignored. A real difference of about 1.5 standard errors, which is what
-`std_polyunsaturatedfattyacid` turned out to be at twenty seeds, is not detectable at twenty seeds
-by *any* honest rule, and the way to see it is more seeds rather than a narrower threshold.
-[docs/equivalence.md](../equivalence.md) reports what 200 seeds said about that series, and the
-answer was obtained **before** this rule was adopted and independently of it, so that adopting the
-rule could not be what decided it.
+rather than ignored. A difference of a couple of standard errors is not distinguishable from noise
+at twenty seeds by *any* rule with a stated rate, and the way to see one is more seeds rather than
+a narrower threshold.
+
+**`std_polyunsaturatedfattyacid` is the case that makes that concrete, and it did not survive it.**
+The eighth run reported it as 1.1% below the baseline's and warned that a rule change hiding it
+would be the wrong fix. Two hundred seeds of both implementations say it is **+0.135%** — the other
+sign — with none of its 44 series reaching p = 0.05
+([docs/equivalence.md](../equivalence.md)). So what the old rule was detecting was not a small real
+difference; it was its own threshold shrinking when a seed set gave a tight sample. **That answer
+was obtained before this rule was adopted and independently of it**, so that adopting the rule
+could not be what decided it.
 
 **Everything the harness could already see at twenty seeds, it still sees.** The perturbed
 self-check fails in `mean_bmi` (1%), `mean_energy` (5%) and `std_energy` (5%) and in nothing else,

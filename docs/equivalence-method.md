@@ -11,7 +11,7 @@ Everything here is enforced in one script and tested by two others:
 | | |
 |---|---|
 | `tests/equivalence/run.py` | the comparison. Runs both implementations, reduces, tests, reports. |
-| `tests/equivalence/run_test.py` | 92 tests of the rules below, of the staging rule in ADR 0039 and of the deviation-impact measurement in ADR 0041, in milliseconds. Run by CTest. |
+| `tests/equivalence/run_test.py` | 94 tests of the rules below, of the staging rule in ADR 0039 and of the deviation-impact measurement in ADR 0041, in milliseconds. Run by CTest. |
 | `tests/equivalence/self_check.py` | the comparison pointed at itself: does it pass when it should, and fail when it should. Run by CTest. |
 | `tests/equivalence/null_check.py` | the third question those two cannot answer: does it fail as **often** as it says it does (§4.5)? Run by CTest. |
 | `tests/equivalence/sweep.py` | many seeds of one example, run once and stored, so a study can score the same runs many ways without re-running them. |
@@ -497,8 +497,9 @@ earlier version of the emptying-band exclusion was applied to one side only. Bot
 twenty-minute run rather than by a test, which is the wrong way round — **a mistake in the harness
 does not produce a wrong number, it produces a confident one.**
 
-`run_test.py`'s 92 unit tests pin the arithmetic of each rule. They cannot answer either of the two
-questions that matter about a comparison as a whole, nor the third that §4.5 is about. `tests/equivalence/self_check.py` answers both,
+`run_test.py`'s 94 unit tests pin the arithmetic of each rule. They cannot answer either of the two
+questions that matter about a comparison as a whole, nor the third that §4.5 is about.
+`tests/equivalence/self_check.py` answers both,
 using `run.py`'s own `compare` and `report` — imported, not copied, because the point is to test the
 rules that decide the real result.
 

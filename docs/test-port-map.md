@@ -137,12 +137,15 @@ the CLI's argument parser, the index-keyed factor store and the two branches of 
 the perturbation knob and the population impact fraction tables. None of those has a baseline
 counterpart, because none of those things exists there.
 
-Outside both tables, and outside the C++ suite: `tests/equivalence/run_test.py` holds **50 tests
-for the equivalence harness itself** — 39 when the paragraph below was written, 48 after the
-previous run and 50 after this one's two, which pin that the four weight categories are summed
-rather than count-weighted and that a summed variable is its own numerator for the lattice rule — which CTest runs as the single entry `EquivalenceHarness.Rules`;
-`self_check.py` is two more CTest entries that run the harness against this build twice over. The
-baseline has no counterpart because it has no harness. Nine of the 39 are new this run: six pin the
+Outside both tables, and outside the C++ suite: `tests/equivalence/run_test.py` holds **94 tests
+for the equivalence harness itself** — 39 when the paragraph below was written, 48 after the sixth
+run, 50 after the seventh, 63 after the eighth and 94 after the ninth, which replaced the
+comparison's threshold with a stated false-positive rate
+([ADR 0048](decisions/0048-a-comparison-with-a-stated-false-positive-rate.md)) — which CTest runs
+as the single entry `EquivalenceHarness.Rules`; `self_check.py` is two more CTest entries that run
+the harness against this build twice over, and `null_check.py` a fourth that measures how often the
+rule fails when nothing is wrong. The baseline has no counterpart because it has no harness.
+Nine of the 39 are new this run: six pin the
 deviation-impact measurement ([ADR 0041](decisions/0041-deliberate-deviations-are-switchable.md))
 and three pin the `std_income` exclusion's two halves, the second of which the rule had never
 checked. Four more, from the previous run, pin that a staged working directory cannot write back
@@ -150,7 +153,9 @@ into the example it was staged from
 ([ADR 0039](decisions/0039-scratch-directories-copy-what-they-may-write.md)); each of them fails
 against the behaviour it replaced.
 
-**So `ctest` reports 668**: 665 C++ tests in 86 suites, plus those three Python entries.
+**So `ctest` reports 867**: 863 C++ tests in 102 suites, plus those four Python entries. It read
+668 — 665 C++ tests in 86 suites and three Python entries — when this paragraph was first written;
+what grew it since is in [docs/SUMMARY.md](SUMMARY.md)'s history rather than here.
 
 **The 35 tests the baseline skips are now 30 tests that run and pass**, and the five that are not
 ported assert the contents of console tables this build does not print. That is the headline of

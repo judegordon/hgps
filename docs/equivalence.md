@@ -35,9 +35,11 @@ below has what the flag then said about it.
 > delivers the rate it claims are in [§ The failure budget is
 > gone](#the-failure-budget-is-gone-on-every-example-and-so-is-the-flag-that-could-grant-one) and in
 > [ADR 0048](decisions/0048-a-comparison-with-a-stated-false-positive-rate.md); the rule itself is
-> in [docs/equivalence-method.md](equivalence-method.md) §4. The older sections are kept as written
-> because how each residual was *identified* is the part worth keeping, and every one of them was
-> re-scored under the new rule: none fails.
+> in [docs/equivalence-method.md](equivalence-method.md) §4. The older sections are kept as
+> written because how each residual was *identified* is the part worth keeping. **The four results
+> that have a stored reference behind them were re-scored under the new rule and none fails**; the
+> one-intervention-at-a-time sweeps below have no stored reference, so they are the old rule's
+> numbers and are labelled as such.
 
 ## The deviation, measured directly
 
@@ -1147,8 +1149,8 @@ references:
 **All four were re-scored under the new rule and none fails**, which is the check that the rule did
 not simply become blind: the two HLM_India runs and the HLM_France one had nothing out of tolerance
 before either, and `KevinHall_FINCH`'s three are gone because they were what the old rule's
-estimated threshold did to a 1.5-standard-error difference, not a difference in the code — see
-*Is the 1.1% offset real?* below.
+estimated threshold did to an apparent difference of about 1.5 standard errors, not a difference in
+the code — see *Is the 1.1% offset real?* below.
 
 The test count falls because five statistics per series became two, and because a lattice-valued
 series now gets one exact test rather than that test *and* a mean.

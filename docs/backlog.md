@@ -20,7 +20,8 @@ comparison's threshold is no longer an allowance somebody chose: it is a family-
 rate of 1%, controlled by Holm over every test a run performs, and **measured on a null before it
 was adopted** — 30 pairs of twenty seeds of one build against itself across all three runnable
 examples, 922,564 tests, zero failures against 0.30 expected, with the raw p-value tail below
-uniform at every threshold ([ADR 0048](decisions/0048-a-comparison-with-a-stated-false-positive-rate.md),
+uniform at every threshold
+([ADR 0048](decisions/0048-a-comparison-with-a-stated-false-positive-rate.md),
 [docs/equivalence-method.md](equivalence-method.md) §4). **The failure budget is gone from every
 example and there is no flag that could grant one.** All four stored references were re-scored and
 none fails.
