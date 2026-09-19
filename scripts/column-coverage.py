@@ -6,9 +6,9 @@ This is the check that would have caught the 49.
 For as long as this build has written income-stratified result files, 49 of their columns were
 identically zero in every row while the baseline filled them — and nothing said so, because the
 equivalence harness reduced the whole-population CSV and no test that ran a configuration could
-reach the income series at all (docs/SUMMARY.md, docs/backlog.md item 2). The harness now compares
-every family, which catches a column whose *values* disagree. It does not catch a column that is
-zero on both sides for different reasons, and it is weakest exactly where the defect lived: a
+reach the income series at all (docs/SUMMARY.md). The harness now compares every family,
+which catches a column whose *values* disagree. It does not catch a column that is zero on both
+sides for different reasons, and it is weakest exactly where the defect lived: a
 variable that is legitimately absent for an example reduces to nothing on both sides and is
 skipped.
 

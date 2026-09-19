@@ -22,10 +22,17 @@ rules, and the harness is tested both ways.
 **Not proved.** `HLM_India` is compared at a hundredth of the cohort it ships — 12,406 people
 against 1,240,613 — because a full-scale sweep is days of machine time. The FINCH surface is one
 country and one pack. Population impact fraction has never met the baseline, because the only
-example using it cannot run. **And the comparison reads one file per run**: the income-stratified
-CSVs have never been compared against yours, which is how 49 columns came to be zero here and
-non-zero in your output on the same example ([docs/backlog.md](backlog.md) item 2 — four of them are
-fixed). The floor is your CSV's six significant digits.
+example using it cannot run. The floor is your CSV's six significant digits.
+
+**The comparison used to read one file per run, and no longer does.** Every CSV a run writes is now
+reduced and compared, family by family — which is how 49 columns of the income-stratified files came
+to be zero here and non-zero in yours on the same example, unnoticed for as long as this build has
+written them. All 49 are filled and matched, and a second check asks of the files themselves which
+columns are identically zero on each side, because a statistical comparison cannot express "one side
+has numbers and the other has nothing" ([docs/equivalence.md](equivalence.md)). Worth knowing on
+your side: **the two HLM examples' stratum files are empty in *both* implementations**, because
+nobody in them has an income category at all, so `KevinHall_FINCH` is the only example that checks
+those columns against anything.
 
 ## Findings in the baseline that change results
 
@@ -38,6 +45,18 @@ Each has its evidence and a test in [docs/deviations.md](deviations.md).
 | **B-21** | immigration into an empty age-sex band abandons that band's target silently, so the cohort falls short of its own projection | 197 of the baseline's band counts short on `HLM_France`, all of them empty bands |
 | **B-26, B-27** | a fraction the PIF store cannot supply is a silent no-op and a gap inside a table reads as zero; and the published PIF schema has the sex column backwards from both the loader and the data | `KevinHall_PIF`: four of fifteen diseases have no `Smoking` table. `cervicalcancer` is non-zero only at `Gender=1`, 600 cells of 3,330 |
 | **B-22, B-05, B-06** | `std_income` is emitted and never filled; a seed can give a different answer on a different standard library, twice over; an absent seed runs from `std::random_device` and is then recorded as `0` | 0 in all 4,884 rows of a FINCH run; `static_linear_model.cpp:1952`; `mtrandom.cpp:8` |
+
+**New this run, and it is not in that table because this build reproduces it rather than fixing
+it**: every demographic standard deviation that is also a declared risk factor has its square root
+taken **twice**. `calculate_standard_deviation` finishes the accumulated squared deviations by
+walking every mapping entry and then a fixed list of demographic names, and `KevinHall_FINCH`
+declares `Region`, `Ethnicity`, `Income`, `income_category`, `Age`, `Age2`, `Age3` and `Gender` as
+level-0 risk factors, so all eight are in both lists. `std_region` is **0.122097** in a band of 50
+people whose region has mean 1.38 — the spread there is 0.745, and 0.122097 is its square root over
+50. `std_bmi` is in the mapping only, is finished once, and is right.
+[docs/upstream-reports.md](upstream-reports.md) has it as report 5, with what is and is not
+affected. We reproduce it because a standard deviation is a number you may have published and
+changing it is your decision, not ours.
 
 Eleven more of the same kind are in that table. This build reproduces none of them, so a comparison
 needs a way to put them back: each deviation that changes a number has a compatibility flag, and the

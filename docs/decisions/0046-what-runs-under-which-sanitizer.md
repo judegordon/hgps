@@ -76,7 +76,7 @@ of coverage that still runs, while what is bought is a check the whole team will
 ## Alternatives rejected
 
 **`ctest -j` on the sanitizer presets.** The obvious answer, and it remains
-[docs/backlog.md](../backlog.md) item 11 rather than this run's answer: some of these tests are
+[docs/backlog.md](../backlog.md) item 10 rather than this run's answer: some of these tests are
 *about* threads — the byte-identity-at-N-threads tests spawn workers, the server tests bind sockets,
 the stress test runs several clients — so the right degree of parallelism has to be found rather
 than assumed, and under a sanitizer the memory cost multiplies too. It is also orthogonal: doing it

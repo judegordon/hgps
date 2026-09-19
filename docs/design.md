@@ -452,7 +452,14 @@ kind):
 | `<name>.csv` | the main result table: one row per `(source, run, time, gender, index_id)`, with count, deaths, emigrations and mean/std for every risk factor and disease measure |
 | `<name>.json` | run metadata: program version, config path and SHA-256, country, horizon, trial runs, **the master seed and each run's derived seed**, wall-clock start and end, and the result series |
 | `<name>_<IncomeCategory>.csv` | the same table stratified by income category, when `project_requirements.income.income_based_csv_output` is set |
-| `<name>_IndividualIDTracking.csv` | optional per-person rows, filtered by `output.individual_id_tracking` |
+| `<name>_IndividualIDTracking.csv` | optional per-person rows, filtered by `output.individual_id_tracking` — **the baseline writes this one and this build does not** ([docs/backlog.md](backlog.md) item 2) |
+
+`hgps::api::OutputFamily` is that table as an enumeration, and `output_family_of` classifies a path
+into it by the naming this writer implements, read back. It is in the public header because it is
+part of what a caller is told about a run, and it exists because the seventh run found out what
+happens when nothing enumerates what a program puts on disk: the stratified files had been written
+for as long as this build has existed with no comparison, no test and no fixture that produced one,
+and 45 of their columns were empty.
 
 CSV output is written with `std::format`-based fixed formatting (`{:.10g}`) so that a value's text
 does not depend on the platform's locale or on iostream state, and rows are emitted in the order

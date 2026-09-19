@@ -259,7 +259,7 @@ local scripts it stands in for:
 That is not the same as a green run, and it is not claimed to be. **The first time this workflow
 executes will be the first evidence that it works**, and the honest expectation is that something in
 it is wrong — most likely in the GCC entries, which is why they are `continue-on-error`
-(it was [docs/backlog.md](backlog.md) item 2 at the time, and is done).
+(it was a backlog item at the time, and is done).
 
 What changed from the shape the previous session left: GCC moved **into the build matrix** as a
 compiler axis on Linux rather than sitting in a separate job, and the three verbatim copies of the

@@ -202,6 +202,14 @@ The engine writes files; it does not hand back a result table. `RunSummary` list
   config hash, data checksum, the seed actually used, engine version and commit, host platform,
   start and end times, and the scenarios that ran.
 
+**Which of those a path is** is `api::output_family_of(path)`, and `api::all_output_families()` is
+the list. `RunSummary::outputs` is a list of paths, and a host that had to tell a stratum file from
+the whole-population one by matching names by eye was a host that could get it wrong — the local
+server did, with a rule that read "the shortest `.csv` name", true of every file this engine writes
+and enforced by nothing. The enumeration is also what
+`OutputFamilies.EveryFamilyTheEngineCanWriteIsProducedByAFixture` holds this project to: a family
+added here with no fixture behind it fails.
+
 A host that wants the numbers in memory rather than on disk does not have what it needs yet. That is
 a deliberate gap rather than an oversight: the output contract is "one owner per file, rows in a
 defined order" ([ADR 0020](decisions/0020-output-single-owner-defined-row-order.md)), and an

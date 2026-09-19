@@ -220,7 +220,7 @@ because a different test had interned the name first.
 
 ### The analysis module's channels, resolved once a year
 
-[docs/backlog.md](backlog.md) item 9 as it was, and the thing the previous run's profile pointed at:
+The previous run's backlog item 9, and the thing its profile pointed at:
 the linear models stopped comparing strings and `_platform_memcmp` did not move, because what was
 doing it had moved one layer up.
 

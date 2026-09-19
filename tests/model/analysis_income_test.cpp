@@ -260,7 +260,8 @@ AnalysisModule make_module() {
 
 /// Income analysis on, and every dimension this cohort gives a person declared as assigned — which
 /// is what puts `mean_region`, `mean_ethnicity`, `mean_sector`, `mean_income_category`,
-/// `mean_income` and `mean_physical_activity` in the channel list at all (src/model/analysis/channels.cpp).
+/// `mean_income` and `mean_physical_activity` in the channel list at all
+/// (src/model/analysis/channels.cpp).
 void configure(AnalysisModule &module, bool income_analysis = true) {
     module.set_income_analysis_enabled(income_analysis);
     module.set_assigned_attributes(hgps::model::AssignedAttributes{.income_category = true,

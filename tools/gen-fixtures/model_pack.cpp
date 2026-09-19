@@ -407,7 +407,7 @@ PackLayout variant_layout() {
 /// `EthnicityFile` are read from a `StaticLinear` model file and nowhere else. Until this run
 /// neither synthetic pack assigned an income category, so no test that ran a configuration could
 /// reach `calculate_income_based_series` at all — which is why 45 columns of every stratum file
-/// were empty for as long as this build has written them (docs/SUMMARY.md, docs/backlog.md item 2).
+/// were empty for as long as this build has written them (docs/SUMMARY.md).
 ///
 /// It keeps the pack's `EBHLM` dynamic model. The two slots are independent in the loader, and the
 /// intervention this pack activates has to reach a dynamic model that applies it, which `EBHLM`

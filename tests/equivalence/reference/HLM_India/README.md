@@ -14,8 +14,15 @@ and will fall back to running the baseline rather than comparing against the wro
 
 | Hash | Intervention | Seeds | Bands excluded | Result |
 |---|---|---:|---:|---|
-| `5e3fda9f…` | `simple` | 20 | 1,641 | 0 of 66,787 out of tolerance |
-| `ffe878d7…` | `food_labelling` (the example's own) | 20 | 1,662 | 0 of 66,805 out of tolerance |
+| `5e3fda9f…` | `simple` | 20 | 1,641 | 0 of 73,627 out of tolerance |
+| `ffe878d7…` | `food_labelling` (the example's own) | 20 | 1,662 | 0 of 73,645 out of tolerance |
+
+Each covers **four output families**: the whole-population CSV and the three income-stratified ones.
+The whole-population halves are 66,787 and 66,805, which is what they were when the harness compared
+that file alone. **The stratum files of this example are empty on both sides** — `HLM_India` is an
+HLM example and nobody in it has an income category — so what the other 6,840 comparisons check is
+seven head counts, all zero, agreeing. That is not a check on the income-stratified series and
+should not be read as one; `KevinHall_FINCH` is the example that checks those.
 
 Reproduce either with:
 
@@ -25,11 +32,15 @@ tests/equivalence/run.py --example HLM_India --seeds 20 --size-fraction 1e-5 --u
     --intervention simple
 ```
 
-**Both were regenerated in the seventh run**, along with the other two, because the reduction
-changed: the four weight categories are head counts and were being count-weighted, and a reference
-holds *reduced* values (docs/equivalence-method.md §2). The comparison counts did not move — 66,787
-and 66,805 are what the previous run's re-score produced — which is the evidence that the change
-moved the level of four variables and not how anything is tested.
+**Both were regenerated again in the eighth run**, along with the other two, because the reduction
+changed again: it now covers every CSV a run writes and its key begins with the output family, so
+the stored format gained a `family` column (docs/equivalence-method.md §2.1). A reference written
+before that is refused by name rather than failing on its first row. The whole-population comparison
+counts did not move — 66,787 and 66,805 are what the seventh run's re-score produced — which is the
+evidence that what changed is what is compared and not how.
+
+The seventh run regenerated them for a different reason: the four weight categories are head counts
+and were being count-weighted, and a reference holds *reduced* values.
 
 **The `food_labelling` one used to be expected to fail, and is not any more.** `HLM_India` is the
 only example that ships an active intervention, and the one it ships is the policy where the baseline
@@ -43,7 +54,8 @@ puts **194 series apart and 12,533 in agreement** to the baseline's printed prec
 `scripts/check.sh` and CI do not run either of these: they run the two primary comparisons, which are
 `HLM_France` and `KevinHall_FINCH`.
 
-**The 60-seed references are not here.** They are 11 MB each gzipped, against 3.5 MB for these, and
+**The 60-seed references are not here.** They are about 11 MB each gzipped, against 3.8 MB for
+these, and
 the same rule was applied to `HLM_France` and `KevinHall_FINCH` — confirm at 60 seeds, keep the
 20-seed reference. [docs/backlog.md](../../../../docs/backlog.md) item 7 is the alternative: store
 the reduction rather than the raw results, which is two orders of magnitude smaller.

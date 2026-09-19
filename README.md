@@ -181,7 +181,8 @@ cannot pass by assuming what one of them happens to say
 
 ```bash
 export VCPKG_ROOT=/path/to/vcpkg
-scripts/check.sh            # every preset, the frontend, the browser, the equivalence harness
+scripts/check.sh            # every preset, the frontend, the browser, the equivalence harness,
+                            # and the column inventory of every output family
 scripts/check.sh --fast     # release only, and the frontend without its browser tests
 scripts/check.sh --no-web   # the C++ only
 ```
@@ -201,15 +202,18 @@ Validation has two layers ([ADR 0006](docs/decisions/0006-validation-strategy.md
   does not exist here by design — the event bus, the sync channel, the lazy repository, the printed
   summary boxes. [docs/test-port-map.md](docs/test-port-map.md) says which, suite by suite. **The 35
   tests the baseline skips run here**, and finding out whether they pass is how four defects were
-  found. Of the **850** tests here, most are in files the baseline has no counterpart for —
+  found. Of the **863** tests here, most are in files the baseline has no counterpart for —
   byte-for-byte reproducibility at one thread and at N for every intervention, a modulo-bias
   regression test, ordered-sampling tests, and a test that an unseeded config is rejected, among
-  others. A further **50** test the equivalence harness's own statistics, because a mistake there
+  others. A further **63** test the equivalence harness's own statistics, because a mistake there
   says PASS rather than producing a wrong number. Every test that runs a configuration runs against
   **two** synthetic packs, which differ in every way a program might have assumed they did not
   ([ADR 0044](docs/decisions/0044-two-fixture-packs-and-a-parameterised-suite.md)) — one of them
   under ThreadSanitizer, where running the same races twice was the largest single cost in CI
-  ([ADR 0046](docs/decisions/0046-what-runs-under-which-sanitizer.md)).
+  ([ADR 0046](docs/decisions/0046-what-runs-under-which-sanitizer.md)). The second pack's static
+  model is `StaticLinear`, which is what gives a person an income category, a region, an ethnicity
+  and a sector, and therefore what makes **every output family this engine can write** produced by
+  a fixture ([ADR 0047](docs/decisions/0047-the-second-pack-carries-the-stratified-dimensions.md)).
 - **Statistical equivalence against the baseline** on three examples — `HLM_France` for the HLM
   surface, `KevinHall_FINCH` for the FINCH one, and `HLM_India` for the `EBHLM` dynamic model at a
   reduced cohort — over at least 20 seeds and again at 60, comparing means, standard deviations and

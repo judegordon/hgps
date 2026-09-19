@@ -60,9 +60,28 @@ show something:
 
 | Example | Active intervention | What the pass says |
 |---|---|---|
-| `HLM_France` | `simple` | **no difference anywhere** — all 7,708 series agree to the baseline's printed precision. The pass stops after the first seed, because that seed's two runs are byte-identical |
-| `KevinHall_FINCH` | `simple` | **no difference anywhere** — all 5,060 series agree, and the pass stops after the first seed for the same reason |
-| `HLM_India` *(reduced)* | `food_labelling` | **194 series differ**, 12,533 agree; the pass runs all 20 seeds and takes 194 s |
+| `HLM_France` | `simple` | **no difference anywhere** — all **11,152** series agree to the baseline's printed precision. The pass stops after the first seed, because that seed's two runs are byte-identical |
+| `KevinHall_FINCH` | `simple` | **no difference anywhere** — all **25,300** series agree, and the pass stops after the first seed for the same reason |
+| `HLM_India` *(reduced)* | `food_labelling` | **194 series differ**, **15,977** agree; the pass runs all 20 seeds and takes 199 s |
+
+**The series counts are this run's and they are larger than the previous run's** — 7,708, 5,060 and
+12,533 — for one reason: the pass covers every output family now, like the comparison beside it.
+`KevinHall_FINCH`'s went up five-fold, because that is the example whose stratum files have numbers
+in them.
+
+**No compatibility flag was added this run**, and that is a statement about what the 45 columns
+were rather than an omission. A flag exists to reproduce a baseline behaviour this build
+deliberately does not have ([ADR 0041](decisions/0041-deliberate-deviations-are-switchable.md));
+here this build had no number where the baseline had one, so there was nothing to differ about on
+purpose. The one thing this run found that the baseline does differently — every demographic
+standard deviation that is also a declared risk factor has its square root taken twice — is
+**reproduced** rather than fixed, so it needs no flag either
+([docs/upstream-reports.md](upstream-reports.md), report 5).
+
+**And the byte-identity probe now compares every file.** `--deviation-impact auto` stops after the
+first seed when this build's output is identical with the flags on and off, and until this run that
+probe compared the whole-population CSV alone — so a deviation that reached only the stratified
+output would have stopped it early and been reported as "no difference anywhere".
 
 The two "no difference anywhere" rows are not a null result: they are the statement that **no
 recorded deviation reaches those runs at all**, which is what makes their comparison a test of the
@@ -109,16 +128,39 @@ each of the three runnable examples, every CSV they wrote, column by column:
 | `HLM_India` | `HighIncome`, `LowIncome`, `MiddleIncome` | 110 | 105 | 102 | **3** each |
 
 **198 findings**: 45 columns in each of `KevinHall_FINCH`'s four stratum files, and `mean_age`,
-`mean_age2` and `mean_age3` in each of the six stratum files of the two HLM examples. The 45 are
-the list [docs/backlog.md](backlog.md) item 2 names. The three are the same 45 seen where nobody has
-an income category at all: the baseline writes `mean_age`, `mean_age2` and `mean_age3` into every
-configured stratum whether or not anybody is in it, because they are the row's own key rather than
-an average over its members, and this build wrote zeros.
+`mean_age2` and `mean_age3` in each of the six stratum files of the two HLM examples. The 45 are the
+list the previous run measured and left as its one correctness item. The three are the same 45 seen
+where nobody has an income category at all: the baseline writes `mean_age`, `mean_age2` and
+`mean_age3` into every configured stratum whether or not anybody is in it, because they are the
+row's own key rather than an average over its members, and this build wrote zeros.
 
 `HLM_France` and `HLM_India` are HLM examples and **no person in them has an income category**, so
 every other column of their stratum files is zero on both sides — 44 of 52 and 102 of 110. That is
 not agreement, it is two empty files, and it is why the 45 were only ever visible on the one example
 whose models assign an income category.
+
+**And the state after this run: `column coverage: PASS`, on all three examples.**
+
+| Example | Family | Columns | All-zero here | All-zero in the baseline |
+|---|---|---:|---:|---:|
+| `HLM_France` | `result` | 52 | 6 | 6 |
+| `HLM_France` | each of three stratum files | 52 | **44** | 44 |
+| `KevinHall_FINCH` | `result` | 120 | 6 | 7 |
+| `KevinHall_FINCH` | each of four stratum files | 120 | **7** | 7 |
+| `HLM_India` | `result` | 110 | 6 | 6 |
+| `HLM_India` | each of three stratum files | 110 | **102** | 102 |
+
+Every count matches, and the ones that differ from the baseline differ in the recorded direction:
+`KevinHall_FINCH`'s whole-population file has one fewer zero column here than in the baseline, and
+that column is `std_income`, which is **B-22**.
+
+The seven that are zero in both of `KevinHall_FINCH`'s stratum files are worth naming, because
+"empty" and "wrong" are not the same and this is the list where they part company: `mean_sector`
+and `std_sector`, which that pack does not assign; `std_age`, `std_age2` and `std_age3`, whose mean
+is the band's own age so every person takes exactly it; `std_gender`, whose mean is the file's own
+sex; and `std_income_category`, whose mean is the file's own income category. They are zero by
+construction rather than by omission, and `AnalysisIncomeSeries.TheSpreadsWhoseMeansAreExactAreZeroRatherThanAbsent`
+says so in an assertion rather than leaving four columns whose emptiness nobody has explained.
 
 **Two entries are recorded differences rather than findings**, and the script checks both halves of
 each:
@@ -129,7 +171,7 @@ each:
   and fails if it is not, so a column this build fills and the baseline does not cannot be an
   accident.
 - `KevinHall_FINCH · IndividualIDTracking` is a **family** the baseline writes and this build does
-  not ([docs/backlog.md](backlog.md) item 4). The baseline opens the file for every run whose config
+  not ([docs/backlog.md](backlog.md) item 2). The baseline opens the file for every run whose config
   enables tracking and writes nothing into it — not even a header — when no person passes the
   filter, which on `KevinHall_FINCH` is everybody: it asks for ages 80–110 in four named regions.
   The exclusion holds **only while that file is empty**, and the script fails if it ever has a row.
@@ -229,18 +271,35 @@ it fixes is the number a reader of this document, or of the server's chart, is l
 
 ## The result — HLM_France
 
-**31,546 comparisons over 20 seeds. Zero out of tolerance.**
+**38,386 comparisons over 20 seeds, across four output families. Zero out of tolerance.**
+
+| Family | Compared | Failed |
+| --- | ---: | ---: |
+| `result` | 31,546 | **0** |
+| `LowIncome`, `MiddleIncome`, `HighIncome` | 2,280 each | **0** each |
+
+The whole-population figure is 31,546, which is what it was before this run compared the other three
+files: the same numbers, unchanged.
 
 | Statistic | Failed | Compared | Worst excursion that passed |
 | --- | ---: | ---: | --- |
-| mean | **0** | 7,652 | 0.82× the allowance (`prevalence_osteoarthritisknee`, baseline 2029 male, 0.06607 against 0.06186) |
-| median | **0** | 5,414 | 0.78× (`mean_age`, intervention 2046 male, 43.956 against 44.216) |
-| 5th percentile | **0** | 5,414 | 0.66× (`normal_weight`, baseline 2044 male, 1,229.85 against 1,264.75) |
-| 95th percentile | **0** | 5,414 | 0.71× (`incidence_asthma`, baseline 2030 female, 0.004517 against 0.007446) |
-| standard deviation | **0** | 5,414 | 0.87× (`mean_bmi`, intervention 2024 female, 0.000858 against 0.003127) |
-| distribution | **0** | 2,238 | p = 1 for every one of them |
+| mean | **0** | 11,072 | 0.82× the allowance (`prevalence_osteoarthritisknee`, `result`, baseline 2029 male, 0.06607 against 0.06186) |
+| median | **0** | 5,414 | 0.78× (`mean_age`, `result`, intervention 2046 male, 43.956 against 44.216) |
+| 5th percentile | **0** | 5,414 | 0.66× (`normal_weight`, `result`, baseline 2044 male, 1,229.85 against 1,264.75) |
+| 95th percentile | **0** | 5,414 | 0.71× (`incidence_asthma`, `result`, baseline 2030 female, 0.004517 against 0.007446) |
+| standard deviation | **0** | 5,414 | 0.87× (`mean_bmi`, `result`, intervention 2024 female, 0.000858 against 0.003127) |
+| distribution | **0** | 5,658 | p = 1 for every one of them |
 
-56 further comparisons are skipped, all of them a death, emigration, incidence or burden variable in
+**The three stratum families contribute 6,840 comparisons and they are worth very little**, which is
+a thing to say out loud rather than count silently. `HLM_France` is an HLM example and **nobody in
+it has an income category**, so every stratum file is a file of zeros on both sides: 44 of its 52
+columns are identically zero in both implementations. What is compared there is the seven head
+counts, all of them zero, agreeing. That is not a check on the income-stratified series; it is two
+empty files agreeing that they are empty, and `scripts/column-coverage.py` is what says so
+(*Every column of every family*, above). `KevinHall_FINCH` is the only example that checks those
+columns against numbers.
+
+80 further comparisons are skipped, all of them a death, emigration, incidence or burden variable in
 the first simulated year, where the quantity is not defined yet
 ([docs/equivalence-method.md](equivalence-method.md) §3.3). Nothing else is left out but the emptying
 bands, below, and `std_income`, which does not arise on this example.
@@ -496,8 +555,11 @@ shift has no coverage book and no memory of who it has affected.
 
 **These four runs were made with the compatibility flags off**, which is what this section is about:
 they are the measurement that attributed the `food_labelling` failures to B-24 before a flag existed
-to prove it. The stored references are now the other thing — flags on, twenty seeds, **0 of 66,787**
-and **0 of 66,805** — and `tests/equivalence/reference/HLM_India/README.md` records them.
+to prove it. The stored references are now the other thing — flags on, twenty seeds, **0 of 73,627**
+and **0 of 73,645** across four output families each — and
+`tests/equivalence/reference/HLM_India/README.md` records them. The whole-population halves of those
+are 66,787 and 66,805, which is what they were; the rest is the three stratum files, which on this
+example are empty on both sides.
 
 **All 31 `mean_bmi` failures are in a `food_labelling` run and there are none in a `simple` run, at
 either seed count** — 3 at 20 seeds and 28 at 60. That is the whole attribution, and the rest of this
@@ -945,7 +1007,7 @@ What replaced it is three things, each of which is stricter than a budget rather
 - the series for which normal theory does not hold are compared by an **exact test of their
   counts**, which is a real test with a real threshold, and one whose power is measured and written
   down above rather than assumed;
-- **the harness has its own tests** — `tests/equivalence/run_test.py`, 26 of them, run by CTest as
+- **the harness has its own tests** — `tests/equivalence/run_test.py`, **63** of them, run by CTest as
   `EquivalenceHarness.Rules` and therefore by `scripts/check.sh`. That matters more here than
   anywhere else in the repository: a mistake in the harness does not produce a wrong number, it
   produces the word PASS. Two of its rules have now been wrong once each, and both times what found
@@ -971,12 +1033,17 @@ scripts/check.sh
 ```
 
 The baseline's reduced output for seeds 1–20 is checked in at
-`tests/equivalence/reference/<example>/<config-sha256>.csv.gz` — 1.7 MB for HLM_France and 1.2 MB
-for KevinHall_FINCH — with a manifest recording the
-seeds, both config hashes, the baseline binary's path, the reduction used, **the age bands excluded
-and which of them the baseline itself emptied**, and when it was written. It is the reduced form,
-not the raw CSVs: 20 raw result files are 80 MB and the reduction is exactly the granularity the
-comparison needs.
+`tests/equivalence/reference/<example>/<config-sha256>.csv.gz` — **1.8 MB for HLM_France, 5.4 MB for
+KevinHall_FINCH and 3.8 MB for each of the two HLM_India references** — with a manifest recording
+the seeds, both config hashes, the baseline binary's path, the reduction used, **every output family
+the baseline wrote and whether its file was empty**, **the age bands excluded and which of them the
+baseline itself emptied**, and when it was written. It is the reduced form, not the raw CSVs: 20 raw
+result files are 80 MB and the reduction is exactly the granularity the comparison needs.
+
+They grew when the comparison started covering every output family — `KevinHall_FINCH`'s from 1.2 MB
+to 5.4 MB, because it now holds four stratum files' worth of reduced values as well as the
+whole-population one. That is the cost of the coverage, and it is the reason the 60-seed references
+are still not checked in ([docs/backlog.md](backlog.md) item 7).
 
 The excluded set is part of the reference, not of the harness: it was computed from the baseline
 and this build together at the time the reference was written, so a later run against that
@@ -990,10 +1057,15 @@ case — so the tables above can be regenerated rather than retyped.
 ## The baseline does not always finish
 
 Running the baseline on `KevinHall_FINCH` is not reliable. Counting the comparisons in this
-document that actually ran the baseline binary: **180 FINCH runs, of which 4 exited on a signal and
-succeeded when re-run unchanged** — about one in forty-five. Three on `SIGTRAP` and one on
-`SIGABRT`; same binary, same config, same seed each time. `HLM_France` ran 80 times over the same
-comparisons without a single failure, so it is the FINCH surface that provokes it.
+document that actually ran the baseline binary: **260 FINCH runs, of which 7 exited on a signal and
+succeeded when re-run unchanged** — about one in thirty-seven. Four on `SIGTRAP`, two on `SIGABRT`
+and one on `SIGSEGV`; same binary, same config, same seed each time. `HLM_France`
+ran 100 times over the same comparisons without a single failure, so it is the FINCH surface that
+provokes it.
+
+The rate is the same order as the one in forty-five the previous run measured, over eighty more
+runs, and this run added a **third** signal to the list. A defect that presents as a trap, an abort
+and a segmentation fault is one that corrupts memory rather than one that trips an assertion.
 
 That is audit findings **B-01** and **B-02** showing up as a crash rather than as a reordering:
 two scenario threads, and a disease repository populated lazily from inside a parallel loop behind

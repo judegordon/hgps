@@ -15,19 +15,18 @@ Tags:
   or the data, and guessing would put an invented number into somebody else's fitted model.
 - `docs`
 
-**This run closed the previous run's items 2, 10 and 11.** Names are resolved to indices at the call
-site and `KevinHall_FINCH` is faster for it, byte-identically
-([docs/performance.md](performance.md)); the GCC entries are required; the lattice detector asks its
-question of the numerator. It also did three things nobody had asked for and a ruling did: a second
-synthetic configuration with every test that runs one parameterised over both
-([ADR 0044](decisions/0044-two-fixture-packs-and-a-parameterised-suite.md)), a browser driving the
-frontend end to end ([ADR 0045](decisions/0045-end-to-end-tests-in-a-real-browser.md)), and a
-randomised server-lifetime stress test. Between them those three found five defects.
+**This run closed item 2, which was the previous run's only correctness item.** Every CSV a run
+writes is now reduced and compared against the baseline's, family by family, with its own counts;
+the 45 empty columns of the income-stratified files are filled and checked; `scripts/column-coverage.py`
+asks of the files themselves which columns are identically zero on each side and fails where the
+baseline has numbers and this build has none; the second fixture pack assigns a categorical income,
+a region, an ethnicity and a sector, so every output family this engine can write is produced by a
+fixture ([ADR 0047](decisions/0047-the-second-pack-carries-the-stratified-dimensions.md)); and the
+summary endpoint and the results screen expose every family with a selector.
 
-What is left is what it was, minus the performance item: **one modelling question that belongs to
-you** (interventions on Kevin Hall models), the validation this project's own documents hedge about,
-one correctness item this run found and did not fix (item 2), and Windows. The top of the list is a
-question rather than work for the second run running.
+What is left is what it was, minus that: **one modelling question that belongs to you**
+(interventions on Kevin Hall models), the validation this project's own documents hedge about, and
+Windows. The top of the list is a question rather than work for the third run running.
 
 ## Do these first
 
@@ -56,44 +55,23 @@ work. Until it is answered, four of the six upstream examples can only be run wi
 
 See [docs/deviations.md](deviations.md) B-25 and `tests/config/intervention_reach_test.cpp`.
 
-### 2. The income-stratified files leave 45 columns empty that the baseline fills — `correctness`
+### 2. Individual-level tracking output — `scope`
 
-**Value: medium-high. Effort: medium, and most of it is deciding what to check it against.** Found
-this run, while fixing the weight-category defect the previous run recorded as this item — which is
-closed below.
+**Value: medium. Effort: low-medium.** `output.individual_tracking` is parsed, validated and
+carried in `config::IndividualTracking`, and nothing writes the file. The baseline's
+`individual_id_tracking_writer.cpp` is small. Worth noting: this is the feature that makes the
+baseline's person IDs matter, and it is why this implementation kept the monotonic lifetime-unique
+counter rather than the earlier rewrite's slot reuse
+([ADR 0017](decisions/0017-person-ids-monotonic-and-free-slots.md)).
 
-A `KevinHall_FINCH` run of each implementation, same example, same data, columns compared column by
-column: **49 columns are identically zero in every row of every stratum file here and non-zero in
-the baseline's.** Four of them were the weight categories and are fixed
-([docs/SUMMARY.md](SUMMARY.md)). The other 45 are:
-
-- `deaths` and `emigrations`;
-- the burden channels — `mean_yll`, `mean_yld`, `mean_daly`;
-- the demographic means — `mean_age`, `mean_age2`, `mean_age3`, `mean_gender`, `mean_region`,
-  `mean_ethnicity`, `mean_income_category`;
-- **33 `std_` columns** — every one the baseline fills — because `calculate_income_based_series`
-  has no standard-deviation pass at all while the baseline has
-  `calculate_income_based_standard_deviation`.
-
-Twelve of the 45 are the first three bullets and 33 are the last.
-
-`calculate_income_based_series` accumulates `count`, the factor means, `mean_income`,
-`mean_physical_activity` and the diseases' prevalence and incidence, and nothing else. The columns
-are in the file because the stratum files carry the same header as the whole-population one, and the
-result writer writes a zero for a channel with no stratified counterpart — which is right for a
-channel that has none and wrong for one that should.
-
-**Why nothing caught it.** The equivalence harness reduces the whole-population CSV and has never
-looked at a stratified one; `find_result_csv` exists precisely to *exclude* them. So the only
-comparison this project has against the baseline does not cover these files at all, and no test ran
-the income series either until this run's `tests/model/analysis_income_test.cpp` — because neither
-fixture pack assigns an income category, both being HLM, and only the StaticLinear family assigns
-one.
-
-So the work is in two halves, and the second is the one that matters: fill the columns, and give the
-stratified files a comparison. The obvious shape for the second is to reduce and compare every CSV a
-run writes rather than the one, which would also cover the individual-tracking file if item 4 ever
-writes one. Until that exists, filling the columns is writing code against a baseline read by eye.
+It has moved up this list for a reason that is new: it is now **the one output family the baseline
+writes and this build does not**, and both the equivalence harness and the column-coverage script
+carry an explicit exclusion for it. Each exclusion holds only while the baseline's own file is
+*empty* — on `KevinHall_FINCH` it is zero bytes, because the config asks for ages 80–110 in four
+named regions and matches nobody — and both turn back into failures with their reason if upstream
+ever puts a row in it. So the cost of not doing this is now a documented hole rather than an
+unexamined one, which is the right place for it to be, and closing it would remove two exclusions
+rather than add a feature.
 
 ### 3. A runnable Kevin Hall example, which needs upstream — `needs-ruling`
 
@@ -111,18 +89,7 @@ raising the curve or lowering the bound would both be inventing a number for som
 model. This is item 5's question asked again from a second direction, and answering it would unblock
 two examples rather than one, plus the only PIF equivalence comparison there could be.
 
-### 4. Individual-level tracking output — `scope`
-
-**Value: medium. Effort: low-medium.** `output.individual_tracking` is parsed, validated and
-carried in `config::IndividualTracking`, and nothing writes the file. The baseline's
-`individual_id_tracking_writer.cpp` is small. Worth noting: this is the feature that makes the
-baseline's person IDs matter, and it is why this implementation kept the monotonic lifetime-unique
-counter rather than the earlier rewrite's slot reuse
-([ADR 0017](decisions/0017-person-ids-monotonic-and-free-slots.md)).
-
-## Worth doing soon
-
-### 5. `HLM_India` at the cohort it ships — `validation`
+### 4. `HLM_India` at the cohort it ships — `validation`
 
 **Value: medium. Effort: medium, and all of it is machine time.** `HLM_India` is now compared against
 the baseline at 20 and 60 seeds — but at `size_fraction` 1e-5, which is **12,406 people against the
@@ -140,7 +107,7 @@ off the lattice that item 9 is about.
 So this is worth doing once, on a machine that can be left alone for a few days, and the stored
 reference would be large — which is item 8.
 
-### 6. A second country for the FINCH surface — `validation`, and it needs upstream
+### 5. A second country for the FINCH surface — `validation`, and it needs upstream
 
 **Value: high. Effort: unknown, and not all of it is here.** The FINCH equivalence evidence is one
 pack, one country. The obvious second is `KevinHall_India`, which uses the same `StaticLinear` and
@@ -156,7 +123,7 @@ Nothing here can fix that: raising the curve or lowering the bound would be inve
 somebody else's fitted model. What this item needs is upstream to say which of the two is wrong.
 Until then the FINCH surface has one country, and that is the largest single gap in the validation.
 
-### 7. A fallback donor for immigration into an empty band — `correctness`
+### 6. A fallback donor for immigration into an empty band — `correctness`
 
 **Value: low-medium. Effort: low.** When an age-sex band is empty there is nobody to clone an
 immigrant from, so both implementations skip it and the cohort falls short of the demographic
@@ -170,7 +137,7 @@ that misses its own target. The baseline has a nearest-age search in its demogra
 achievable, at the cost of nudging the age distribution. It changes results, so it needs a
 deviation entry, an ADR and a re-run of both references.
 
-### 8. More seeds, and a smaller stored reference — `validation`
+### 7. More seeds, and a smaller stored reference — `validation`
 
 **Value: low-medium. Effort: low.** Both references are 20 seeds, confirmed at 60 and then
 discarded. Keeping the 60-seed references would be about 12 MB gzipped. The alternative is to
@@ -178,7 +145,7 @@ store the reduction rather than the raw results — the harness reduces to (scen
 variable) before it compares anything, and the reduction is two orders of magnitude smaller — at
 the cost of not being able to change the reduction without a re-run.
 
-### 9. Windows — `platform`
+### 8. Windows — `platform`
 
 **Value: unknown. Effort: medium, and better understood than it was.** Not targeted
 ([ADR 0013](decisions/0013-platforms-linux-and-macos.md)). The code avoids PSTL and
@@ -200,7 +167,7 @@ Still only worth doing if someone needs it.
 
 ## Smaller things
 
-### 10. Run the sanitizer presets' tests in parallel — `platform`
+### 9. Run the sanitizer presets' tests in parallel — `platform`
 
 **Value: low-medium, and lower than it was. Effort: low, and the risk is what makes it an item
 rather than a one-liner.** This run took the other half of the problem instead: TSan runs one
@@ -216,7 +183,7 @@ found rather than assumed, and under a sanitizer the memory cost multiplies too.
 change most likely to make a flaky test look like a real one, which is the thing a test suite can
 least afford.
 
-### 11. A schema for the model definition files — `docs`
+### 10. A schema for the model definition files — `docs`
 
 **Value: medium. Effort: low.** `schemas/v2/` covers the config. The static and dynamic model
 files have no published schema, which is why their member names were wrong for a week in the
@@ -225,14 +192,14 @@ and its R row-index columns. The shapes are documented only in `src/config/model
 the three loader test files. Write them, and extend `schema_agreement_test.cpp` to cover them the
 way it covers the config.
 
-### 12. Sector, and `demographic_models` — `scope`
+### 11. Sector, and `demographic_models` — `scope`
 
 **Value: low. Effort: low.** `person.sector` (urban/rural) is assigned nowhere; the channel
 appears if the mapping declares the factor. `modelling.demographic_models` is carried through as
 opaque JSON, deliberately — its shape belongs to the model family that reads it — and no model
 family reads it yet.
 
-### 13. The fixture pack's top-age artefact — `validation`
+### 12. The fixture pack's top-age artefact — `validation`
 
 **Value: low. Effort: low.** The synthetic pack's population table stops at the same age as the
 config's `age_range`, so anyone reaching the top age leaves the cohort and the pack's simulated
@@ -240,7 +207,7 @@ death rate runs above what its mortality table implies. Recorded in the pack's o
 Extending the pack's age range by a few years above the configured one would remove the artefact;
 nothing depends on it, because no test reads the pack's death rates as a check on anything.
 
-### 14. Report four things upstream — `docs`
+### 13. Report four things upstream — `docs`
 
 **Value: low here, high upstream. Effort: what is left of it is not ours.** The four reports are
 written: [docs/upstream-reports.md](upstream-reports.md) has each one with the command that

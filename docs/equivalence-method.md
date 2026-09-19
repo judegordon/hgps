@@ -178,6 +178,16 @@ the same one in each case, stated once here:
   half of the rule instead, which was worth more than the conversion would have been.
 - **§3.3, the first simulated year.** Not a deviation: both implementations agree that a flow
   variable has no value before anything has flowed. **Keep.**
+- **§2.1, the `IndividualIDTracking` family.** The same test, one level up: the baseline opens the
+  file and writes nothing into it, so there is no number on either side and a flag would have
+  nothing to toggle. What it is instead is a **scope** gap — this build does not write the file at
+  all ([docs/backlog.md](backlog.md) item 2) — and the exclusion is what records that honestly while
+  the baseline's own file stays empty. **Keep.**
+
+**And the 45 columns the eighth run filled were none of these.** They were the third case, which
+neither a flag nor an exclusion fits: the baseline had numbers and this build had nothing, in a file
+nothing was comparing. The answer there is to compute the column, and the reason it took a run to
+find is that an absence in a file nobody reads looks exactly like agreement.
 
 The distinction is not a formality. **B-24** — the deviation that prompted ADR 0041 — was on the
 other side of it: two implementations computing a real mean BMI and disagreeing on purpose, with

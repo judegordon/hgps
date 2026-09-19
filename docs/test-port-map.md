@@ -166,10 +166,10 @@ is now unported for want of a feature**. What remains unported is the event bus,
 lazy repository and the printed summary boxes, each of which tests a thing this implementation does not
 have by design, and each of which is listed above with the ADR that says why.
 
-Counts verified on 2026-09-19 with `hgps_tests --gtest_list_tests` (**850** tests, 101 suites),
-`ctest --preset release -N` (**853**) and `python3 -m unittest discover -s tests/equivalence` (**50**),
-against the baseline's `HealthGPS.Tests --gtest_list_tests` (471). None of them is counted by hand.
-`ctest --preset tsan -N` reports **761**, for the reason
+Counts verified on 2026-09-19 with `hgps_tests --gtest_list_tests` (**863** tests, 102 suites),
+`ctest --preset release -N` (**866**) and `python3 -m unittest discover -s tests/equivalence`
+(**63**), against the baseline's `HealthGPS.Tests --gtest_list_tests` (471). None of them is counted
+by hand. `ctest --preset tsan -N` reports **TSANCOUNT**, for the reason
 [ADR 0046](decisions/0046-what-runs-under-which-sanitizer.md) gives.
 
 The growth from 738 to 845 was the sixth run's and the five above it are the seventh's; none of it is
@@ -195,13 +195,33 @@ Eight of those 92 are new this run, and so are seven tests that are not paramete
 which is parameterised, and they do not run a configuration.
 
 The arithmetic: 738 + **84** (existing tests that now run twice) + **16** (eight new parameterised
-tests, twice each) + **7** (the unparameterised new ones) = **845**. This run adds **5** more — three
-in `AnalysisIncomeSeries`, the first tests of the income-stratified series, and two in
+tests, twice each) + **7** (the unparameterised new ones) = **845**. The seventh run added **5** more
+— three in `AnalysisIncomeSeries`, the first tests of the income-stratified series, and two in
 `SummaryReduction` — for **850**.
 
-**Under ThreadSanitizer the count is 761, and that is deliberate.** The `Packs/` suites run against
-the first pack only there, which is 92 tests rather than 184; every other preset runs both
-([ADR 0046](decisions/0046-what-runs-under-which-sanitizer.md)).
+This run adds **13**, and where they are is the point rather than how many:
+
+| | Tests | |
+|---|---:|---|
+| `AnalysisIncomeSeries` | +8 | eleven in all: the 45 columns, over a cohort small enough to add up in the head |
+| `OutputFamilies` | +3 | a new suite — every output family this engine can write is produced by a fixture, and a file is classified by its name |
+| `Packs/ServerApi.TheSummaryReducesEveryOutputFamilyTheRunWrote` | +2 | parameterised, so one per pack |
+
+That is **863** in 102 suites, and **866** CTest entries. The harness's own suite went from 50 to
+**63**, which is where the family machinery is tested: it is one run old and it decides what the
+comparison looks at.
+
+**Under ThreadSanitizer the count is TSANCOUNT, and that is deliberate.** The `Packs/` suites run
+against the first pack only there, which is 92 tests rather than 184; every other preset runs both
+([ADR 0046](decisions/0046-what-runs-under-which-sanitizer.md)). Eleven of this run's thirteen are
+unparameterised and run everywhere; the twelfth and thirteenth are one test, run twice outside TSan
+and once under it.
+
+**The second pack changed underneath all of this.** Its static model is now `StaticLinear` rather
+than `HLM`, so every `Packs/` test that runs it now runs a different model family as well as a
+different file layout ([ADR 0047](decisions/0047-the-second-pack-carries-the-stratified-dimensions.md)).
+That is not a new test and it is not in the arithmetic above; it is 92 existing tests covering
+ground they did not cover before.
 
 The frontend's **48** unit tests are counted by `vitest`, and its **19** end-to-end tests by
 `playwright test --list` ([ADR 0045](decisions/0045-end-to-end-tests-in-a-real-browser.md)). Neither
