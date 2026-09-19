@@ -20,6 +20,7 @@ this file as the test `EquivalenceHarness`.
 from __future__ import annotations
 
 import csv
+import gzip
 import hashlib
 import importlib.util
 import json
@@ -133,9 +134,13 @@ class DistributionTest(unittest.TestCase):
         self.assertAlmostEqual(min(1.0, smallest * 3), eqrun.distribution_p_value(base, new))
 
 
-def _series(values_by_seed):
-    """{seed: {key: value}} for one series, so `compare` has something to chew on."""
-    key = ("baseline", 2020, "male", "mean_bmi")
+def _series(values_by_seed, family=eqrun.MAIN_FAMILY):
+    """{seed: {key: value}} for one series, so `compare` has something to chew on.
+
+    The key carries the output family since the harness stopped comparing one file per run: every
+    key is `(family, scenario, year, sex, variable)`.
+    """
+    key = (family, "baseline", 2020, "male", "mean_bmi")
     return {seed: {key: value} for seed, value in values_by_seed.items()}
 
 
@@ -194,8 +199,8 @@ def _rate_series(case_counts, head_counts):
     """
     # `prevalence_`, not `incidence_`: an incidence is undefined in the run's first year and these
     # samples are all one year, so the comparison would be skipped before the detector saw it.
-    rate_key = ("baseline", 2020, "male", "prevalence_gout")
-    count_key = ("baseline", 2020, "male", "count")
+    rate_key = (eqrun.MAIN_FAMILY, "baseline", 2020, "male", "prevalence_gout")
+    count_key = (eqrun.MAIN_FAMILY, "baseline", 2020, "male", "count")
     return {seed: {rate_key: cases / head, count_key: float(head)}
             for seed, (cases, head) in enumerate(zip(case_counts, head_counts), start=1)}
 
@@ -210,7 +215,7 @@ def _compare_rates(base_cases, base_heads, new_cases, new_heads):
 
 def _of(outcome, variable):
     """The comparisons of one variable — the head count is beside it and is compared too."""
-    return [c for c in outcome.comparisons if c.key[3] == variable]
+    return [c for c in outcome.comparisons if c.key[4] == variable]
 
 
 class LatticeOnTheNumeratorTest(unittest.TestCase):
@@ -272,8 +277,8 @@ class LatticeOnTheNumeratorTest(unittest.TestCase):
         # count leaves it continuous. It must still get all five statistics.
         heads = [3146 + i for i in range(20)]
         values = [25.0 + 0.037 * i for i in range(20)]
-        key = ("baseline", 2020, "male", "mean_bmi")
-        count_key = ("baseline", 2020, "male", "count")
+        key = (eqrun.MAIN_FAMILY, "baseline", 2020, "male", "mean_bmi")
+        count_key = (eqrun.MAIN_FAMILY, "baseline", 2020, "male", "count")
         seeds = list(range(1, 21))
         side = {seed: {key: values[seed - 1], count_key: float(heads[seed - 1])} for seed in seeds}
         outcome = eqrun.Outcome(example="test", seeds=seeds)
@@ -286,8 +291,8 @@ class LatticeOnTheNumeratorTest(unittest.TestCase):
         # cohort size is the same in every seed too, so its numerator is one value as well. It has
         # to stay on the exact-distribution path — the synthetic self-check's detection of a 1%
         # shift in `mean_bmi` runs through it (docs/equivalence-method.md 7.2).
-        key = ("baseline", 2020, "male", "mean_bmi")
-        count_key = ("baseline", 2020, "male", "count")
+        key = (eqrun.MAIN_FAMILY, "baseline", 2020, "male", "mean_bmi")
+        count_key = (eqrun.MAIN_FAMILY, "baseline", 2020, "male", "count")
         seeds = list(range(1, 21))
         side = {seed: {key: 25.541647, count_key: 3146.0} for seed in seeds}
         outcome = eqrun.Outcome(example="test", seeds=seeds)
@@ -362,7 +367,7 @@ class ReductionTest(unittest.TestCase):
 
         18 people of the 40 are above normal weight; the reduction used to report
         (10*4 + 30*18) / 40 = 14.5, which is neither a count nor a proportion. This is the
-        defect docs/backlog.md item 2 recorded and nothing else would catch: both
+        defect this run closed and nothing else would catch: both
         implementations were reduced identically, so no comparison was ever wrong about it.
         """
         reduced = eqrun.reduce_result(self._write(self.ROWS))
@@ -489,8 +494,8 @@ if __name__ == "__main__":
     unittest.main()
 
 
-def _named_series(variable, values_by_seed, year=2020):
-    key = ("baseline", year, "male", variable)
+def _named_series(variable, values_by_seed, year=2020, family=eqrun.MAIN_FAMILY):
+    key = (family, "baseline", year, "male", variable)
     return {seed: {key: value} for seed, value in values_by_seed.items()}
 
 
@@ -537,9 +542,9 @@ class DeviationImpactTest(unittest.TestCase):
 
     @staticmethod
     def _reductions(fixed_by_year, compatible_by_year, seeds=(1, 2, 3)):
-        fixed = {seed: {("intervention", year, "male", "mean_bmi"): value
+        fixed = {seed: {(eqrun.MAIN_FAMILY, "intervention", year, "male", "mean_bmi"): value
                         for year, value in fixed_by_year.items()} for seed in seeds}
-        compatible = {seed: {("intervention", year, "male", "mean_bmi"): value
+        compatible = {seed: {(eqrun.MAIN_FAMILY, "intervention", year, "male", "mean_bmi"): value
                              for year, value in compatible_by_year.items()} for seed in seeds}
         return fixed, compatible, list(seeds)
 
@@ -584,9 +589,9 @@ class DeviationImpactTest(unittest.TestCase):
         self.assertAlmostEqual(0.1, series.relative_by_year[2020], places=9)
 
     def test_a_series_only_one_side_has_is_left_out_rather_than_guessed(self):
-        fixed = {1: {("intervention", 2020, "male", "mean_bmi"): 25.0,
-                     ("intervention", 2020, "male", "mean_new_thing"): 1.0}}
-        compatible = {1: {("intervention", 2020, "male", "mean_bmi"): 24.0}}
+        fixed = {1: {(eqrun.MAIN_FAMILY, "intervention", 2020, "male", "mean_bmi"): 25.0,
+                     (eqrun.MAIN_FAMILY, "intervention", 2020, "male", "mean_new_thing"): 1.0}}
+        compatible = {1: {(eqrun.MAIN_FAMILY, "intervention", 2020, "male", "mean_bmi"): 24.0}}
         impact = eqrun.measure_impact(fixed, compatible, [1], "all")
         self.assertEqual(["mean_bmi"], [s.variable for s in impact.series])
 
@@ -597,3 +602,128 @@ class DeviationImpactTest(unittest.TestCase):
         fixed, compatible, seeds = self._reductions({2020: 99.0}, {2020: 1.0})
         outcome.impact = eqrun.measure_impact(fixed, compatible, seeds, "all")
         self.assertTrue(eqrun.report(outcome, verbose=False, max_failures=0))
+
+
+class OutputFamiliesTest(unittest.TestCase):
+    """Every CSV a run writes is compared, and a family only one side has is a failure.
+
+    Until this run the harness reduced the whole-population file and `find_result_csv` existed to
+    *exclude* the others. Forty-five columns of every income-stratified file were identically zero
+    here and filled in the baseline for as long as this build has written them, and the only
+    comparison this project has did not look at them at all (docs/equivalence.md).
+    """
+
+    def test_a_derived_file_is_recognised_by_its_category_suffix(self):
+        self.assertEqual("LowIncome", eqrun.family_of(Path("result_2026-01-02_LowIncome.csv")))
+        self.assertEqual("UpperMiddleIncome",
+                         eqrun.family_of(Path("r_2026-01-02_UpperMiddleIncome.csv")))
+        self.assertEqual("IndividualIDTracking",
+                         eqrun.family_of(Path("r_2026-01-02_IndividualIDTracking.csv")))
+
+    def test_a_configured_output_name_ending_in_a_capital_is_not_a_family(self):
+        # The rule that matched the *shape* of a CamelCase suffix would call this one "B". The
+        # second fixture pack's configured output name is exactly this, so the rule that looks
+        # right was wrong on a file this repository generates.
+        self.assertEqual(eqrun.MAIN_FAMILY, eqrun.family_of(Path("synthland_2026-01-02_B.csv")))
+        self.assertEqual(eqrun.MAIN_FAMILY, eqrun.family_of(Path("result.csv")))
+
+    def test_every_csv_in_a_folder_is_found_and_named(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            for name in ("result_2026-01-02.csv", "result_2026-01-02_LowIncome.csv",
+                         "result_2026-01-02_HighIncome.csv"):
+                (folder / name).write_text("source,run,time,gender_name,index_id,count\n")
+            (folder / "result_2026-01-02.json").write_text("{}")
+
+            families = eqrun.result_families(folder)
+            self.assertEqual({eqrun.MAIN_FAMILY, "LowIncome", "HighIncome"}, set(families))
+
+    def test_two_files_claiming_the_whole_population_family_is_an_error(self):
+        # The failure mode a new derived file with an unknown suffix produces, and it is loud on
+        # purpose: silently treating it as a second main file is how a family goes unnoticed.
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            (folder / "result_2026-01-02.csv").write_text("count\n")
+            (folder / "result_2026-01-02_Whatever.csv").write_text("count\n")
+            with self.assertRaises(RuntimeError):
+                eqrun.result_families(folder)
+
+    def test_the_family_is_part_of_every_key(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            header = "source,run,time,gender_name,index_id,count,mean_bmi\n"
+            (folder / "r.csv").write_text(header + "baseline,1,2020,male,30,10,25.0\n")
+            (folder / "r_LowIncome.csv").write_text(header + "baseline,1,2020,male,30,4,22.0\n")
+
+            reduced = eqrun.reduce_families(eqrun.result_families(folder))
+            self.assertAlmostEqual(25.0, reduced[("result", "baseline", 2020, "male", "mean_bmi")])
+            self.assertAlmostEqual(22.0,
+                                   reduced[("LowIncome", "baseline", 2020, "male", "mean_bmi")])
+            self.assertAlmostEqual(4.0, reduced[("LowIncome", "baseline", 2020, "male", "count")])
+
+    def test_a_stratified_rate_is_reconstructed_from_its_own_head_count(self):
+        # The lattice detector rebuilds a rate's numerator as `value * count`. Reading the whole
+        # population's head count for a stratum's rate would give it a number two or three times
+        # too large and classify the series wrongly.
+        seeds = list(range(1, 21))
+
+        def side(stratum_cases):
+            return {seed: {("LowIncome", "baseline", 2020, "male", "prevalence_gout"):
+                               stratum_cases[seed - 1] / 400.0,
+                           ("LowIncome", "baseline", 2020, "male", "count"): 400.0,
+                           ("result", "baseline", 2020, "male", "count"): 3146.0}
+                    for seed in seeds}
+
+        outcome = eqrun.Outcome(example="test", seeds=seeds)
+        cases = [0] * 13 + [1] * 7
+        eqrun.compare(side(cases), side(cases), seeds, outcome)
+        stratified = [c for c in outcome.comparisons
+                      if c.key[0] == "LowIncome" and c.key[4] == "prevalence_gout"]
+        self.assertEqual({"mean", "distribution"}, {c.statistic for c in stratified})
+
+    def test_a_family_only_the_baseline_writes_is_a_failure(self):
+        failures = eqrun.check_families({"result": {}, "MiddleIncome": {}}, {"result": {}})
+        self.assertEqual(1, len(failures))
+        self.assertIn("MiddleIncome", failures[0])
+
+    def test_a_family_only_this_build_writes_is_a_failure(self):
+        failures = eqrun.check_families({"result": {}}, {"result": {}, "MiddleIncome": {}})
+        self.assertEqual(1, len(failures))
+        self.assertIn("this build writes", failures[0])
+
+    def test_the_recorded_baseline_only_family_is_excluded_while_its_file_is_empty(self):
+        failures = eqrun.check_families(
+            {"result": {}, "IndividualIDTracking": {"empty_file": True}}, {"result": {}})
+        self.assertEqual([], failures)
+
+    def test_the_exclusion_disarms_itself_when_the_baseline_fills_the_file(self):
+        # The same discipline BASELINE_DOES_NOT_COMPUTE follows one level down: an exclusion whose
+        # premise stops holding turns back into a failure and says why.
+        failures = eqrun.check_families(
+            {"result": {}, "IndividualIDTracking": {"empty_file": False}}, {"result": {}})
+        self.assertEqual(1, len(failures))
+        self.assertIn("no longer holds", failures[0])
+
+    def test_a_family_failure_fails_the_run(self):
+        outcome = eqrun.Outcome(example="test", seeds=[1, 2, 3])
+        outcome.family_failures = ["MiddleIncome: the baseline writes this and we do not"]
+        self.assertFalse(eqrun.report(outcome, verbose=False, max_failures=0))
+
+    def test_a_reference_without_a_family_column_is_refused_by_name(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "old.csv.gz"
+            with gzip.open(path, "wt", newline="") as stream:
+                writer = csv.writer(stream)
+                writer.writerow(["seed", "scenario", "year", "sex", "variable", "value"])
+                writer.writerow([1, "baseline", 2020, "male", "mean_bmi", "25.0"])
+            with self.assertRaises(SystemExit) as raised:
+                eqrun.read_reference(path)
+            self.assertIn("family", str(raised.exception))
+
+    def test_a_reference_round_trips_through_the_family_keyed_format(self):
+        reduced = {("result", "baseline", 2020, "male", "mean_bmi"): 25.5,
+                   ("LowIncome", "baseline", 2020, "female", "count"): 12.0}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "reference.csv.gz"
+            eqrun.write_reference(path, eqrun.reduced_to_rows(reduced, seed=7))
+            self.assertEqual({7: reduced}, eqrun.read_reference(path))

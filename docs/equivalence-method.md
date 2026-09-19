@@ -36,10 +36,18 @@ scenario that produced it.
 
 ## 2. The reduction: from rows to series
 
+**Every CSV a run writes, not one of them.** A run writes the whole-population file, one
+income-stratified file per configured income category and, where a config enables it, an
+individual-tracking file. Until the eighth run this harness reduced the first and nothing else —
+`find_result_csv` existed precisely to exclude the rest — and the price was measured rather than
+argued: on `KevinHall_FINCH`, **45 columns of every stratum file were identically zero in this
+build and non-zero in the baseline's**, and had been for as long as this build has written them.
+Every key below therefore begins with the **output family**, and §2.1 says what that changes.
+
 A result file has one row per (scenario, run, year, sex, **age band**). Comparing rows would be
 meaningless: the two implementations' age bands hold *different people*, because their random
 streams differ. Comparing population figures is not meaningless, so every file is reduced to one
-value per **(scenario, year, sex, variable)**:
+value per **(family, scenario, year, sex, variable)**:
 
 - `count`, `deaths`, `emigrations` and the four weight categories — `normal_weight`, `over_weight`,
   `obese_weight`, `above_weight` — are head counts, so they are **summed** over the age bands;
@@ -65,6 +73,38 @@ A band with no people in it contributes nothing to a weighted mean and nothing t
 
 The **seeds** then turn each series into a sample: 20 seeds give 20 values per series, and the
 comparison is between the two samples.
+
+### 2.1 What the family being part of the key changes
+
+Three things, and each of them is a decision rather than a consequence.
+
+**The head count a rate is reconstructed from is the family's own.** The lattice detector (§5)
+rebuilds a count-weighted variable's numerator as `value × count`, and for a stratum file that
+`count` is the stratum's head count. Reading the whole population's would give it a number two or
+three times too large and classify the series wrongly.
+
+**The emptying-band exclusion is taken from the whole-population file and applied to every family.**
+A band is excluded because immigration cannot refill it once it empties, so the two
+implementations' *cohorts* disagree there (§3.1, deviation B-21). That is a property of the
+population band. A stratum band being empty is a different thing entirely — it is a real split of a
+band both sides agree about — and excluding those would drop the stratified output of every band
+nobody happens to be in, which on the two HLM examples, where nobody has an income category at all,
+is every band there is.
+
+**A family one side writes and the other does not is a failure, not a skip.** The previous run's
+finding was not a wrong number, it was a file nobody was looking at, and a harness that quietly
+compared the intersection would have the same blind spot with more code in it. The one recorded
+exception is the baseline's individual-tracking file, which it opens for every run whose config
+enables tracking and writes nothing into; the exclusion holds **only while that file is empty** and
+turns back into a failure with its reason if it ever has a row
+([docs/deviations.md](deviations.md), [docs/backlog.md](backlog.md) item 2).
+
+**What this still cannot see**, and why `scripts/column-coverage.py` exists beside it: a column
+that is zero on *both* sides. On `HLM_France` and `HLM_India` nobody has an income category, so
+every stratum file is empty on both sides and the comparison agrees about nothing — which is a pass
+and should not be read as a check. The coverage script asks of the files themselves which columns
+are identically zero on each side, and fails where the baseline has numbers and this build has
+none ([docs/equivalence.md](equivalence.md), *Every column of every family*).
 
 ## 3. What is left out of the reduction, and why
 

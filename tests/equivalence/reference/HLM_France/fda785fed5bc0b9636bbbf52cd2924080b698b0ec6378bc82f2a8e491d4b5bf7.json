@@ -28,7 +28,25 @@
   "stop_time_override": null,
   "size_fraction_override": null,
   "baseline_binary": "/tmp/hgps-build/baseline-release/src/HealthGPS.Console/HealthGPS.Console",
-  "reduction": "count-weighted mean over age bands; head counts (count, deaths, emigrations and the four weight categories) summed; the age bands listed in excluded_bands are left out on both sides \u2014 see docs/equivalence.md",
+  "reduction": "every CSV the run wrote, reduced per output family: count-weighted mean over age bands; head counts (count, deaths, emigrations and the four weight categories) summed; the age bands listed in excluded_bands are taken from the whole-population file and left out on both sides and in every family \u2014 see docs/equivalence.md",
+  "families": {
+    "result": {
+      "file": "result_2026-09-19_03-09-28.csv",
+      "empty_file": false
+    },
+    "HighIncome": {
+      "file": "result_2026-09-19_03-09-28_HighIncome.csv",
+      "empty_file": false
+    },
+    "LowIncome": {
+      "file": "result_2026-09-19_03-09-28_LowIncome.csv",
+      "empty_file": false
+    },
+    "MiddleIncome": {
+      "file": "result_2026-09-19_03-09-28_MiddleIncome.csv",
+      "empty_file": false
+    }
+  },
   "baseline_empty_bands": [
     [
       "baseline",
@@ -8901,5 +8919,5 @@
       100
     ]
   ],
-  "written_utc": "2026-09-18T21:28:14Z"
+  "written_utc": "2026-09-19T03:09:51Z"
 }

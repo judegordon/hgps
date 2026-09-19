@@ -14,13 +14,34 @@ What it does, for each example and each seed:
      the upstream v1 config it was written for; this build gets the converted v2 config from
      examples/. Both get the same seed, the same output folder, absolute input paths and the same
      active intervention, so the only difference is the implementation.
-  2. Runs both, and reduces each result file to one value per (scenario, year, sex, variable) by
-     taking the count-weighted mean over the age bands — the population figure the variable is
-     reporting — or, for a head count, the sum over them (SUMMED_VARIABLES). Age bands that either
-     implementation ever empties are left out of that reduction, on both sides: see "the
-     emptying-band exclusion" below.
+  2. Runs both, and reduces **every CSV each run wrote** to one value per
+     (family, scenario, year, sex, variable) by taking the count-weighted mean over the age bands —
+     the population figure the variable is reporting — or, for a head count, the sum over them
+     (SUMMED_VARIABLES). Age bands that either implementation ever empties are left out of that
+     reduction, on both sides: see "the emptying-band exclusion" below.
   3. Across the seeds, computes the mean, standard deviation and 5th, 50th and 95th percentiles of
      each of those series, for each implementation, and compares them.
+
+Every output family, not one file per run
+-----------------------------------------
+
+A run writes the whole-population CSV, one income-stratified CSV per configured income category
+and, when its config enables it, an individual-tracking file. Until the eighth run this harness
+reduced **the first of those and nothing else** — `find_result_csv` existed precisely to exclude the
+rest — and the consequence was found by measuring rather than by a failure: on `KevinHall_FINCH`,
+**45 columns of every stratum file were identically zero in this build and non-zero in the
+baseline's**, and had been for as long as this build has written them
+(docs/SUMMARY.md).
+
+So every family is reduced, compared and reported, with its own comparison counts, and **a family
+one side writes and the other does not is a failure rather than a skip** — see `check_families`.
+The one recorded exception is `BASELINE_ONLY_FAMILIES`, whose premise the harness checks rather than
+trusts.
+
+Two things the family comparison still cannot see, and which `scripts/column-coverage.py` is for:
+a column that is zero on both sides for different reasons, and a column that is legitimately absent
+for an example — on the two HLM examples nobody has an income category at all, so their stratum
+files are empty on both sides and agreeing about nothing.
 
 The comparison is a hypothesis test, not a tolerance on a single number: two Monte Carlo
 simulations with different random streams cannot agree exactly, and the question is whether they
@@ -260,7 +281,7 @@ BASELINE_ONLY_FAMILIES = {
         "tracking, and writes nothing to it — not even a header — when no person passes the "
         "filter; `KevinHall_FINCH` asks for ages 80-110 in four named regions and matches nobody. "
         "This build parses and validates the same configuration and writes no such file at all "
-        "(docs/backlog.md item 4, docs/deviations.md)"),
+        "(docs/backlog.md item 2, docs/deviations.md)"),
 }
 
 # Variables whose value is meaningless in the first simulated year, so the year is skipped for
@@ -489,7 +510,7 @@ def result_families(folder: Path) -> dict[str, Path]:
     the first — `find_result_csv` existed precisely to *exclude* the others — and the consequence
     was that 49 columns of every stratum file were identically zero here and filled in the
     baseline for as long as this build has written them, with nothing checking
-    (docs/SUMMARY.md, docs/backlog.md item 2).
+    (docs/SUMMARY.md).
 
     @throws RuntimeError if there is no CSV at all, or if the whole-population one cannot be
             picked out.
@@ -668,12 +689,33 @@ def reduce_result(path: Path, excluded: set[Band] | None = None
     return reduced
 
 
-def reduced_to_rows(reduced: dict[tuple[str, int, str, str], float], seed: int) -> list[list]:
-    return [[seed, key[0], key[1], key[2], key[3], repr(value)]
+def reduce_families(files: dict[str, Path], excluded: set[Band] | None = None
+                    ) -> dict[tuple[str, str, int, str, str], float]:
+    """Every CSV of one run of one implementation, reduced, keyed by family first.
+
+    The family is part of the key rather than a separate dictionary because everything downstream —
+    the stored reference, the comparison, the lattice detector's lookup of the band's head count —
+    has to stay inside one family, and a key that carries it cannot accidentally leave.
+
+    **A file with no rows contributes no keys**, which is how a family that one side writes and the
+    other does not shows up as a missing family rather than as thousands of missing variables. The
+    caller checks the family sets against each other before this is reached.
+    """
+    reduced: dict[tuple[str, str, int, str, str], float] = {}
+    for family, path in sorted(files.items()):
+        if path.stat().st_size == 0:
+            continue
+        for key, value in reduce_result(path, excluded).items():
+            reduced[(family, *key)] = value
+    return reduced
+
+
+def reduced_to_rows(reduced: dict[tuple[str, str, int, str, str], float], seed: int) -> list[list]:
+    return [[seed, key[0], key[1], key[2], key[3], key[4], repr(value)]
             for key, value in sorted(reduced.items())]
 
 
-REFERENCE_HEADER = ["seed", "scenario", "year", "sex", "variable", "value"]
+REFERENCE_HEADER = ["seed", "family", "scenario", "year", "sex", "variable", "value"]
 
 
 def write_reference(path: Path, rows: list[list]) -> None:
@@ -684,12 +726,26 @@ def write_reference(path: Path, rows: list[list]) -> None:
         writer.writerows(rows)
 
 
-def read_reference(path: Path) -> dict[int, dict[tuple[str, int, str, str], float]]:
-    by_seed: dict[int, dict[tuple[str, int, str, str], float]] = {}
+def read_reference(path: Path) -> dict[int, dict[tuple[str, str, int, str, str], float]]:
+    """A stored reduction, by seed.
+
+    The `family` column was added when the harness stopped comparing one file per run, so a
+    reference written before that has six columns rather than seven and cannot be read here. It is
+    refused by name rather than by a `KeyError` on the first row: every stored reference in this
+    repository was regenerated against the baseline binary when the column was added, and one that
+    was not is a reference for a different comparison.
+    """
+    by_seed: dict[int, dict[tuple[str, str, int, str, str], float]] = {}
     with gzip.open(path, "rt", newline="") as stream:
-        for row in csv.DictReader(stream):
+        reader = csv.DictReader(stream)
+        if "family" not in (reader.fieldnames or []):
+            raise SystemExit(
+                f"{path}: this stored reference predates the per-family comparison — it has "
+                f"columns {reader.fieldnames}, and the comparison needs a 'family' column. "
+                f"Re-run with --refresh-reference; see docs/equivalence.md.")
+        for row in reader:
             seed = int(row["seed"])
-            key = (row["scenario"], int(row["year"]), row["sex"], row["variable"])
+            key = (row["family"], row["scenario"], int(row["year"]), row["sex"], row["variable"])
             by_seed.setdefault(seed, {})[key] = float(row["value"])
     return by_seed
 
@@ -733,7 +789,8 @@ class Summary:
 
 @dataclass
 class Comparison:
-    key: tuple[str, int, str, str]
+    # (family, scenario, year, sex, variable)
+    key: tuple[str, str, int, str, str]
     statistic: str
     baseline: float
     new: float
@@ -769,6 +826,13 @@ class Outcome:
     timings: dict[str, float] = field(default_factory=dict)
     config_hashes: dict[str, str] = field(default_factory=dict)
     excluded_bands: int = 0
+
+    # Every output family each side wrote, and what was in it. A family on one side and not the
+    # other is a failure rather than a skip — the only exception is BASELINE_ONLY_FAMILIES, and
+    # that one is checked rather than trusted.
+    baseline_families: dict[str, dict] = field(default_factory=dict)
+    new_families: dict[str, dict] = field(default_factory=dict)
+    family_failures: list[str] = field(default_factory=list)
 
     # variable -> (deviation id, reason), for the columns the baseline emits but never fills.
     uncomputed: dict[str, tuple[str, str]] = field(default_factory=dict)
@@ -900,10 +964,10 @@ def compare(baseline: dict[int, dict], new: dict[int, dict], seeds: list[int],
     for key in sorted(new_keys - baseline_keys):
         outcome.missing.append(f"only this build reports {key}")
 
-    first_year = min(year for _, year, _, _ in baseline_keys) if baseline_keys else 0
+    first_year = min(year for _, _, year, _, _ in baseline_keys) if baseline_keys else 0
 
     for key in sorted(baseline_keys & new_keys):
-        scenario, year, sex, variable = key
+        family, scenario, year, sex, variable = key
 
         if year == first_year and is_first_year_undefined(variable):
             outcome.skipped.append(f"{key}: not defined in the first simulated year")
@@ -949,8 +1013,10 @@ def compare(baseline: dict[int, dict], new: dict[int, dict], seeds: list[int],
         # Is this series lattice-valued? See LATTICE_MAX_DISTINCT_VALUES above for what that means,
         # why no quantile of such a series can be compared numerically, and why the question is
         # asked of the numerator rather than of the reduced value.
-        base_counts = [baseline[seed].get((scenario, year, sex, "count")) for seed in seeds]
-        new_counts = [new[seed].get((scenario, year, sex, "count")) for seed in seeds]
+        # Inside the family: a stratum's count is the stratum's head count, and reconstructing a
+        # stratified rate from the whole population's would give the detector a wrong number.
+        base_counts = [baseline[seed].get((family, scenario, year, sex, "count")) for seed in seeds]
+        new_counts = [new[seed].get((family, scenario, year, sex, "count")) for seed in seeds]
         on_numerator = (
             variable not in SUMMED_VARIABLES
             and all(count is not None and count > 0.0 for count in base_counts + new_counts))
@@ -1002,6 +1068,40 @@ def compare(baseline: dict[int, dict], new: dict[int, dict], seeds: list[int],
                                               difference=mine.sd - base.sd))
 
 
+def check_families(baseline: dict[str, dict], mine: dict[str, dict]) -> list[str]:
+    """Every output family one side wrote and the other did not, as a line of text each.
+
+    **A family present on one side and absent on the other is a failure, not a skip.** That is the
+    whole point of enumerating them: the previous run's finding was not a wrong number, it was a
+    file nobody was looking at, and a harness that quietly compared the intersection would have the
+    same blind spot with more code in it.
+
+    The one exception is `BASELINE_ONLY_FAMILIES`, and its premise is **checked rather than
+    trusted**: the exclusion holds only while the baseline's file is empty, so upstream putting a
+    row in it turns the exclusion back into a failure and says why. The same rule
+    `BASELINE_DOES_NOT_COMPUTE` follows one level down.
+    """
+    failures: list[str] = []
+
+    for family in sorted(set(baseline) - set(mine)):
+        excluded = BASELINE_ONLY_FAMILIES.get(family)
+        if excluded is None:
+            failures.append(f"{family}: the baseline writes this output family and this build does "
+                            f"not, and it is not in BASELINE_ONLY_FAMILIES")
+            continue
+        identifier, reason = excluded
+        if not baseline[family].get("empty_file"):
+            failures.append(
+                f"{family}: excluded as {identifier} on the ground that the baseline's file is "
+                f"empty — but this run's is not, so the exclusion no longer holds and the family "
+                f"needs comparing ({reason})")
+
+    for family in sorted(set(mine) - set(baseline)):
+        failures.append(f"{family}: this build writes this output family and the baseline does not")
+
+    return failures
+
+
 # --- the example definitions --------------------------------------------------------------------
 
 
@@ -1049,8 +1149,9 @@ def examples() -> dict[str, Example]:
 
 @dataclass
 class ImpactSeries:
-    """What one deviation set is worth for one (scenario, sex, variable), year by year."""
+    """What one deviation set is worth for one (family, scenario, sex, variable), year by year."""
 
+    family: str
     scenario: str
     sex: str
     variable: str
@@ -1114,13 +1215,13 @@ def measure_impact(fixed: dict[int, dict], compatible: dict[int, dict], seeds: l
     for seed in seeds:
         keys |= set(fixed.get(seed, {})) & set(compatible.get(seed, {}))
 
-    grouped: dict[tuple[str, str, str], ImpactSeries] = {}
-    for scenario, year, sex, variable in sorted(keys):
+    grouped: dict[tuple[str, str, str, str], ImpactSeries] = {}
+    for family, scenario, year, sex, variable in sorted(keys):
         differences = []
         compatible_values = []
         for seed in seeds:
-            left = fixed.get(seed, {}).get((scenario, year, sex, variable))
-            right = compatible.get(seed, {}).get((scenario, year, sex, variable))
+            left = fixed.get(seed, {}).get((family, scenario, year, sex, variable))
+            right = compatible.get(seed, {}).get((family, scenario, year, sex, variable))
             if left is None or right is None:
                 continue
             differences.append(left - right)
@@ -1139,8 +1240,9 @@ def measure_impact(fixed: dict[int, dict], compatible: dict[int, dict], seeds: l
             impact.unchanged += 1
             continue
 
-        series = grouped.setdefault((scenario, sex, variable),
-                                    ImpactSeries(scenario=scenario, sex=sex, variable=variable))
+        series = grouped.setdefault((family, scenario, sex, variable),
+                                    ImpactSeries(family=family, scenario=scenario, sex=sex,
+                                                 variable=variable))
         series.by_year[year] = mean_difference
         series.relative_by_year[year] = (mean_difference / mean_compatible
                                           if mean_compatible else math.inf)
@@ -1153,7 +1255,11 @@ def measure_impact(fixed: dict[int, dict], compatible: dict[int, dict], seeds: l
 
 
 def variable_of(comparison: Comparison) -> str:
-    return comparison.key[3]
+    return comparison.key[4]
+
+
+def family_of_comparison(comparison: Comparison) -> str:
+    return comparison.key[0]
 
 
 def report(outcome: Outcome, verbose: bool, max_failures: int) -> bool:
@@ -1182,6 +1288,28 @@ def report(outcome: Outcome, verbose: bool, max_failures: int) -> bool:
         print(f"    {variable}: not compared — the baseline emits the column and never fills it "
               f"({identifier}: {reason})")
 
+    # Every output family, with its own counts. Until this run the harness compared one file per
+    # run and `find_result_csv` existed to exclude the rest, which is how 45 columns of every
+    # income-stratified file came to be empty here and filled in the baseline with nothing saying
+    # so (docs/equivalence.md).
+    print(f"    {len(outcome.new_families)} output family(ies) here, "
+          f"{len(outcome.baseline_families)} in the baseline:")
+    per_family: dict[str, list[Comparison]] = {}
+    for comparison in outcome.comparisons:
+        per_family.setdefault(family_of_comparison(comparison), []).append(comparison)
+    for family in sorted(set(outcome.baseline_families) | set(outcome.new_families)):
+        group = per_family.get(family, [])
+        failed = sum(1 for c in group if not c.passed)
+        theirs = outcome.baseline_families.get(family)
+        ours = outcome.new_families.get(family)
+        where = ("both" if theirs is not None and ours is not None
+                 else "baseline only" if theirs is not None else "this build only")
+        print(f"      {family:<22} {where:<16} {len(group):>7} comparison(s), "
+              f"{failed} out of tolerance")
+
+    for line in outcome.family_failures:
+        print(f"    FAMILY {line}")
+
     if outcome.missing:
         print(f"    {len(outcome.missing)} series reported by only one implementation:")
         for line in outcome.missing[:20]:
@@ -1202,7 +1330,7 @@ def report(outcome: Outcome, verbose: bool, max_failures: int) -> bool:
         for variable in sorted(by_variable, key=lambda v: -len(by_variable[v])):
             group = by_variable[variable]
             worst = max(group, key=lambda c: c.ratio_of_allowed)
-            years = sorted({c.key[1] for c in group})
+            years = sorted({c.key[2] for c in group})
             if worst.p_value is not None:
                 print(f"      {variable}: {len(group)} comparison(s), "
                       f"years {years[0]}-{years[-1]}, worst {worst.statistic} "
@@ -1226,7 +1354,7 @@ def report(outcome: Outcome, verbose: bool, max_failures: int) -> bool:
 
     report_impact(outcome, verbose)
 
-    if outcome.missing:
+    if outcome.missing or outcome.family_failures:
         return False
 
     if len(failures) <= max_failures:
@@ -1250,6 +1378,7 @@ def impact_as_json(impact: "DeviationImpact | None") -> dict | None:
         "extra_empty_bands": impact.extra_empty_bands,
         "series": [
             {
+                "family": series.family,
                 "scenario": series.scenario,
                 "sex": series.sex,
                 "variable": series.variable,
@@ -1297,7 +1426,7 @@ def report_impact(outcome: Outcome, verbose: bool) -> None:
         years = sorted(series.by_year)
         largest_year = series.largest_year
         relative = series.relative_by_year.get(largest_year, 0.0)
-        print(f"      {series.scenario}/{series.sex}/{series.variable}: "
+        print(f"      {series.family}/{series.scenario}/{series.sex}/{series.variable}: "
               f"largest {series.largest:+.6g} ({relative:+.3%}) in {largest_year}, "
               f"over {years[0]}-{years[-1]}")
         # The year-by-year curve is the evidence: a deviation with a shape nobody expected is
@@ -1313,22 +1442,33 @@ def report_impact(outcome: Outcome, verbose: bool) -> None:
 def as_json(outcome: Outcome) -> dict:
     """The outcome in full, keyed so a reader can find any single comparison again."""
     by_group: dict[str, dict] = {}
+    per_family: dict[str, dict] = {}
     for comparison in outcome.comparisons:
-        group = by_group.setdefault(f"{variable_of(comparison)}|{comparison.statistic}",
-                                    {"variable": variable_of(comparison),
-                                     "statistic": comparison.statistic,
-                                     "compared": 0, "failed": 0, "worst": None})
+        family = family_of_comparison(comparison)
+        group = by_group.setdefault(
+            f"{family}|{variable_of(comparison)}|{comparison.statistic}",
+            {"family": family, "variable": variable_of(comparison),
+             "statistic": comparison.statistic, "compared": 0, "failed": 0, "worst": None})
         group["compared"] += 1
         if not comparison.passed:
             group["failed"] += 1
         if group["worst"] is None or comparison.ratio_of_allowed > group["worst"]["ratio"]:
             group["worst"] = {
-                "scenario": comparison.key[0], "year": comparison.key[1],
-                "sex": comparison.key[2], "baseline": comparison.baseline,
+                "scenario": comparison.key[1], "year": comparison.key[2],
+                "sex": comparison.key[3], "baseline": comparison.baseline,
                 "new": comparison.new, "allowed": comparison.allowed,
                 "difference": comparison.difference,
                 "ratio": comparison.ratio_of_allowed,
             }
+
+        counts = per_family.setdefault(family, {"compared": 0, "failed": 0})
+        counts["compared"] += 1
+        counts["failed"] += 0 if comparison.passed else 1
+
+    for family in set(outcome.baseline_families) | set(outcome.new_families):
+        counts = per_family.setdefault(family, {"compared": 0, "failed": 0})
+        counts["in_the_baseline"] = family in outcome.baseline_families
+        counts["here"] = family in outcome.new_families
 
     return {
         "example": outcome.example,
@@ -1338,6 +1478,8 @@ def as_json(outcome: Outcome) -> dict:
         "comparisons": len(outcome.comparisons),
         "failures": sum(1 for c in outcome.comparisons if not c.passed),
         "excluded_age_bands": outcome.excluded_bands,
+        "families": per_family,
+        "family_failures": outcome.family_failures,
         "not_computed_by_the_baseline": {v: {"deviation": d, "reason": r}
                                           for v, (d, r) in outcome.uncomputed.items()},
         "baseline_retries": outcome.retries,
@@ -1355,7 +1497,7 @@ def as_json(outcome: Outcome) -> dict:
 def run_impact_pass(*, example: Example, seeds: list[int], workdir: Path, name: str,
                     binary: Path, overlay: dict, excluded: set[Band], compat_flags: str,
                     compat_arguments: list[str], fixed_reference: dict[int, dict],
-                    result_files: dict[tuple[str, int], Path], stop_time: int | None,
+                    result_files: dict[tuple[str, int], dict[str, Path]], stop_time: int | None,
                     size_fraction: float | None, mode: str) -> DeviationImpact | None:
     """Runs this build again with the compatibility flags off, and measures the difference.
 
@@ -1385,18 +1527,22 @@ def run_impact_pass(*, example: Example, seeds: list[int], workdir: Path, name: 
         run(binary, config_path, ["--threads", "1"],
             folder.parent / f"log-seed-{seed}.txt", output_folder=folder)
 
-        result = find_result_csv(folder)
-        extra_empty |= empty_bands(result) - excluded
-        impact_reduced[seed] = reduce_result(result, excluded)
+        families = result_families(folder)
+        extra_empty |= empty_bands(families[MAIN_FAMILY]) - excluded
+        impact_reduced[seed] = reduce_families(families, excluded)
 
-        # The probe: if the first seed's two result files are byte-identical, no recorded
-        # deviation reaches this run and the remaining seeds would measure nothing. Comparing the
-        # files rather than the reductions makes that a stronger statement — the reduction could
-        # hide a difference the exclusion removed.
+        # The probe: if the first seed's result files are byte-identical, no recorded deviation
+        # reaches this run and the remaining seeds would measure nothing. Comparing the files
+        # rather than the reductions makes that a stronger statement — the reduction could hide a
+        # difference the exclusion removed — and it is **every** family's file since this run, so a
+        # deviation that only reaches the income-stratified output cannot stop the probe early.
         if mode == "auto" and position == 0:
-            comparison_result = result_files.get(("new", seed))
-            if (comparison_result is not None
-                    and comparison_result.read_bytes() == result.read_bytes()):
+            comparison_files = result_files.get(("new", seed))
+            identical = (comparison_files is not None
+                         and set(comparison_files) == set(families)
+                         and all(comparison_files[key].read_bytes() == files.read_bytes()
+                                 for key, files in families.items()))
+            if identical:
                 impact = DeviationImpact(flags=compat_flags, seeds=[seed])
                 impact.note = (f"stopped after seed {seed}: this build's output is byte-identical "
                                f"with the flags on and off, so no recorded deviation reaches this "
@@ -1566,9 +1712,10 @@ def main() -> int:
         # Two passes, because the exclusion has to be the union over both implementations and every
         # seed before any file can be reduced with it. Pass one runs and reads only the head
         # counts; pass two reduces. The result files stay in the working directory between them.
-        result_files: dict[tuple[str, int], Path] = {}
+        result_files: dict[tuple[str, int], dict[str, Path]] = {}
         baseline_empty: set[Band] = set()
         new_empty: set[Band] = set()
+        seen_families: dict[str, dict[str, dict]] = {"baseline": {}, "new": {}}
 
         for seed in seeds:
             for label, binary, source, is_baseline in (
@@ -1597,14 +1744,35 @@ def main() -> int:
                               retries=outcome.retries, output_folder=folder)
                 outcome.timings[label] = outcome.timings.get(label, 0.0) + elapsed
 
-                result = find_result_csv(folder)
-                result_files[(label, seed)] = result
-                (baseline_empty if is_baseline else new_empty).update(empty_bands(result))
+                families = result_families(folder)
+                result_files[(label, seed)] = families
+                for family, file in families.items():
+                    seen_families[label][family] = {
+                        "file": file.name,
+                        "empty_file": file.stat().st_size == 0,
+                    }
+
+                # The exclusion is taken from the **whole-population** file and applied to every
+                # family, and that is a statement about what it is for rather than a convenience.
+                # A band is excluded because immigration cannot refill it once it empties, so the
+                # two implementations' *cohorts* differ there (B-21). That is a property of the
+                # population band. A stratum band being empty is not that: it is a real split of a
+                # band that both sides agree about, and excluding it would drop the stratified
+                # output of every band nobody happens to be in — which on the two HLM examples,
+                # where nobody has an income category at all, is every band there is.
+                (baseline_empty if is_baseline else new_empty).update(
+                    empty_bands(families[MAIN_FAMILY]))
             print(f"    {name} seed {seed}: done", flush=True)
 
         if use_reference:
             baseline_empty = {tuple(band) for band in stored_manifest.get("baseline_empty_bands",
                                                                           [])}
+            seen_families["baseline"] = stored_manifest.get("families", {})
+            if not seen_families["baseline"]:
+                print(f"=== {name}: the stored reference records no output families, so it "
+                      f"predates the per-family comparison; re-run with --refresh-reference")
+                all_passed = False
+                continue
 
         excluded = baseline_empty | new_empty
         outcome.excluded_bands = len(excluded)
@@ -1626,9 +1794,9 @@ def main() -> int:
                 all_passed = False
                 continue
 
-        for (label, seed), result in result_files.items():
+        for (label, seed), files in result_files.items():
             target = baseline_reduced if label == "baseline" else new_reduced
-            target[seed] = reduce_result(result, excluded)
+            target[seed] = reduce_families(files, excluded)
 
         if not use_reference and (arguments.refresh_reference or not reference_path.is_file()):
             rows = [row for seed in seeds for row in reduced_to_rows(baseline_reduced[seed], seed)]
@@ -1642,10 +1810,12 @@ def main() -> int:
                 "stop_time_override": arguments.stop_time,
                 "size_fraction_override": arguments.size_fraction,
                 "baseline_binary": str(arguments.baseline),
-                "reduction": "count-weighted mean over age bands; head counts (count, deaths, "
-                             "emigrations and the four weight categories) summed; the age bands "
-                             "listed in excluded_bands are left out on both sides — see "
-                             "docs/equivalence.md",
+                "reduction": "every CSV the run wrote, reduced per output family: count-weighted "
+                             "mean over age bands; head counts (count, deaths, emigrations and the "
+                             "four weight categories) summed; the age bands listed in "
+                             "excluded_bands are taken from the whole-population file and left out "
+                             "on both sides and in every family — see docs/equivalence.md",
+                "families": seen_families["baseline"],
                 "baseline_empty_bands": sorted(baseline_empty),
                 "excluded_bands": sorted(excluded),
                 "written_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -1655,6 +1825,10 @@ def main() -> int:
             except ValueError:
                 shown = reference_path
             print(f"    wrote reference {shown}")
+
+        outcome.baseline_families = seen_families["baseline"]
+        outcome.new_families = seen_families["new"]
+        outcome.family_failures = check_families(seen_families["baseline"], seen_families["new"])
 
         compare(baseline_reduced, new_reduced, seeds, outcome)
 

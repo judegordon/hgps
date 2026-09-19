@@ -111,7 +111,7 @@ def measure(binary: Path, config: Path, seeds: list[int], workdir: Path, label: 
     a self-check go through exactly the code path the real comparison uses.
     """
     reduced: dict[int, dict] = {}
-    files: dict[int, Path] = {}
+    files: dict[int, dict[str, Path]] = {}
     empty: set[tuple] = set()
     seconds = 0.0
 
@@ -134,15 +134,19 @@ def measure(binary: Path, config: Path, seeds: list[int], workdir: Path, label: 
         seconds += harness.run(binary, config_path, extra,
                                folder.parent / f"log-seed-{seed}.txt", output_folder=folder)
 
-        result = harness.find_result_csv(folder)
-        files[seed] = result
-        empty |= harness.empty_bands(result)
+        # Every family the run wrote, not just the whole-population file: the self-check has to go
+        # through the same reduction the real comparison does, and since this run that reduction
+        # covers the income-stratified files too. The exclusion still comes from the
+        # whole-population file, for the reason `run.py`'s main loop gives.
+        families = harness.result_families(folder)
+        files[seed] = families
+        empty |= harness.empty_bands(families[harness.MAIN_FAMILY])
 
     return files, empty, seconds
 
 
-def reduce_all(files: dict[int, Path], excluded: set[tuple]) -> dict[int, dict]:
-    return {seed: harness.reduce_result(path, excluded) for seed, path in files.items()}
+def reduce_all(files: dict[int, dict[str, Path]], excluded: set[tuple]) -> dict[int, dict]:
+    return {seed: harness.reduce_families(paths, excluded) for seed, paths in files.items()}
 
 
 def main() -> int:
@@ -226,6 +230,17 @@ def main() -> int:
 
     excluded = left_empty | right_empty
     outcome.excluded_bands = len(excluded)
+
+    # Both sides are this build, so the two family sets are the same set by construction and
+    # `check_families` has nothing to find. They are recorded anyway, because the report prints a
+    # per-family line and a self-check that showed "0 families" while comparing several would be
+    # the harness misreporting itself — which is the one thing this script exists to catch.
+    outcome.baseline_families = {family: {"file": path.name, "empty_file": False}
+                                 for family, path in sorted(left_files[seeds[0]].items())}
+    outcome.new_families = {family: {"file": path.name, "empty_file": False}
+                            for family, path in sorted(right_files[seeds[0]].items())}
+    outcome.family_failures = harness.check_families(outcome.baseline_families,
+                                                      outcome.new_families)
 
     left = reduce_all(left_files, excluded)
     right = reduce_all(right_files, excluded)

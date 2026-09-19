@@ -45,5 +45,5 @@ puts **194 series apart and 12,533 in agreement** to the baseline's printed prec
 
 **The 60-seed references are not here.** They are 11 MB each gzipped, against 3.5 MB for these, and
 the same rule was applied to `HLM_France` and `KevinHall_FINCH` — confirm at 60 seeds, keep the
-20-seed reference. [docs/backlog.md](../../../../docs/backlog.md) item 8 is the alternative: store
+20-seed reference. [docs/backlog.md](../../../../docs/backlog.md) item 7 is the alternative: store
 the reduction rather than the raw results, which is two orders of magnitude smaller.
