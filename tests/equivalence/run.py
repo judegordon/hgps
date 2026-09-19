@@ -246,6 +246,23 @@ BASELINE_DOES_NOT_COMPUTE = {
                            "mapping loop skips it too; the column is always exactly zero"),
 }
 
+# Output families the baseline writes and this build does not, keyed to what records why.
+#
+# The same rule as BASELINE_DOES_NOT_COMPUTE, one level up: a family is excluded only while the
+# baseline's file is *empty*, so the exclusion disarms itself the moment upstream starts putting
+# rows in it. A family excluded here is still enumerated, still reported, and still fails if the
+# premise stops holding — what it is not is compared, because there is nothing on this side to
+# compare against.
+BASELINE_ONLY_FAMILIES = {
+    "IndividualIDTracking": (
+        "backlog item 4",
+        "the baseline opens `<stem>_IndividualIDTracking.csv` for every run whose config enables "
+        "tracking, and writes nothing to it — not even a header — when no person passes the "
+        "filter; `KevinHall_FINCH` asks for ages 80-110 in four named regions and matches nobody. "
+        "This build parses and validates the same configuration and writes no such file at all "
+        "(docs/backlog.md item 4, docs/deviations.md)"),
+}
+
 # Variables whose value is meaningless in the first simulated year, so the year is skipped for
 # them rather than compared. Nothing else is excluded.
 FIRST_YEAR_UNDEFINED = ("deaths", "emigrations", "incidence_", "mean_yll", "std_yll", "mean_yld",
@@ -440,29 +457,56 @@ def write_derived_config(path: Path, document: dict) -> None:
     path.write_text(json.dumps(document, indent=1))
 
 
-def find_result_csv(folder: Path) -> Path:
-    """The main result CSV: the whole-population one.
+# The derived files are the main name plus a CamelCase suffix — `_LowIncome`, `_Quintile3`,
+# `_IndividualIDTracking`. Matching on the shape of the suffix rather than on a list of them keeps
+# this in step with the writer, and works even when a derived file's own timestamp is a second
+# later than the main one's, which it sometimes is.
+DERIVED_SUFFIX = re.compile(r"_([A-Z][A-Za-z0-9]*)$")
 
-    A run also writes an income-stratified file per category and, when it is switched on, an
-    individual-tracking file. Every one of those is the main file's name plus a suffix, so the
-    main one is the file whose stem every other stem begins with — which needs no list of suffixes
-    to keep in step with the writer.
+# The main file's family name. It has no suffix, so it needs one to be spoken about.
+MAIN_FAMILY = "result"
+
+
+def family_of(path: Path) -> str:
+    """Which output family a result file belongs to, from its name alone."""
+    match = DERIVED_SUFFIX.search(path.stem)
+    return match.group(1) if match else MAIN_FAMILY
+
+
+def result_families(folder: Path) -> dict[str, Path]:
+    """Every CSV a run wrote, by family: the whole-population one and each derived file.
+
+    A run writes the whole-population CSV, one income-stratified CSV per configured category and,
+    when it is switched on, an individual-tracking file. Until this run the harness looked only at
+    the first — `find_result_csv` existed precisely to *exclude* the others — and the consequence
+    was that 49 columns of every stratum file were identically zero here and filled in the
+    baseline for as long as this build has written them, with nothing checking
+    (docs/SUMMARY.md, docs/backlog.md item 2).
+
+    @throws RuntimeError if there is no CSV at all, or if the whole-population one cannot be
+            picked out.
     """
     candidates = sorted(folder.glob("*.csv"))
     if not candidates:
         raise RuntimeError(f"no result CSV in {folder}")
 
-    # The derived files are the main name plus a CamelCase suffix — `_LowIncome`, `_Quintile3`,
-    # `_IndividualIDTracking`. Matching on the shape of the suffix rather than on a list of them
-    # keeps this in step with the writer, and works even when a derived file's own timestamp is a
-    # second later than the main one's, which it sometimes is.
-    derived = re.compile(r"_[A-Z][A-Za-z0-9]*$")
-    whole = [p for p in candidates if not derived.search(p.stem)]
+    families: dict[str, Path] = {}
+    for path in candidates:
+        name = family_of(path)
+        if name in families:
+            raise RuntimeError(f"two files in {folder} claim the family '{name}': "
+                               f"{families[name].name} and {path.name}")
+        families[name] = path
 
-    if len(whole) != 1:
+    if MAIN_FAMILY not in families:
         raise RuntimeError(f"cannot tell which of the CSVs in {folder} is the whole-population "
                            f"one: {[p.name for p in candidates]}")
-    return whole[0]
+    return families
+
+
+def find_result_csv(folder: Path) -> Path:
+    """The main result CSV: the whole-population one."""
+    return result_families(folder)[MAIN_FAMILY]
 
 
 def run(binary: Path, config: Path, extra: list[str], log: Path,

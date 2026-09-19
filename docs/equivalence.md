@@ -82,6 +82,58 @@ written with, and the harness's own check caught the mismatch and refused rather
 against the wrong reduction. The `HLM_India` + `food_labelling` reference was refreshed; the others
 were untouched, because on them no deviation reaches the run.
 
+## Every column of every family: the coverage check
+
+`scripts/column-coverage.py` asks a blunter question than the comparison does, of the result files
+themselves rather than of a reduction: **which columns does each output family have, on each side,
+and which of them are identically zero in every row?** It fails when a column is present in the
+baseline, present here, identically zero here and not identically zero in the baseline.
+
+It exists because that is the shape of the defect the previous run found and no statistical
+comparison can express. "The baseline has numbers and we have nothing" is not a disagreement about
+a distribution; a reduction of a column of zeros against a column of numbers either fails for ever
+or — where the column is legitimately absent for an example — is skipped on both sides and says
+nothing at all.
+
+**The starting state, before anything in this run was fixed.** One seed of each implementation on
+each of the three runnable examples, every CSV they wrote, column by column:
+
+| Example | Family | Columns | All-zero here | All-zero in the baseline | Zero here, filled there |
+|---|---|---:|---:|---:|---:|
+| `HLM_France` | `result` | 52 | 6 | 6 | **0** |
+| `HLM_France` | `HighIncome`, `LowIncome`, `MiddleIncome` | 52 | 47 | 44 | **3** each |
+| `KevinHall_FINCH` | `result` | 120 | 6 | 7 | **0** |
+| `KevinHall_FINCH` | `HighIncome`, `LowIncome`, `LowerMiddleIncome`, `UpperMiddleIncome` | 120 | 52 | 7 | **45** each |
+| `KevinHall_FINCH` | `IndividualIDTracking` | — | — | — | baseline only, and empty |
+| `HLM_India` | `result` | 110 | 6 | 6 | **0** |
+| `HLM_India` | `HighIncome`, `LowIncome`, `MiddleIncome` | 110 | 105 | 102 | **3** each |
+
+**198 findings**: 45 columns in each of `KevinHall_FINCH`'s four stratum files, and `mean_age`,
+`mean_age2` and `mean_age3` in each of the six stratum files of the two HLM examples. The 45 are
+the list [docs/backlog.md](backlog.md) item 2 names. The three are the same 45 seen where nobody has
+an income category at all: the baseline writes `mean_age`, `mean_age2` and `mean_age3` into every
+configured stratum whether or not anybody is in it, because they are the row's own key rather than
+an average over its members, and this build wrote zeros.
+
+`HLM_France` and `HLM_India` are HLM examples and **no person in them has an income category**, so
+every other column of their stratum files is zero on both sides — 44 of 52 and 102 of 110. That is
+not agreement, it is two empty files, and it is why the 45 were only ever visible on the one example
+whose models assign an income category.
+
+**Two entries are recorded differences rather than findings**, and the script checks both halves of
+each:
+
+- `KevinHall_FINCH · result · std_income` is zero in the **baseline** and filled here. That is
+  deviation **B-22**: the baseline's two paths to the column each defer to the other and neither
+  fills it. The script requires such a column to be in the harness's `BASELINE_DOES_NOT_COMPUTE`
+  and fails if it is not, so a column this build fills and the baseline does not cannot be an
+  accident.
+- `KevinHall_FINCH · IndividualIDTracking` is a **family** the baseline writes and this build does
+  not ([docs/backlog.md](backlog.md) item 4). The baseline opens the file for every run whose config
+  enables tracking and writes nothing into it — not even a header — when no person passes the
+  filter, which on `KevinHall_FINCH` is everybody: it asks for ages 80–110 in four named regions.
+  The exclusion holds **only while that file is empty**, and the script fails if it ever has a row.
+
 ## What is compared, and how
 
 The **method** — the reduction, the exclusions, the allowance and its derivation, the lattice
