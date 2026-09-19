@@ -59,6 +59,11 @@ configuration names files to read and a folder to write
 
 ## Documentation
 
+**Reading this repository end to end?** [docs/READING-GUIDE.md](docs/READING-GUIDE.md) is the order
+to take it in, with what each document and each source directory is, how long it takes and the one
+question it should leave you able to answer. [docs/glossary.md](docs/glossary.md) is worth keeping
+open beside it.
+
 | | |
 |---|---|
 | [docs/design.md](docs/design.md) | module layout, data flow, the determinism contract, the parallelism model, config v2, I/O formats |
