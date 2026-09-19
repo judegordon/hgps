@@ -1,10 +1,10 @@
-# Four reports for upstream
+# Five reports for upstream
 
-Four findings belong to whoever owns the baseline and the example data rather than to this
+Five findings belong to whoever owns the baseline and the example data rather than to this
 repository: this build cannot fix any of them without inventing a number or a mechanism for someone
-else's fitted model. They are written here as four separate reports, each with the one command that
+else's fitted model. They are written here as five separate reports, each with the one command that
 reproduces it and the evidence behind it, so that filing them is a copy rather than a rewrite.
-[docs/backlog.md](backlog.md) item 14 is the item this file closes the *writing* half of; the other
+[docs/backlog.md](backlog.md) item 13 is the item this file closes the *writing* half of; the other
 half is somebody sending them.
 
 Everything here was measured against Health-GPS `3.0.0.0` built as
@@ -133,6 +133,62 @@ retries and prints every one, so the flake is visible in the record rather than 
 ([docs/equivalence.md](equivalence.md), *The baseline does not always finish*). Across the same
 runs this build has not exited on a signal once, which is what the sequential-scenario design buys
 ([ADR 0009](decisions/0009-sequential-scenarios-and-the-migration-journal.md)).
+
+---
+
+## 5. Every demographic standard deviation that is also a declared risk factor has its square root taken twice
+
+**What happens.** In `KevinHall_FINCH`'s result file, `std_region` is **0.122097** in a band of 50
+people whose `mean_region` is 1.38. Region takes the values 1 to 4, so the spread of that band is
+about 0.745 — and 0.122097 is `sqrt(0.745 / 50)`. The square root has been taken twice.
+
+**Why.** `AnalysisModule::calculate_standard_deviation` finishes the accumulated squared deviations
+in two loops, and a name can be in both. The first walks every mapping entry:
+
+```cpp
+for (const auto &factor : context.mapping().entries()) {
+    divide_by_count_sqrt(factor.key().to_string(), core::Gender::female, age, count_F);
+    divide_by_count_sqrt(factor.key().to_string(), core::Gender::male, age, count_M);
+}
+```
+
+and the second is an explicit list of the demographic channels — `age`, `age2`, `age3`, `gender`,
+`region`, `ethnicity`, `sector`, `income`, `income_category`, `physical_activity`.
+`divide_by_count_sqrt` lower-cases the name and writes back in place:
+
+```cpp
+const double sum = series.at(sex, std_channel).at(age);
+series.at(sex, std_channel).at(age) = std::sqrt(sum / count);
+```
+
+so a channel reached by both loops gets `sqrt(sqrt(sum_of_squares/n)/n)`. `KevinHall_FINCH`
+declares `Region`, `Ethnicity`, `Income`, `income_category`, `Age`, `Age2`, `Age3` and `Gender` as
+level-0 risk factors, so all eight are in both lists. `std_bmi` is in the mapping only, is finished
+once, and is right.
+
+**It is in the income-stratified files too**, through the same shape in
+`calculate_income_based_standard_deviation` (`analysis_module.cpp:1735-1800`).
+
+**What it does and does not affect.** Four of the eight are zero either way — `mean_age` is set to
+the band's own age and `mean_gender` to the file's own sex, so their deviations are zero before
+anything is square-rooted, and `income_category` is constant within a stratum file. The ones that
+carry a number are `std_region`, `std_ethnicity`, `std_income` and, where a pack assigns it,
+`std_sector`. No mean is affected and no other column is.
+
+**Reproduce.** Run the example and look at the band with the most people in it: `std_region` should
+be the spread of a 1-to-4 category over that band, and is its square root over the head count
+instead.
+
+```bash
+HealthGPS.Console -f KevinHall_FINCH/new_config.json -T 1
+```
+
+**What we do about it.** This build **reproduces it**, in the whole-population series and in the
+income-stratified one, and does not fix it. The equivalence harness compares these files column for
+column, so a quiet correction here would be a difference nobody chose; and a standard deviation is
+a number somebody may have published, so changing it is a decision that belongs with the model
+rather than with a reimplementation. `AnalysisIncomeSeries.ADemographicThatIsAlsoADeclaredFactorHasItsSquareRootTakenTwice`
+pins the reproduced behaviour by name and says why.
 
 ---
 

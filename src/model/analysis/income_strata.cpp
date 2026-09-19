@@ -1,4 +1,15 @@
 // The income-stratified results: the same statistics, split by income category.
+//
+// "The same statistics" is the whole point of this file, and until this run it was not true. The
+// stratum files carry the same header as the whole-population one, and the result writer writes a
+// zero for a channel with no stratified counterpart — which is right for a channel that has none
+// and wrong for one that should. On `KevinHall_FINCH` that made **49 columns of every stratum file
+// identically zero here and non-zero in the baseline's**: the four weight categories, which the
+// previous run fixed, and the 45 this one does (docs/SUMMARY.md).
+//
+// So this file is now the whole-population series of series.cpp, per stratum, and it is written to
+// be read beside it: the same resolve-once discipline, the same two passes, the same denominators.
+// Where the two differ, the difference is the baseline's and there is a comment saying so.
 #include "analysis_module.h"
 
 #include "core/income_category_layout.h"
@@ -7,7 +18,11 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <map>
 #include <set>
+#include <string>
+#include <vector>
 
 namespace hgps::model {
 namespace {
@@ -20,6 +35,246 @@ bool is_demographic_factor(const std::string &lower_key) {
     return lower_key == "gender" || lower_key == "age" || lower_key == "age2" ||
            lower_key == "age3" || lower_key == "region" || lower_key == "ethnicity" ||
            lower_key == "sector" || lower_key == "income_category" || lower_key == "income";
+}
+
+/// @brief A quantity's two channels: the mean the run reports and the spread beside it.
+///
+/// Either may be null, which is what a configuration that does not report the channel looks like
+/// — the same thing `Channel`'s null pointers mean in series.cpp.
+struct Pair {
+    std::vector<double> *mean{};
+    std::vector<double> *deviation{};
+
+    void add(std::size_t age, double value) const {
+        if (mean != nullptr) {
+            mean->at(age) += value;
+        }
+    }
+
+    void divide(std::size_t age, double count) const {
+        if (mean != nullptr && count > 0.0) {
+            mean->at(age) /= count;
+        }
+    }
+
+    /// @brief Accumulates one person's squared deviation from the **final** mean.
+    ///
+    /// Called only after `divide`, because that is the order the baseline runs its two passes in
+    /// and the mean it subtracts is the finished one.
+    void accumulate(std::size_t age, double value) const {
+        if (mean == nullptr || deviation == nullptr) {
+            return;
+        }
+        const double difference = value - mean->at(age);
+        deviation->at(age) += difference * difference;
+    }
+
+    void finish(std::size_t age, double count) const {
+        if (deviation == nullptr) {
+            return;
+        }
+        auto &value = deviation->at(age);
+        value = count > 0.0 ? std::sqrt(value / count) : 0.0;
+    }
+};
+
+/// @brief One (income category, sex) stratum's channels, resolved to the vectors they write.
+///
+/// Resolved on first sighting of the pair rather than for every stratum the layout declares.
+/// That is not tidiness: resolving eagerly creates a channel vector per age for strata nobody is
+/// in, once per year, and it cost `HLM_France` 5.4 MiB of peak memory the last time this file was
+/// touched (docs/performance.md).
+struct Stratum {
+    // Head counts. Nothing divides them and there is no `std_` column beside any of them — the
+    // rule both reductions and the server's summary follow (docs/equivalence-method.md §2).
+    std::vector<double> *count{};
+    std::vector<double> *deaths{};
+    std::vector<double> *emigrations{};
+    std::vector<double> *normal_weight{};
+    std::vector<double> *over_weight{};
+    std::vector<double> *obese_weight{};
+    std::vector<double> *above_weight{};
+
+    // Everything with a mean and a spread, by the bare name the columns are `mean_`/`std_` of.
+    // The map is what the finishing loops walk; the members below are copies of the same two
+    // pointers, so the person loop does no lookup at all.
+    std::map<std::string, Pair> pairs;
+
+    Pair gender, region, ethnicity, sector, income_category, income, physical_activity;
+    Pair age, age2, age3;
+    Pair yll, yld, daly;
+    std::vector<Pair> factors;
+    std::vector<Pair> prevalence;
+    std::vector<Pair> incidence;
+};
+
+
+/// The spread of every stratified quantity, after its mean is final.
+///
+/// A second pass over the population rather than a running sum of squares, because the deviation
+/// is from the *finished* mean and the baseline does it this way — and because the alternative,
+/// `E[x²] − E[x]²`, loses most of its significant digits on a quantity whose spread is small
+/// beside its level, which several of these are.
+///
+/// A file-local template rather than a member, because `Stratum` is file-local: the resolved
+/// channels cannot appear in a header without putting the whole layout of this file in one. The
+/// disability weight comes in as a callable for the same reason, and as a template parameter
+/// rather than a `std::function` because it is called once per person per year.
+template <class DisabilityWeight>
+void income_standard_deviation(RuntimeContext &context, DataSeries &series,
+                               std::map<core::Income, std::map<core::Gender, Stratum>> &strata,
+                               const AnalysisDefinition &definition,
+                               const DisabilityWeight &disability_weight) {
+    const auto &layout = context.inputs().income_layout();
+
+    std::set<std::string> available;
+    for (const auto &channel : series.channels()) {
+        available.insert(core::to_lower(channel));
+    }
+
+    const auto income_index = factor_index().find(kIncome);
+    const auto activity_index = factor_index().find(kPhysicalActivity);
+    const auto current_time = static_cast<unsigned int>(context.time_now());
+
+    std::vector<std::pair<std::uint32_t, std::string>> factors;
+    for (const auto &factor : context.mapping().entries()) {
+        const auto &key = factor.key().to_string();
+        if (is_demographic_factor(key)) {
+            continue;
+        }
+        factors.emplace_back(factor_index().find(factor.key()), key);
+    }
+
+    const auto stratum_for = [&strata](core::Income income,
+                                       core::Gender gender) -> const Stratum * {
+        const auto by_income = strata.find(income);
+        if (by_income == strata.end()) {
+            return nullptr;
+        }
+        const auto found = by_income->second.find(gender);
+        return found == by_income->second.end() ? nullptr : &found->second;
+    };
+
+    for (const auto &person : context.population()) {
+        if (person.income == core::Income::unknown) {
+            continue;
+        }
+        const auto *resolved = stratum_for(person.income, person.gender);
+        if (resolved == nullptr) {
+            continue;
+        }
+        const auto &stratum = *resolved;
+        const auto age = static_cast<std::size_t>(person.age);
+
+        if (!person.is_active()) {
+            if (!person.is_alive() && person.time_of_death() == current_time) {
+                const auto expected = definition.life_expectancy().at(context.time_now(),
+                                                                      person.gender);
+                const double yll =
+                    std::max(static_cast<double>(expected) - static_cast<double>(person.age), 0.0) *
+                    kDalyUnits;
+                stratum.yll.accumulate(age, yll);
+                stratum.daly.accumulate(age, yll);
+            }
+            continue;
+        }
+
+        const double yld = disability_weight(person) * kDalyUnits;
+        stratum.yld.accumulate(age, yld);
+        stratum.daly.accumulate(age, yld);
+
+        const auto age_value = static_cast<double>(person.age);
+        stratum.age.accumulate(age, age_value);
+        stratum.age2.accumulate(age, age_value * age_value);
+        stratum.age3.accumulate(age, age_value * age_value * age_value);
+        stratum.gender.accumulate(age, static_cast<double>(person.gender_to_value()));
+
+        for (std::size_t position = 0; position < factors.size(); ++position) {
+            if (const auto *value = person.risk_factors.find_index(factors[position].first);
+                value != nullptr) {
+                stratum.factors[position].accumulate(age, *value);
+            }
+        }
+
+        if (person.region != "unknown") {
+            stratum.region.accumulate(age, static_cast<double>(person.region_to_value()));
+        }
+        if (person.ethnicity != "unknown") {
+            stratum.ethnicity.accumulate(age, static_cast<double>(person.ethnicity_to_value()));
+        }
+        if (person.sector != core::Sector::unknown) {
+            stratum.sector.accumulate(age, static_cast<double>(person.sector_to_value()));
+        }
+        stratum.income_category.accumulate(age,
+                                           static_cast<double>(person.income_to_value()));
+        if (const auto *value = person.risk_factors.find_index(income_index); value != nullptr) {
+            stratum.income.accumulate(age, *value);
+        }
+        if (const auto *activity = person.risk_factors.find_index(activity_index);
+            activity != nullptr) {
+            stratum.physical_activity.accumulate(age, *activity);
+        }
+    }
+
+    // --- sums of squares become standard deviations --------------------------------------------
+    //
+    // The order, and the repetition, are the baseline's and are reproduced deliberately. Its
+    // finishing loop walks **every mapping entry** and then a fixed list of demographic names, and
+    // a name in both — `KevinHall_FINCH` declares `Region`, `Ethnicity`, `Income`,
+    // `income_category`, `Age`, `Age2`, `Age3` and `Gender` as level-0 risk factors — has the
+    // square root taken **twice**. So `std_region` there is `sqrt(sqrt(Σd²/n)/n)` rather than
+    // `sqrt(Σd²/n)`: 0.122097 where the spread of a 1-to-4 category with mean 1.38 over 50 people
+    // is 0.745.
+    //
+    // That is an upstream defect (docs/upstream-reports.md), and this build reproduces it here for
+    // the same reason series.cpp reproduces it in the whole-population series: the two files agree
+    // column for column, which is what the equivalence harness is measuring. Fixing it is a
+    // deviation with a compatibility flag, not a quiet correction, and it belongs to whoever owns
+    // the model.
+    const auto finish = [&strata](core::Income income, core::Gender gender,
+                                  const std::string &name, std::size_t age, double count) {
+        const auto by_income = strata.find(income);
+        if (by_income == strata.end()) {
+            return;
+        }
+        const auto found = by_income->second.find(gender);
+        if (found == by_income->second.end()) {
+            return;
+        }
+        const auto pair = found->second.pairs.find(name);
+        if (pair == found->second.pairs.end()) {
+            return;
+        }
+        pair->second.finish(age, count);
+    };
+
+    const auto age_range = context.age_range();
+    for (const auto income : layout.strata) {
+        for (int age_value = age_range.lower(); age_value <= age_range.upper(); ++age_value) {
+            const auto age = static_cast<std::size_t>(age_value);
+
+            for (const auto gender : {core::Gender::male, core::Gender::female}) {
+                const double count = series.at(gender, income, "count").at(age);
+                const double deaths = available.contains("deaths")
+                                          ? series.at(gender, income, "deaths").at(age)
+                                          : 0.0;
+
+                for (const auto &factor : context.mapping().entries()) {
+                    finish(income, gender, factor.key().to_string(), age, count);
+                }
+
+                for (const auto *name : {"age", "age2", "age3", "gender", "region", "ethnicity",
+                                         "sector", "income", "income_category",
+                                         "physical_activity"}) {
+                    finish(income, gender, name, age, count);
+                }
+
+                for (const auto *name : {"yll", "yld", "daly"}) {
+                    finish(income, gender, name, age, count + deaths);
+                }
+            }
+        }
+    }
 }
 
 } // namespace
@@ -162,43 +417,14 @@ void AnalysisModule::calculate_income_based_series(RuntimeContext &context,
         available.insert(core::to_lower(channel));
     }
 
-    // One stratum's channels, resolved to the vectors they write.
-    //
-    // This loop is the one the previous run's backlog item 9 named: it built `"mean_" + key` per
-    // factor per person per year, lower-cased it, probed a `std::set<std::string>` and then looked
-    // the channel up again by name in a `std::map<std::string, ...>` two levels down. The same
-    // treatment as the whole-population series in series.cpp — resolve once, accumulate through
-    // the pointer.
-    //
-    // Resolved on first sighting of a (stratum, sex) rather than for every stratum the layout
-    // declares. That is not tidiness: resolving eagerly creates a channel vector per age for
-    // strata nobody is in, once per year, and it cost `HLM_France` 5.4 MiB of peak memory —
-    // 42.8 to 48.2 — which is a real regression for a change whose whole point is that it costs
-    // nothing. Created on demand, the set of vectors that exist is the set that existed before.
-    struct Stratum {
-        std::vector<double> *count{};
-        std::vector<std::vector<double> *> factor_means;
-        std::vector<double> *physical_activity{};
-        std::vector<double> *income{};
-        std::vector<std::vector<double> *> prevalence;
-        std::vector<std::vector<double> *> incidence;
-        std::vector<double> *normal_weight{};
-        std::vector<double> *over_weight{};
-        std::vector<double> *obese_weight{};
-        std::vector<double> *above_weight{};
-    };
-
+    // A channel resolved for one (stratum, sex), or nulls when this configuration does not report
+    // it. `series.at(gender, income, key)` creates the vector, which is why this is only ever
+    // called from `stratum_for` — that is, only for a (stratum, sex) somebody is actually in.
     const auto resolve = [&series, &available](core::Gender gender, core::Income income,
-                                               const std::string &channel) {
-        return available.contains(core::to_lower(channel))
-                   ? &series.at(gender, income, channel)
-                   : nullptr;
-    };
-
-    const auto add = [](std::vector<double> *values, std::size_t age, double value) {
-        if (values != nullptr) {
-            values->at(age) += value;
-        }
+                                               const std::string &channel)
+        -> std::vector<double> * {
+        return available.contains(core::to_lower(channel)) ? &series.at(gender, income, channel)
+                                                           : nullptr;
     };
 
     // The non-demographic factors, in mapping order, with the index their values are stored under.
@@ -206,7 +432,7 @@ void AnalysisModule::calculate_income_based_series(RuntimeContext &context,
     // `resolve_factors` gives.
     struct Factor {
         std::uint32_t index{FactorIndex::unknown};
-        std::string channel;
+        std::string key;
     };
     std::vector<Factor> factors;
     for (const auto &factor : context.mapping().entries()) {
@@ -214,8 +440,7 @@ void AnalysisModule::calculate_income_based_series(RuntimeContext &context,
         if (is_demographic_factor(key)) {
             continue;
         }
-        factors.push_back(Factor{.index = factor_index().find(factor.key()),
-                                 .channel = "mean_" + key});
+        factors.push_back(Factor{.index = factor_index().find(factor.key()), .key = key});
     }
 
     const auto income_index = factor_index().find(kIncome);
@@ -241,20 +466,50 @@ void AnalysisModule::calculate_income_based_series(RuntimeContext &context,
 
         Stratum stratum;
         stratum.count = resolve(gender, income, "count");
-        for (const auto &factor : factors) {
-            stratum.factor_means.push_back(resolve(gender, income, factor.channel));
-        }
-        stratum.physical_activity = resolve(gender, income, "mean_physical_activity");
-        stratum.income = resolve(gender, income, "mean_income");
-        for (const auto &disease : context.diseases()) {
-            const auto &code = disease.code.to_string();
-            stratum.prevalence.push_back(resolve(gender, income, "prevalence_" + code));
-            stratum.incidence.push_back(resolve(gender, income, "incidence_" + code));
-        }
+        stratum.deaths = resolve(gender, income, "deaths");
+        stratum.emigrations = resolve(gender, income, "emigrations");
         stratum.normal_weight = resolve(gender, income, "normal_weight");
         stratum.over_weight = resolve(gender, income, "over_weight");
         stratum.obese_weight = resolve(gender, income, "obese_weight");
         stratum.above_weight = resolve(gender, income, "above_weight");
+
+        // A name's two channels, remembered under the bare name so the finishing loops below can
+        // walk the mapping and the demographic list the way the baseline does.
+        const auto pair = [&](const std::string &name) {
+            const Pair resolved{.mean = resolve(gender, income, "mean_" + name),
+                                .deviation = resolve(gender, income, "std_" + name)};
+            stratum.pairs.emplace(name, resolved);
+            return resolved;
+        };
+
+        stratum.age = pair("age");
+        stratum.age2 = pair("age2");
+        stratum.age3 = pair("age3");
+        stratum.gender = pair("gender");
+        stratum.region = pair("region");
+        stratum.ethnicity = pair("ethnicity");
+        stratum.sector = pair("sector");
+        stratum.income_category = pair("income_category");
+        stratum.income = pair("income");
+        stratum.physical_activity = pair("physical_activity");
+        stratum.yll = pair("yll");
+        stratum.yld = pair("yld");
+        stratum.daly = pair("daly");
+
+        for (const auto &factor : factors) {
+            stratum.factors.push_back(pair(factor.key));
+        }
+
+        // Prevalence and incidence have no `std_` column in any configuration, so only the mean
+        // half of the pair is ever set — kept as a `Pair` so one `divide` serves everything.
+        for (const auto &disease : context.diseases()) {
+            const auto &code = disease.code.to_string();
+            stratum.prevalence.push_back(
+                Pair{.mean = resolve(gender, income, "prevalence_" + code)});
+            stratum.incidence.push_back(
+                Pair{.mean = resolve(gender, income, "incidence_" + code)});
+        }
+
         return &by_gender.emplace(gender, std::move(stratum)).first->second;
     };
 
@@ -265,34 +520,79 @@ void AnalysisModule::calculate_income_based_series(RuntimeContext &context,
         disease_position.emplace(context.diseases()[position].code, position);
     }
 
+    const auto current_time = static_cast<unsigned int>(context.time_now());
+
+    // --- pass one: the sums -------------------------------------------------------------------
     for (const auto &person : context.population()) {
-        if (!person.is_active() || person.income == core::Income::unknown) {
+        if (person.income == core::Income::unknown) {
             continue;
         }
-
         const auto *resolved = stratum_for(person.income, person.gender);
         if (resolved == nullptr) {
             continue;
         }
         const auto &stratum = *resolved;
-
         const auto age = static_cast<std::size_t>(person.age);
 
-        add(stratum.count, age, 1.0);
+        // Somebody who died or emigrated this year, counted in the stratum they were in. The
+        // whole-population series does exactly this in series.cpp; this file skipped every
+        // inactive person outright, which is why `deaths`, `emigrations`, `mean_yll` and
+        // `mean_daly` were four of the 45 empty columns.
+        if (!person.is_active()) {
+            if (!person.is_alive() && person.time_of_death() == current_time) {
+                if (stratum.deaths != nullptr) {
+                    stratum.deaths->at(age) += 1.0;
+                }
+
+                const auto expected = definition_.life_expectancy().at(context.time_now(),
+                                                                       person.gender);
+                const double yll =
+                    std::max(static_cast<double>(expected) - static_cast<double>(person.age), 0.0) *
+                    kDalyUnits;
+                stratum.yll.add(age, yll);
+                stratum.daly.add(age, yll);
+            }
+
+            if (person.has_emigrated() && person.time_of_migration() == current_time &&
+                stratum.emigrations != nullptr) {
+                stratum.emigrations->at(age) += 1.0;
+            }
+
+            continue;
+        }
+
+        if (stratum.count != nullptr) {
+            stratum.count->at(age) += 1.0;
+        }
+
+        stratum.gender.add(age, static_cast<double>(person.gender_to_value()));
+
+        if (person.region != "unknown") {
+            stratum.region.add(age, static_cast<double>(person.region_to_value()));
+        }
+        if (person.ethnicity != "unknown") {
+            stratum.ethnicity.add(age, static_cast<double>(person.ethnicity_to_value()));
+        }
+        if (person.sector != core::Sector::unknown) {
+            stratum.sector.add(age, static_cast<double>(person.sector_to_value()));
+        }
+        // Unconditional, unlike the four above: this loop has already established that the
+        // category is known — it is the stratum.
+        stratum.income_category.add(age, static_cast<double>(person.income_to_value()));
+
+        if (const auto *value = person.risk_factors.find_index(income_index); value != nullptr) {
+            stratum.income.add(age, *value);
+        }
+        if (const auto *activity = person.risk_factors.find_index(activity_index);
+            activity != nullptr) {
+            stratum.physical_activity.add(age, *activity);
+        }
 
         for (std::size_t position = 0; position < factors.size(); ++position) {
             if (const auto *value = person.risk_factors.find_index(factors[position].index);
                 value != nullptr) {
-                add(stratum.factor_means[position], age, *value);
+                stratum.factors[position].add(age, *value);
             }
-        }
-
-        if (const auto *activity = person.risk_factors.find_index(activity_index);
-            activity != nullptr) {
-            add(stratum.physical_activity, age, *activity);
-        }
-        if (const auto *value = person.risk_factors.find_index(income_index); value != nullptr) {
-            add(stratum.income, age, *value);
         }
 
         for (const auto &[disease, state] : person.diseases) {
@@ -303,55 +603,77 @@ void AnalysisModule::calculate_income_based_series(RuntimeContext &context,
             if (position == disease_position.end()) {
                 continue;
             }
-            add(stratum.prevalence[position->second], age, 1.0);
+            stratum.prevalence[position->second].add(age, 1.0);
             if (state.start_time == context.time_now()) {
-                add(stratum.incidence[position->second], age, 1.0);
+                stratum.incidence[position->second].add(age, 1.0);
             }
         }
 
-        // The weight categories, which this series left empty until this run: the four columns
-        // existed in every stratum file and every value in them was zero, while the baseline fills
-        // them (`analysis_module.cpp:1352-1367`). They are head counts, not means, so nothing
-        // divides them below — the same rule the whole-population series follows in series.cpp,
-        // and the same rule the harness and the server now reduce them by.
-        //
-        // They are the four columns of the 49 this file still leaves empty that this run fixed;
-        // docs/backlog.md item 2 has the other 45 and the measurement behind them.
+        const double yld = calculate_disability_weight(person) * kDalyUnits;
+        stratum.yld.add(age, yld);
+        stratum.daly.add(age, yld);
+
+        // The weight categories are head counts, not means, so nothing divides them below — the
+        // same rule the whole-population series follows in series.cpp, and the same rule the
+        // harness and the server reduce them by.
         switch (classifier_.classify_weight(person)) {
         case WeightCategory::normal:
-            add(stratum.normal_weight, age, 1.0);
+            if (stratum.normal_weight != nullptr) {
+                stratum.normal_weight->at(age) += 1.0;
+            }
             break;
         case WeightCategory::overweight:
-            add(stratum.over_weight, age, 1.0);
-            add(stratum.above_weight, age, 1.0);
+            if (stratum.over_weight != nullptr) {
+                stratum.over_weight->at(age) += 1.0;
+            }
+            if (stratum.above_weight != nullptr) {
+                stratum.above_weight->at(age) += 1.0;
+            }
             break;
         case WeightCategory::obese:
-            add(stratum.obese_weight, age, 1.0);
-            add(stratum.above_weight, age, 1.0);
+            if (stratum.obese_weight != nullptr) {
+                stratum.obese_weight->at(age) += 1.0;
+            }
+            if (stratum.above_weight != nullptr) {
+                stratum.above_weight->at(age) += 1.0;
+            }
             break;
         }
     }
 
-    // Sums become means, per income category — through the same resolved channels the sums went
-    // into. The weight categories are head counts and are not here, in either reduction that reads
-    // them (docs/equivalence-method.md §2).
-    const auto divide = [](std::vector<double> *values, std::size_t age, double count) {
-        if (values != nullptr && count > 0.0) {
-            values->at(age) /= count;
-        }
-    };
-
+    // --- sums become means --------------------------------------------------------------------
     const auto age_range = context.age_range();
     for (const auto income : layout.strata) {
         for (int age_value = age_range.lower(); age_value <= age_range.upper(); ++age_value) {
             const auto age = static_cast<std::size_t>(age_value);
+            const auto age_double = static_cast<double>(age_value);
 
             for (const auto gender : {core::Gender::male, core::Gender::female}) {
-                // `count` is asked for by name here, for every stratum the layout declares and
-                // whether or not anybody is in it, because that is what the old loop did and it is
-                // what creates the channel: `has_income_channels()` — and so whether the stratum
-                // files carry rows at all — depends on it.
+                // Asked for by name, for every stratum the layout declares and whether or not
+                // anybody is in it, because that is what creates the channel:
+                // `has_income_channels()` — and so whether the stratum files carry rows at all —
+                // depends on it.
                 const double count = series.at(gender, income, "count").at(age);
+                const double deaths = available.contains("deaths")
+                                          ? series.at(gender, income, "deaths").at(age)
+                                          : 0.0;
+
+                // Age is the row's own key, so its mean is exact rather than accumulated — and it
+                // is written for **every** configured stratum rather than only the inhabited
+                // ones, because that is what the baseline does. It is the whole difference on the
+                // two HLM examples, where nobody has an income category at all and these three
+                // columns are the only non-zero ones in any stratum file
+                // (docs/equivalence.md, the coverage table).
+                if (available.contains("mean_age")) {
+                    series.at(gender, income, "mean_age").at(age) = age_double;
+                }
+                if (available.contains("mean_age2")) {
+                    series.at(gender, income, "mean_age2").at(age) = age_double * age_double;
+                }
+                if (available.contains("mean_age3")) {
+                    series.at(gender, income, "mean_age3").at(age) =
+                        age_double * age_double * age_double;
+                }
 
                 const auto by_income = strata.find(income);
                 if (by_income == strata.end()) {
@@ -363,20 +685,33 @@ void AnalysisModule::calculate_income_based_series(RuntimeContext &context,
                 }
                 const auto &stratum = found->second;
 
-                for (auto *values : stratum.factor_means) {
-                    divide(values, age, count);
+                for (const auto &pair : stratum.factors) {
+                    pair.divide(age, count);
+                }
+                for (const auto &pair : {stratum.gender, stratum.region, stratum.ethnicity,
+                                         stratum.sector, stratum.income_category, stratum.income,
+                                         stratum.physical_activity}) {
+                    pair.divide(age, count);
+                }
+                for (std::size_t position = 0; position < stratum.prevalence.size(); ++position) {
+                    stratum.prevalence[position].divide(age, count);
+                    stratum.incidence[position].divide(age, count);
                 }
 
-                divide(stratum.physical_activity, age, count);
-                divide(stratum.income, age, count);
-
-                for (std::size_t position = 0; position < stratum.prevalence.size(); ++position) {
-                    divide(stratum.prevalence[position], age, count);
-                    divide(stratum.incidence[position], age, count);
+                // The burden channels are per person-year, so this year's deaths count towards
+                // the denominator as well as the living — the same denominator series.cpp uses.
+                for (const auto &pair : {stratum.yll, stratum.yld, stratum.daly}) {
+                    pair.divide(age, count + deaths);
                 }
             }
         }
     }
+
+    income_standard_deviation(context, series, strata, definition_,
+                              [this](const Person &person) {
+                                  return calculate_disability_weight(person);
+                              });
 }
+
 
 } // namespace hgps::model
