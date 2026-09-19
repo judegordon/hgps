@@ -8,8 +8,8 @@ the thing is, why it exists, roughly how long it takes, and the one question you
 answer when you put it down. If you cannot answer that question, the fault is the document's and
 it is worth an issue.
 
-**The whole path is about two and a half days of reading** — roughly seven hours of documents, a
-day on the fifty decision records, and a day on 30,000 lines of C++. It is written to be taken in
+**The whole path is about two and a half days of reading** — roughly six hours of documents, a day
+on the fifty decision records, and a day on 30,000 lines of C++. It is written to be taken in
 order, but the four stopping points below are real: each is a place where you know enough to be
 useful.
 
@@ -263,7 +263,7 @@ minimal host in the document is compiled and run by the test suite, so it cannot
 
 ## Part four — the source, in dependency order
 
-30,000 lines of C++ under `src/` and `include/`, plus 18,000 in `tests/`. The modules below are in
+29,978 lines of C++ under `src/` and `include/`, plus 18,454 in `tests/`. The modules below are in
 the order `src/` depends on them — nothing depends on anything above it in the table — which is
 also the order to read them in. [docs/design.md](design.md) §2 has the same graph drawn.
 
@@ -282,7 +282,7 @@ whole of part four is about a day; the three long entries are marked.
 | 12 | `src/sim/` | 5 files, 1,504 lines | the run loop: the year, the scenarios in sequence, the migration journal, and the interventions |
 | | `src/output/` | 2 files, 451 lines | one owner per output file, rows in a defined order. Small, and load-bearing for every byte-identity claim |
 | 13 | `src/engine/` | 11 files, 1,923 lines | the top of the library: the session, module construction, the manifest, the compatibility flags, the diagnostics bridge |
-| 14 | `src/app/`, `src/server/`, `web/`, `tools/` | 7 + 8 files, 3,009 lines of C++ and 3,136 of TypeScript | the three hosts and the two tools. Clients of the library, none of them privileged |
+| 14 | `src/app/`, `src/server/`, `tools/`, `web/` | 3,009 lines of C++ in the CLI and the server, 1,468 in the two tools, 3,136 of TypeScript in the frontend | the three hosts and the two tools. Clients of the library, none of them privileged |
 
 ### 11 — `src/model/`, and the two files to read closely
 
@@ -316,8 +316,8 @@ live:
 
 ### And the harness
 
-**[`tests/equivalence/run.py`](../tests/equivalence/run.py)** — 113 KB in one file, and the single
-most important script in the repository. It runs both implementations, reduces every CSV each of
+**[`tests/equivalence/run.py`](../tests/equivalence/run.py)** — 2,125 lines in one file, and the
+single most important script in the repository. It runs both implementations, reduces every CSV each of
 them writes to a series per (family, scenario, year, sex, variable), classifies each series,
 applies the test the classification calls for, corrects every p-value from every family in one Holm
 pass, and prints a verdict. Every equivalence claim in every document here is this script's output.
@@ -335,12 +335,12 @@ Allow two hours for `run.py` and one for the rest. Budget more if you intend to 
 
 ### The rest of `tests/`
 
-74 files and 885 tests, laid out to mirror `src/`. Two things to know before you open them: every
-test that runs a configuration runs against **two** synthetic fixture packs that differ in every way
-a program might have assumed they did not
+74 files, 18,454 lines and 885 tests, laid out to mirror `src/`. Two things to know before you open
+them: every test that runs a configuration runs against **two** synthetic fixture packs that differ
+in every way a program might have assumed they did not
 ([ADR 0044](decisions/0044-two-fixture-packs-and-a-parameterised-suite.md)), and
-[docs/test-port-map.md](test-port-map.md) says which of the baseline's 471 tests each file
-descends from. Read `tests/support/` first; it is what the rest is written in terms of.
+[docs/test-port-map.md](test-port-map.md) says which of the baseline's 471 tests each file descends
+from. Read `tests/support/` first; it is what the rest is written in terms of.
 
 ## The reference shelf
 
