@@ -19,8 +19,12 @@ What it does, for each example and each seed:
      the population figure the variable is reporting — or, for a head count, the sum over them
      (SUMMED_VARIABLES). Age bands that either implementation ever empties are left out of that
      reduction, on both sides: see "the emptying-band exclusion" below.
-  3. Across the seeds, computes the mean, standard deviation and 5th, 50th and 95th percentiles of
-     each of those series, for each implementation, and compares them.
+  3. Across the seeds, tests each of those series: Welch's t on the two samples for location, the
+     same on their absolute deviations from their own medians for spread, and — where the series
+     is lattice-valued or a point mass, where no moment or quantile of it can be compared
+     numerically — one exact test of the counts instead. Every test in the run is then corrected
+     together by Holm, so the run has a stated family-wise false-positive rate
+     (FAMILY_WISE_ALPHA) rather than a tolerance somebody chose.
 
 Every output family, not one file per run
 -----------------------------------------
@@ -45,8 +49,10 @@ files are empty on both sides and agreeing about nothing.
 
 The comparison is a hypothesis test, not a tolerance on a single number: two Monte Carlo
 simulations with different random streams cannot agree exactly, and the question is whether they
-agree to within what that noise allows. See docs/equivalence.md for the thresholds and why they
-are what they are.
+agree to within what that noise allows. **The rate at which it says no when the answer is yes is
+chosen rather than discovered** — see FAMILY_WISE_ALPHA below for what was wrong with the rule this
+replaced, docs/equivalence-method.md 4 for the rule itself, and `calibrate.py --mode null` for the
+measurement that says the rate is real.
 
 The baseline's reduced output is cached under tests/equivalence/reference/, keyed by the hash of
 the config that produced it, so a later run compares against the same numbers without needing the
@@ -139,28 +145,47 @@ REPO = HERE.parent.parent
 UPSTREAM_EXAMPLES = REPO.parent / "hgps_main_examples"
 REFERENCE_DIR = HERE / "reference"
 
-# The statistics compared, and the asymptotic standard error of each as a multiple of
-# sigma/sqrt(n) for a normal sample. For a quantile q the standard error is
-# sqrt(q(1-q)/n) / phi(z_q); the median gives 1.2533 and the 5th and 95th percentiles 2.1133.
-# docs/equivalence.md derives these.
-STATISTICS = {
-    "mean": 1.0,
-    "p50": 1.2533,
-    "p5": 2.1133,
-    "p95": 2.1133,
-}
-
-# How many standard errors of the difference are allowed. A single comparison at 3 sigma would
-# fail about eleven times by chance over the ~4,000 comparisons one example produces, so the
-# threshold is set for the whole family: Bonferroni at alpha = 0.05 over 5,000 comparisons needs
-# z = 4.4. docs/equivalence.md.
-SIGMA_LIMIT = 4.5
+# THE FALSE-POSITIVE RATE, chosen once and delivered by construction.
+#
+# `alpha` is the probability that a run of ONE example reports at least one failure when the two
+# implementations really do agree. It is the whole of the rule's calibration: everything below
+# exists to make the number below true rather than hoped for, and `calibrate.py --mode null`
+# measures it against this constant on every example (docs/equivalence-method.md 4).
+#
+# **What this replaces, and why the old rule had no rate at all.** Until the ninth run the
+# allowance was `4.5 * sqrt((s_b^2 + s_n^2)/n)`: a *z* threshold applied to an *estimated* standard
+# error. It treats `s` as if it were `sigma`. At twenty seeds `s` has about 16% relative error, so
+# the threshold is partly luck — when a seed set happens to give a tight sample the allowance
+# shrinks, and a series sitting at a small persistent signed offset then fails in every year at
+# once. Re-scoring a 60-seed run over 20-seed subsets of itself gave 0 to 45 failures from the same
+# build against the same baseline (docs/equivalence.md). A rule whose failure count ranges over an
+# order of magnitude across equally valid seed sets does not have a false-positive rate; it has a
+# mood.
+#
+# The fix is not a wider constant. It is to use the reference distribution that accounts for the
+# estimate's own noise — Student's t — and to correct for multiplicity by Holm rather than by a
+# hand-counted Bonferroni over "about 5,000 series". At the level Holm leaves for the smallest
+# p-value in a family of ~45,000 tests, a 20-against-20 Welch test needs **t = 6.30** on its ~38
+# degrees of freedom where the old rule asked for **z = 4.5** of the same estimated standard error.
+# That gap is the estimation noise the old rule ignored, and it is the whole of the change.
+# ADR 0048 records the choice and what was measured against it.
+FAMILY_WISE_ALPHA = 0.01
 
 # No comparison can be tighter than the precision of the numbers being compared. The baseline
 # writes its CSV with six significant digits, so each of its band figures carries a relative
-# rounding error of up to 4e-6, and the difference of two such figures up to 8e-6. This floor is
-# added to every allowance, and for a variable that is constant across seeds it *is* the
-# allowance — which turns that case into "equal to the precision the baseline prints".
+# rounding error of up to 4e-6, and the difference of two such figures up to 8e-6.
+#
+# This precision is used **twice, in this order**, and which of the two decides a given series is
+# worth knowing:
+#
+#   * `lattice_keys` buckets both samples at it before the series is classified, so two figures the
+#     baseline cannot print apart are one value. A series whose whole spread is below this
+#     precision therefore has one bucket and goes to the exact test, which has nothing to compare;
+#   * the floor in `compare` then waives any test whose *difference* is at or below it, however
+#     small the p-value. Under the rule this replaced the floor was the whole allowance for a
+#     series that does not move with the seed; under this one it is the guarantee that nothing can
+#     fail on a difference the baseline's own output cannot express. It can only ever remove
+#     failures, so the family-wise rate stays an upper bound.
 PRINTED_PRECISION_FLOOR = 1e-5
 
 # A series is LATTICE-VALUED when either of the two conditions below holds. Its across-seed
@@ -169,20 +194,22 @@ PRINTED_PRECISION_FLOOR = 1e-5
 #
 #   * a quantile of a lattice-valued sample is itself a lattice point, so the comparison's
 #     resolution is one whole lattice step;
-#   * the normal-theory allowance shrinks as 1/sqrt(n) while the lattice step does not, so the
+#   * a normal-theory threshold shrinks as 1/sqrt(n) while the lattice step does not, so the
 #     comparison gets WORSE with more seeds — the opposite of what a test should do.
 #
 # The second point is not hypothetical. `incidence_esophaguscancer` at (intervention, 2025, male)
 # is 0, one case or two cases, and the two implementations' counts over sixty seeds were
 # {0: 26, 1: 28, 2: 6} and {0: 33, 1: 21, 2: 6} — distributions Fisher's exact test cannot tell
 # apart, p = 0.27. But the zero share crosses one half between them, so their medians differ by a
-# whole lattice step, and at sixty seeds the allowance is smaller than one step. The same
-# comparison passed at twenty seeds, where the allowance was larger than a step. docs/equivalence.md
+# whole lattice step, and at sixty seeds the threshold was smaller than one step. The same
+# comparison passed at twenty seeds, where the threshold was larger than a step. docs/equivalence.md
 # has the derivation.
 #
-# For such a series the mean is compared as usual — it is not a lattice point and its allowance
-# does shrink correctly — and the standard deviation and the three quantiles, all of which are
-# functions of the same counts, are replaced by one exact test of those counts.
+# Such a series gets ONE test: the exact test of its counts, and nothing else. Its mean is a
+# function of the same counts the exact test already covers, and the ninth run stopped comparing it
+# separately when every test in a run went into one multiplicity family — a second test of the same
+# counts costs the family a slot and buys nothing. `distribution_p_value` says what the exact test
+# can and cannot see at twenty seeds and at sixty.
 
 # **The detector looks at the numerator, not at the reduced value.** That is the correction this
 # run made, and it is worth stating why rather than only what.
@@ -196,7 +223,7 @@ PRINTED_PRECISION_FLOOR = 1e-5
 #
 # That is not hypothetical either. The `HLM_India` comparison at 60 seeds produced four such series
 # with 43 to 79 distinct values and a modal share of 0.12 to 0.40 — under both rules — while a third
-# of their seeds were exactly zero. Six comparisons failed at 1.02x to 1.09x of their allowance, in
+# of their seeds were exactly zero. Six comparisons failed at 1.02x to 1.09x of their threshold, in
 # both the `simple` and the `food_labelling` runs, which is what says they belong to the comparison
 # and not to either implementation. docs/equivalence.md has the table.
 #
@@ -238,10 +265,6 @@ LATTICE_MAX_DISTINCT_VALUES = 6
 #     many distinct values and still be a point mass with rare jumps — and when one value covers
 #     more than half the seeds, the median IS that value, so it is a step function too.
 DEGENERATE_MODAL_SHARE = 0.5
-
-# The family-wide significance the distribution test uses, matching the 4.5 sigma the other
-# tests use: a Bonferroni correction at alpha = 0.05 over the ~5,000 independent series.
-DISTRIBUTION_TEST_ALPHA = 0.05 / 5000
 
 # Variables the baseline does not actually compute, keyed to the deviation that records why.
 #
@@ -770,50 +793,109 @@ def quantile(values: list[float], q: float) -> float:
 
 @dataclass
 class Summary:
+    """What one implementation's seed sample looks like, as the comparison reports it.
+
+    It used to carry the 5th, 50th and 95th percentiles too, because each of them was compared
+    against its own allowance. They are gone: three quantiles of twenty draws are three noisy
+    functions of one sample, and comparing them separately multiplied the family by three while
+    measuring what the mean and the spread already measure — worse, a quantile of a lattice-valued
+    sample is a lattice point, which is how eighteen comparisons came to fail at sixty seeds that
+    had passed at twenty (docs/equivalence.md). What replaced them is one test of location and one
+    of spread for a continuous series, and one exact test of the counts for a lattice-valued one.
+    """
+
     mean: float
     sd: float
-    p5: float
-    p50: float
-    p95: float
     n: int
 
     @staticmethod
     def of(values: list[float]) -> "Summary":
         return Summary(mean=statistics.fmean(values),
                        sd=statistics.stdev(values) if len(values) > 1 else 0.0,
-                       p5=quantile(values, 0.05),
-                       p50=quantile(values, 0.50),
-                       p95=quantile(values, 0.95),
                        n=len(values))
 
 
 @dataclass
 class Comparison:
+    """One test of one series, and everything needed to check the verdict by hand."""
+
     # (family, scenario, year, sex, variable)
     key: tuple[str, str, int, str, str]
+
+    # Which of the three tests this is: `location`, `dispersion` or `distribution`. A continuous
+    # series gets the first two; a lattice-valued or point-mass one gets the third and nothing
+    # else, because no quantile or moment of such a sample can be compared numerically at all
+    # (LATTICE_MAX_DISTINCT_VALUES).
     statistic: str
+
+    # The two numbers the test compared: the two means, the two mean absolute deviations, or the
+    # two modal shares. They are reported rather than used — the verdict is the p-value.
     baseline: float
     new: float
-    allowed: float
+
+    # `new - baseline` of those two numbers. Its sign is part of every finding this harness has
+    # ever produced, so it is kept whole.
     difference: float
 
-    # Set for the distribution test, which is a p-value against a threshold rather than a
-    # difference against an allowance. `allowed` then holds the threshold and `difference` the
-    # p-value, so the two kinds of comparison still report and aggregate the same way.
-    p_value: float | None = None
+    # The smallest difference the baseline's own six printed digits can express, for this series.
+    # A test whose difference is no larger than this cannot fail: there is no disagreement to
+    # measure, only rounding.
+    #
+    # **None for the distribution test**, which is not subject to the floor at all, because its
+    # samples are bucketed at exactly this precision *before* it is run — two figures the baseline
+    # cannot print apart are already one value by the time it sees them (`lattice_keys`). Applying
+    # a floor to it a second time would waive every point-mass comparison there is: the statistic
+    # it reports is a modal share, and two point masses at different values both have a modal share
+    # of 1, so their difference is zero however far apart the values are.
+    floor: float | None
+
+    # The test's own p-value, before any correction.
+    p_value: float
+
+    # The same after Holm's step-down over every test in the run. Filled by `finish_comparison`,
+    # which is the only place a verdict is decided, because a family-wise rate is a property of
+    # the family and not of any one test.
+    adjusted: float | None = None
+
+    # The family-wise rate the run was judged at. Carried per comparison so a stored outcome can
+    # be re-read without the constant.
+    alpha: float = FAMILY_WISE_ALPHA
+
+    @property
+    def below_floor(self) -> bool:
+        return self.floor is not None and abs(self.difference) <= self.floor
 
     @property
     def passed(self) -> bool:
-        if self.p_value is not None:
-            return self.p_value >= self.allowed
-        return abs(self.difference) <= self.allowed
+        if self.adjusted is None:
+            return True
+        return self.below_floor or self.adjusted > self.alpha
 
     @property
-    def ratio_of_allowed(self) -> float:
-        if self.p_value is not None:
-            # 1.0 is exactly the threshold, so this orders the same way as the others do.
-            return self.allowed / self.p_value if self.p_value > 0 else math.inf
-        return abs(self.difference) / self.allowed if self.allowed > 0 else math.inf
+    def evidence(self) -> float:
+        """How far past the threshold this test is, as a ratio; 1.0 is exactly the threshold.
+
+        It reads the way the old `x the allowance` did, and it is what the report and the stored
+        JSON quote — but it is NOT what they sort by. Holm's adjusted p-value saturates at 1 for
+        every test in a run where nothing is close, which is most runs, so ordering on it alone
+        leaves thousands of ties and reports whichever one happened to be built first. `rank` is
+        the ordering: the adjusted value, then the raw one underneath it.
+        """
+        if self.below_floor:
+            return 0.0
+        adjusted = self.alpha if self.adjusted is None else self.adjusted
+        return math.inf if adjusted <= 0.0 else self.alpha / adjusted
+
+    @property
+    def rank(self) -> tuple[float, float, float]:
+        """Sort key, smallest first: the strongest evidence of a difference comes first.
+
+        A test the printed-precision floor waives sorts last whatever its p-value is, because it
+        cannot fail and a report that led with it would be leading with something it has already
+        decided does not count.
+        """
+        adjusted = 1.0 if self.adjusted is None else self.adjusted
+        return (1.0 if self.below_floor else 0.0, adjusted, self.p_value)
 
 
 @dataclass
@@ -842,6 +924,11 @@ class Outcome:
 
     # The compatibility flags this build ran the comparison with, as passed on its command line.
     compat_flags: str = ""
+
+    # The family-wise false-positive rate this run was judged at, and the size of the family Holm
+    # corrected over. Both are reported, because a rate over an unstated number of tests is not a
+    # rate (docs/equivalence-method.md 4).
+    alpha: float = FAMILY_WISE_ALPHA
 
     # The deviation-impact pass: what the flags are worth, reported rather than graded.
     # None when the pass did not run; see DeviationImpact.
@@ -895,13 +982,20 @@ def distribution_p_value(base_keys: list[int], new_keys: list[int]) -> float:
     where every normal approximation is worthless.
 
     It is a real test rather than a waiver, but it is a blunt one at twenty seeds, and the exact
-    numbers are worth knowing. Against the family-wide alpha of 1e-5, for a two-valued series:
+    numbers are worth knowing. The p-value it returns goes into the same Holm family as every other
+    test in the run, so the level it is effectively judged at is `alpha / m` for the smallest
+    p-value in the run — about 2.2e-7 for the ~45,000 tests one example produces. For a two-valued
+    series:
 
-      * at n = 20, a baseline that never leaves one value fails once this build leaves it in 14 of
+      * at n = 20, a baseline that never leaves one value fails once this build leaves it in 17 of
         20 seeds — but 10 of 20 against 20 of 20 does NOT fail, because no arrangement of forty
-        observations is unlikely enough at that alpha;
-      * at n = 60, the same all-or-nothing case fails at 17 of 60, and 30 of 60 against 54 of 60
+        observations is unlikely enough at that level;
+      * at n = 60, the same all-or-nothing case fails at 22 of 60, and 30 of 60 against 57 of 60
         fails as well.
+
+    Those were 14, 17 and 54 while this test alone was judged against a hand-counted 0.05/5000 and
+    everything else against 4.5 sigma. Putting every test in one family is what made the two
+    levels agree, and the cost of that agreement is written here rather than left to be found.
 
     So a rare-event rate is barely testable at twenty seeds and properly testable at sixty. That is
     a second reason for the 60-seed confirmation, beyond the one docs/equivalence.md gives for the
@@ -949,13 +1043,172 @@ def fisher_exact_two_sided(a: int, b: int, c: int, d: int) -> float:
                         if probability(k) <= observed * (1.0 + 1e-9)))
 
 
+# --- the tests, and the correction that gives them a rate ----------------------------------------
+
+
+def regularized_incomplete_beta(a: float, b: float, x: float) -> float:
+    """I_x(a, b), by the continued fraction — the one special function the tests below need.
+
+    Written out rather than taken from scipy, because the harness has no third-party dependency and
+    the whole of it is forty lines. It is the modified Lentz evaluation of the standard continued
+    fraction, with the reflection I_x(a,b) = 1 - I_(1-x)(b,a) taken on the side where the fraction
+    converges slowly. `run_test.py` pins it against values that can be worked out by hand — a
+    half-integer case that is an arcsine, and the symmetry I_x(a,b) + I_(1-x)(b,a) = 1.
+    """
+    if x <= 0.0:
+        return 0.0
+    if x >= 1.0:
+        return 1.0
+
+    log_beta = math.lgamma(a + b) - math.lgamma(a) - math.lgamma(b)
+    if x < (a + 1.0) / (a + b + 2.0):
+        front = math.exp(log_beta + a * math.log(x) + b * math.log1p(-x))
+        return min(1.0, front * _beta_continued_fraction(a, b, x) / a)
+    front = math.exp(log_beta + b * math.log1p(-x) + a * math.log(x))
+    return max(0.0, 1.0 - front * _beta_continued_fraction(b, a, 1.0 - x) / b)
+
+
+def _beta_continued_fraction(a: float, b: float, x: float) -> float:
+    tiny = 1e-300
+    epsilon = 3e-16
+    qab, qap, qam = a + b, a + 1.0, a - 1.0
+
+    c = 1.0
+    d = 1.0 - qab * x / qap
+    if abs(d) < tiny:
+        d = tiny
+    d = 1.0 / d
+    h = d
+
+    for m in range(1, 301):
+        m2 = 2 * m
+        for numerator in (m * (b - m) * x / ((qam + m2) * (a + m2)),
+                          -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2))):
+            d = 1.0 + numerator * d
+            if abs(d) < tiny:
+                d = tiny
+            c = 1.0 + numerator / c
+            if abs(c) < tiny:
+                c = tiny
+            d = 1.0 / d
+            h *= d * c
+        if abs(d * c - 1.0) < epsilon:
+            break
+    return h
+
+
+def student_t_two_sided(t: float, df: float) -> float:
+    """P(|T| >= |t|) for T on df degrees of freedom."""
+    if df <= 0.0:
+        return 1.0
+    if not math.isfinite(t):
+        return 0.0
+    return regularized_incomplete_beta(0.5 * df, 0.5, df / (df + t * t))
+
+
+def welch_t_test(left: list[float], right: list[float]) -> tuple[float, float, float]:
+    """Welch's unequal-variance t test of two samples: (t, degrees of freedom, two-sided p).
+
+    **This is the whole of the change of rule.** The old allowance took the two samples' standard
+    deviations, formed `sqrt((s_b^2 + s_n^2)/n)`, and compared the difference of means against 4.5
+    of them — a *z* threshold on an *estimated* standard error, which is the defect
+    (FAMILY_WISE_ALPHA above). Welch's t is the same statistic referred to the distribution it
+    actually has when the standard error is estimated: Student's t on the Welch-Satterthwaite
+    degrees of freedom. Nothing else about the comparison changes, and the number the rule produces
+    is a p-value rather than a ratio, which is what lets Holm give the family a stated rate.
+
+    Two degenerate cases, both of which occur in this model's output by the thousand:
+
+      * **Neither sample varies and the two agree.** A band mean that calibration pins takes one
+        value in every seed. The p-value is 1: there is nothing to test, and there is also nothing
+        wrong.
+      * **Neither sample varies and the two differ.** The same, except that the two
+        implementations disagree deterministically. The p-value is 0 — and the printed-precision
+        floor in `compare` is what then decides whether the disagreement is larger than the
+        baseline's own output can express.
+    """
+    n_left, n_right = len(left), len(right)
+    if n_left < 2 or n_right < 2:
+        return 0.0, 0.0, 1.0
+
+    mean_left, mean_right = statistics.fmean(left), statistics.fmean(right)
+    var_left = statistics.variance(left)
+    var_right = statistics.variance(right)
+    squared_error = var_left / n_left + var_right / n_right
+
+    if squared_error <= 0.0:
+        if mean_left == mean_right:
+            return 0.0, 0.0, 1.0
+        return math.inf, 0.0, 0.0
+
+    t = (mean_right - mean_left) / math.sqrt(squared_error)
+    spread = ((var_left / n_left) ** 2 / (n_left - 1)
+              + (var_right / n_right) ** 2 / (n_right - 1))
+    df = squared_error * squared_error / spread if spread > 0.0 else float(n_left + n_right - 2)
+    return t, df, student_t_two_sided(t, df)
+
+
+def absolute_deviations(values: list[float]) -> list[float]:
+    """|x - median(x)|, the sample the dispersion test is run on.
+
+    Comparing two samples' *spread* by a Welch t test of their absolute deviations from their own
+    medians is the two-sample Brown-Forsythe test. It is here rather than an F test of the two
+    variances because an F test of variances assumes normality in a way that fails loudly on this
+    model's output — half of which is pinned by calibration or is a handful of events — while
+    Brown-Forsythe is the standard robust answer, and writing it as a Welch t keeps the whole
+    comparison one machine with one multiplicity family and one calibration.
+    """
+    centre = quantile(values, 0.5)
+    return [abs(value - centre) for value in values]
+
+
+def holm_adjusted(p_values: list[float]) -> list[float]:
+    """Holm's step-down adjusted p-values, in the order given.
+
+    Rejecting every test whose adjusted p-value is at most `alpha` controls the probability of ONE
+    OR MORE false rejections in the whole family at `alpha`, whatever the dependence between the
+    tests. That last clause is why Holm rather than Benjamini-Hochberg: the series compared here
+    are strongly dependent — twenty-two years of one variable move together, and a stratum's series
+    moves with the whole population's — and Holm needs no assumption about that, while the
+    false-discovery rate it would replace is the wrong thing to control for a check whose verdict
+    is "nothing in this run is distinguishable from noise".
+
+    The adjusted value is the running maximum of `(m - rank) * p`, which is the standard monotone
+    form; it is equivalent to the step-down procedure and is easier to report, because every test
+    carries its own number rather than only a position relative to a cut-off.
+    """
+    count = len(p_values)
+    order = sorted(range(count), key=lambda index: p_values[index])
+    adjusted = [1.0] * count
+    running = 0.0
+    for rank, index in enumerate(order):
+        running = max(running, min(1.0, (count - rank) * p_values[index]))
+        adjusted[index] = running
+    return adjusted
+
+
 def is_first_year_undefined(variable: str) -> bool:
     return any(variable.startswith(prefix) or variable == prefix
                for prefix in FIRST_YEAR_UNDEFINED)
 
 
+def finish_comparison(outcome: Outcome, alpha: float) -> None:
+    """Correct every test in the run for multiplicity, which is where the verdict is decided.
+
+    Nothing before this point knows whether anything failed, and that is deliberate: the rate this
+    harness promises is family-wise, so it is a property of the whole run and cannot be read off
+    one comparison. `compare` calls this as its last act, so an `Outcome` that has been through
+    `compare` is always complete.
+    """
+    outcome.alpha = alpha
+    adjusted = holm_adjusted([comparison.p_value for comparison in outcome.comparisons])
+    for comparison, value in zip(outcome.comparisons, adjusted):
+        comparison.adjusted = value
+        comparison.alpha = alpha
+
+
 def compare(baseline: dict[int, dict], new: dict[int, dict], seeds: list[int],
-            outcome: Outcome) -> None:
+            outcome: Outcome, alpha: float = FAMILY_WISE_ALPHA) -> None:
     baseline_keys = {key for seed in seeds for key in baseline[seed]}
     new_keys = {key for seed in seeds for key in new[seed]}
 
@@ -1001,12 +1254,15 @@ def compare(baseline: dict[int, dict], new: dict[int, dict], seeds: list[int],
         mine = Summary.of(new_values)
 
         n = len(seeds)
-        pooled_variance = base.sd ** 2 + mine.sd ** 2
 
-        # The floor is what the baseline's printed precision allows, and it is what makes a
-        # variable that is constant across seeds — an incidence that never fires, a calibrated
-        # band mean that does not depend on the seed — compare as equality rather than as a test
-        # against zero noise.
+        # The floor is what the baseline's printed precision allows. The baseline writes six
+        # significant digits, so a difference below this is not a disagreement either
+        # implementation could report, and a test of it would be a test of rounding. A test whose
+        # difference is below the floor cannot fail however small its p-value is — which is what
+        # makes a variable that is constant across seeds compare as *equality at the precision the
+        # baseline prints* rather than as a test against zero noise, where Welch's t would
+        # otherwise reject on the last bit of a double. It can only ever remove failures, so the
+        # family-wise rate above stays an upper bound.
         scale = max(abs(base.mean), abs(mine.mean), base.sd, mine.sd, 1e-12)
         floor = PRINTED_PRECISION_FLOOR * scale
 
@@ -1037,35 +1293,41 @@ def compare(baseline: dict[int, dict], new: dict[int, dict], seeds: list[int],
         lattice = (len(set(base_keys) | set(new_keys)) <= LATTICE_MAX_DISTINCT_VALUES or
                    max(modal_share(base_keys), modal_share(new_keys)) > DEGENERATE_MODAL_SHARE)
 
-        for name, se_factor in STATISTICS.items():
-            if lattice and name != "mean":
-                continue
-            allowed = SIGMA_LIMIT * se_factor * math.sqrt(pooled_variance / n) + floor
-            outcome.comparisons.append(
-                Comparison(key, name, getattr(base, name), getattr(mine, name),
-                           allowed=allowed,
-                           difference=getattr(mine, name) - getattr(base, name)))
-
         if lattice:
-            # The mean above, and the whole discrete distribution here. Between them they cover
-            # everything the four dropped statistics were measuring, and they measure it with a
-            # test that holds at these counts.
+            # One exact test of the whole discrete distribution, and nothing else. Every quantile
+            # of such a sample is a lattice point, and its mean is a function of the same counts,
+            # so the exact test is not a substitute for them — it is the only one of the four that
+            # holds at these counts. It is exact, so its contribution to the family-wise rate is
+            # at most its nominal one whatever the counts are.
             probability = distribution_p_value(base_keys, new_keys)
             base_mode = collections.Counter(base_keys).most_common(1)[0][1] / n
             new_mode = collections.Counter(new_keys).most_common(1)[0][1] / n
             outcome.comparisons.append(
                 Comparison(key, "distribution", base_mode, new_mode,
-                           allowed=DISTRIBUTION_TEST_ALPHA, difference=probability,
-                           p_value=probability))
+                           difference=new_mode - base_mode, floor=None, p_value=probability))
             continue
 
-        # The standard deviations. The standard error of a sample standard deviation is
-        # s / sqrt(2(n-1)), so this is the same k-sigma rule as the others; writing it as a
-        # difference rather than a ratio is what lets a baseline standard deviation of exactly
-        # zero be compared at all.
-        allowed = SIGMA_LIMIT * math.sqrt(pooled_variance / (2.0 * (n - 1))) + floor
-        outcome.comparisons.append(Comparison(key, "sd", base.sd, mine.sd, allowed=allowed,
-                                              difference=mine.sd - base.sd))
+        # LOCATION. Welch's t on the two seed samples: the difference of means, referred to the
+        # distribution it has when the standard error is estimated from the same twenty draws.
+        _, _, location = welch_t_test(base_values, new_values)
+        outcome.comparisons.append(
+            Comparison(key, "location", base.mean, mine.mean,
+                       difference=mine.mean - base.mean, floor=floor, p_value=location))
+
+        # DISPERSION. The same test on each sample's absolute deviations from its own median,
+        # which is the two-sample Brown-Forsythe test of equal spread. Two implementations can
+        # agree about a mean and disagree about how much it moves from seed to seed — a different
+        # number of draws per person, a different stream — and nothing else here would see it.
+        base_spread = absolute_deviations(base_values)
+        new_spread = absolute_deviations(new_values)
+        _, _, dispersion = welch_t_test(base_spread, new_spread)
+        base_mad = statistics.fmean(base_spread)
+        new_mad = statistics.fmean(new_spread)
+        outcome.comparisons.append(
+            Comparison(key, "dispersion", base_mad, new_mad,
+                       difference=new_mad - base_mad, floor=floor, p_value=dispersion))
+
+    finish_comparison(outcome, alpha)
 
 
 def check_families(baseline: dict[str, dict], mine: dict[str, dict]) -> list[str]:
@@ -1262,12 +1524,18 @@ def family_of_comparison(comparison: Comparison) -> str:
     return comparison.key[0]
 
 
-def report(outcome: Outcome, verbose: bool, max_failures: int) -> bool:
+def report(outcome: Outcome, verbose: bool) -> bool:
     failures = [c for c in outcome.comparisons if not c.passed]
     total = len(outcome.comparisons)
+    waived = sum(1 for c in outcome.comparisons if c.below_floor)
 
     print()
     print(f"=== {outcome.example}: {len(outcome.seeds)} seeds, {total} comparisons")
+    print(f"    family-wise alpha {outcome.alpha:g}, Holm over all {total} tests: at most a "
+          f"{outcome.alpha:.0%} chance that this run reports any failure at all if the two "
+          f"implementations agree (docs/equivalence-method.md 4)")
+    print(f"    {waived} test(s) had a difference at or below the baseline's printed precision "
+          f"and cannot fail")
     for label, seconds in sorted(outcome.timings.items()):
         print(f"    {label}: {seconds:.1f}s")
     for label, digest in sorted(outcome.config_hashes.items()):
@@ -1304,8 +1572,8 @@ def report(outcome: Outcome, verbose: bool, max_failures: int) -> bool:
         ours = outcome.new_families.get(family)
         where = ("both" if theirs is not None and ours is not None
                  else "baseline only" if theirs is not None else "this build only")
-        print(f"      {family:<22} {where:<16} {len(group):>7} comparison(s), "
-              f"{failed} out of tolerance")
+        print(f"      {family:<22} {where:<16} {len(group):>7} test(s), "
+              f"{failed} failed")
 
     for line in outcome.family_failures:
         print(f"    FAMILY {line}")
@@ -1319,51 +1587,45 @@ def report(outcome: Outcome, verbose: bool, max_failures: int) -> bool:
         print(f"    {len(outcome.skipped)} comparisons skipped")
 
     if not failures:
-        print(f"    all {total} comparisons within tolerance")
+        print(f"    none of the {total} tests failed")
     else:
         by_variable: dict[str, list[Comparison]] = {}
         for failure in failures:
             by_variable.setdefault(variable_of(failure), []).append(failure)
 
-        print(f"    {len(failures)} of {total} comparisons out of tolerance, "
+        print(f"    {len(failures)} of {total} comparisons failed, "
               f"in {len(by_variable)} variable(s):")
         for variable in sorted(by_variable, key=lambda v: -len(by_variable[v])):
             group = by_variable[variable]
-            worst = max(group, key=lambda c: c.ratio_of_allowed)
+            worst = min(group, key=lambda c: c.rank)
             years = sorted({c.key[2] for c in group})
-            if worst.p_value is not None:
-                print(f"      {variable}: {len(group)} comparison(s), "
-                      f"years {years[0]}-{years[-1]}, worst {worst.statistic} "
-                      f"baseline={worst.baseline:.3g} new={worst.new:.3g} "
-                      f"p={worst.p_value:.3g} against {worst.allowed:.3g}")
-            else:
-                print(f"      {variable}: {len(group)} comparison(s), "
-                      f"years {years[0]}-{years[-1]}, worst {worst.statistic} "
-                      f"baseline={worst.baseline:.6g} new={worst.new:.6g} = "
-                      f"{worst.ratio_of_allowed:.1f}x the allowance")
+            print(f"      {variable}: {len(group)} comparison(s), "
+                  f"years {years[0]}-{years[-1]}, worst {worst.statistic} "
+                  f"baseline={worst.baseline:.6g} new={worst.new:.6g} "
+                  f"difference={worst.difference:+.3g} p={worst.p_value:.2g} "
+                  f"Holm={worst.adjusted:.2g} against alpha {outcome.alpha:g}")
 
-    # The largest excursions that still passed, so a systematic shift hiding inside a wide
-    # allowance is visible rather than silent.
+    # The strongest evidence that still passed, so a systematic shift sitting just inside the
+    # threshold is visible rather than silent. Under the null the smallest adjusted p-value in a
+    # run is roughly uniform, so a run whose best-supported difference is at 0.02 is an ordinary
+    # run and one at 1e-4 with alpha 0.01 would have been a failure at a slightly larger alpha —
+    # which is the thing worth knowing and the thing a pass/fail line cannot say.
     if verbose:
-        passed = sorted((c for c in outcome.comparisons if c.passed),
-                        key=lambda c: -c.ratio_of_allowed)[:10]
-        print("    largest differences that passed:")
-        for comparison in passed:
+        strongest = sorted((c for c in outcome.comparisons if c.passed and not c.below_floor),
+                           key=lambda c: c.rank)[:10]
+        print("    strongest evidence that still passed:")
+        for comparison in strongest:
             print(f"      {comparison.key} {comparison.statistic}: "
-                  f"{comparison.ratio_of_allowed:.2f}x the allowance")
+                  f"p={comparison.p_value:.3g} Holm={comparison.adjusted:.3g}")
 
     report_impact(outcome, verbose)
 
-    if outcome.missing or outcome.family_failures:
-        return False
-
-    if len(failures) <= max_failures:
-        if failures:
-            print(f"    within the {max_failures} accepted: see docs/equivalence.md for what "
-                  f"they are and why")
-        return True
-
-    return False
+    # **There is no failure budget.** One failure fails the run, on every example, and there is no
+    # flag that raises it. The eighth run spent a budget of three on one example because the rule
+    # in force then had no false-positive rate to appeal to; a rule that delivers a stated rate
+    # does not need one, and keeping the flag would have left a way to not notice that
+    # (docs/equivalence-method.md 6, ADR 0048).
+    return not failures and not outcome.missing and not outcome.family_failures
 
 
 def impact_as_json(impact: "DeviationImpact | None") -> dict | None:
@@ -1452,13 +1714,14 @@ def as_json(outcome: Outcome) -> dict:
         group["compared"] += 1
         if not comparison.passed:
             group["failed"] += 1
-        if group["worst"] is None or comparison.ratio_of_allowed > group["worst"]["ratio"]:
+        if group["worst"] is None or list(comparison.rank) < group["worst"]["rank"]:
             group["worst"] = {
                 "scenario": comparison.key[1], "year": comparison.key[2],
                 "sex": comparison.key[3], "baseline": comparison.baseline,
-                "new": comparison.new, "allowed": comparison.allowed,
-                "difference": comparison.difference,
-                "ratio": comparison.ratio_of_allowed,
+                "new": comparison.new, "difference": comparison.difference,
+                "floor": comparison.floor, "below_floor": comparison.below_floor,
+                "p_value": comparison.p_value, "holm_adjusted_p": comparison.adjusted,
+                "evidence": comparison.evidence, "rank": list(comparison.rank),
             }
 
         counts = per_family.setdefault(family, {"compared": 0, "failed": 0})
@@ -1485,12 +1748,18 @@ def as_json(outcome: Outcome) -> dict:
         "baseline_retries": outcome.retries,
         "skipped": len(outcome.skipped),
         "series_reported_by_one_side_only": outcome.missing,
-        "sigma_limit": SIGMA_LIMIT,
+        "family_wise_alpha": outcome.alpha,
+        "multiplicity_correction": "holm",
+        "tests_corrected_over": len(outcome.comparisons),
+        "below_printed_precision": sum(1 for c in outcome.comparisons if c.below_floor),
+        "smallest_holm_adjusted_p": min((c.adjusted for c in outcome.comparisons
+                                         if c.adjusted is not None and not c.below_floor),
+                                        default=1.0),
         "printed_precision_floor": PRINTED_PRECISION_FLOOR,
         "baseline_compat_flags": outcome.compat_flags,
         "deviation_impact": impact_as_json(outcome.impact),
         "groups": sorted(by_group.values(),
-                         key=lambda g: (-g["failed"], -g["worst"]["ratio"])),
+                         key=lambda g: (-g["failed"], g["worst"]["rank"])),
     }
 
 
@@ -1602,12 +1871,6 @@ def main() -> int:
                              "this config and these seeds")
     parser.add_argument("--refresh-reference", action="store_true",
                         help="run the baseline and overwrite the stored reference")
-    parser.add_argument("--max-failures", type=int, default=0,
-                        help="how many out-of-tolerance comparisons to accept before failing. "
-                             "The default is none. docs/equivalence.md records the residual this "
-                             "implementation has and what causes it, and scripts/check.sh passes "
-                             "that number — so a regression beyond it fails, and the known "
-                             "difference does not leave a permanently red check nobody reads.")
     parser.add_argument("--reference-dir", type=Path, default=REFERENCE_DIR,
                         help="where the baseline's reduced output is cached (default: "
                              "tests/equivalence/reference). A run with many more seeds than the "
@@ -1844,7 +2107,7 @@ def main() -> int:
                 stop_time=arguments.stop_time, size_fraction=arguments.size_fraction,
                 mode=arguments.deviation_impact)
 
-        all_passed &= report(outcome, arguments.verbose, arguments.max_failures)
+        all_passed &= report(outcome, arguments.verbose)
         collected.append(outcome)
 
     if arguments.json is not None:

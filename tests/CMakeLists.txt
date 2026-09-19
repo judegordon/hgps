@@ -105,6 +105,28 @@ if(Python3_Interpreter_FOUND)
     set_tests_properties(EquivalenceHarness.SelfConsistencyAcrossSeeds
                          EquivalenceHarness.DetectsADeliberatePerturbation
                          PROPERTIES TIMEOUT 600)
+
+    # The third question, which the two above cannot answer between them: does the rule fail as
+    # OFTEN as it says it does? "The same build at two disjoint seed sets passes" is one draw from
+    # a distribution whose whole point is that it has a stated rate, and one draw cannot measure a
+    # rate. This runs four such draws and holds the count against the rate
+    # (docs/equivalence-method.md 4.4, ADR 0048). Eight blocks of twenty runs of the fixture pack,
+    # about fifteen seconds in release.
+    #
+    # **Not under ThreadSanitizer**, and for a different reason than the second fixture pack's
+    # (ADR 0046). This test scores stored reductions with a rule that is arithmetic in Python: the
+    # engine it runs is already covered by the two self-checks above, and there is no third thing
+    # for TSan to watch. At six seconds a run it would be twenty minutes of the preset to observe
+    # nothing new.
+    if(NOT CMAKE_CXX_FLAGS MATCHES "-fsanitize=thread")
+        add_test(NAME EquivalenceHarness.TheRuleFailsAsOftenAsItSaysItDoes
+                 COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/equivalence/null_check.py"
+                         --seeds 160 --block 20
+                         --new "$<TARGET_FILE:healthgps>"
+                         --workdir "${CMAKE_CURRENT_BINARY_DIR}/self-check/null")
+        set_tests_properties(EquivalenceHarness.TheRuleFailsAsOftenAsItSaysItDoes
+                             PROPERTIES TIMEOUT 900)
+    endif()
 else()
     message(WARNING "No Python 3 interpreter: the equivalence harness's own tests will not run.")
 endif()

@@ -25,6 +25,7 @@ import hashlib
 import importlib.util
 import json
 import math
+import random
 import sys
 import tempfile
 import unittest
@@ -113,16 +114,40 @@ class DistributionTest(unittest.TestCase):
         # whole-lattice-step difference in the median. The distributions are not distinguishable.
         base = [0] * 26 + [1] * 28 + [2] * 6
         new = [0] * 33 + [1] * 21 + [2] * 6
-        self.assertGreater(eqrun.distribution_p_value(base, new),
-                           eqrun.DISTRIBUTION_TEST_ALPHA * 1000)
+        self.assertGreater(eqrun.distribution_p_value(base, new), 0.1)
 
     def test_a_rate_that_really_differs_fails(self):
-        # All-or-nothing at sixty seeds: the calibration in run.py says 17 of 60 is the threshold.
+        # All-or-nothing at sixty seeds, against the level Holm leaves for the smallest p-value in
+        # a family of the ~45,000 tests one example produces: alpha / m, about 2.2e-7. The
+        # threshold there is 22 of 60, which is the number `distribution_p_value`'s docstring and
+        # docs/equivalence-method.md 5.3 quote. It was 17 of 60 while the exact test was judged
+        # against a hand-counted 0.05/5000, and that is the price of one consistent family rather
+        # than two levels that never had to agree.
+        per_test = eqrun.FAMILY_WISE_ALPHA / 45000
         base = [0] * 60
-        self.assertGreater(eqrun.distribution_p_value(base, [0] * 44 + [1] * 16),
-                           eqrun.DISTRIBUTION_TEST_ALPHA)
-        self.assertLess(eqrun.distribution_p_value(base, [0] * 43 + [1] * 17),
-                        eqrun.DISTRIBUTION_TEST_ALPHA)
+        self.assertGreater(eqrun.distribution_p_value(base, [0] * 39 + [1] * 21), per_test)
+        self.assertLess(eqrun.distribution_p_value(base, [0] * 38 + [1] * 22), per_test)
+
+    def test_a_shifted_point_mass_costs_the_same_however_far_it_moved(self):
+        # Both sides one value, the two values different: the only arrangement of the 2n
+        # observations at least as extreme as this one is its mirror, so the p-value is exactly
+        # 2/C(2n, n) whatever the gap between the values is. A 1% shift and a 5% shift are equally
+        # impossible under the null, which is why `self_check.py`'s `mean_bmi` and `mean_energy`
+        # report identical p-values.
+        # Two distinct values are tested, so the exact 2/C(2n, n) is Bonferroni-doubled.
+        for n in (6, 12, 20):
+            self.assertAlmostEqual(4.0 / math.comb(2 * n, n),
+                                   eqrun.distribution_p_value([0] * n, [1] * n))
+
+    def test_how_many_seeds_a_shifted_point_mass_needs(self):
+        # The arithmetic behind `self_check.POINT_MASS_NEEDS_SEEDS`, pinned here so that a change
+        # to the family-wise alpha or to the exact test moves a test rather than a comment.
+        # Against a run of ~350 tests: out of reach at six seeds, clear at twelve.
+        family = 350
+        six = eqrun.distribution_p_value([0] * 6, [1] * 6) * family
+        twelve = eqrun.distribution_p_value([0] * 12, [1] * 12) * family
+        self.assertGreater(six, eqrun.FAMILY_WISE_ALPHA)
+        self.assertLess(twelve, eqrun.FAMILY_WISE_ALPHA / 10)
 
     def test_it_is_corrected_for_the_number_of_values_tested(self):
         # Three values means three tests, so the smallest p is multiplied by three.
@@ -153,19 +178,27 @@ def _compare(base_values, new_values):
 
 
 class WhichStatisticsAreComparedTest(unittest.TestCase):
-    """A lattice series is compared by its mean and its distribution; a continuous one by five."""
+    """A continuous series gets two tests; a lattice-valued one gets one exact test instead.
 
-    def test_a_continuous_series_gets_all_five_statistics(self):
+    Before the ninth run a continuous series got five numeric comparisons — the mean, the standard
+    deviation and three quantiles — each against `4.5 x` an estimated standard error, and a lattice
+    one got the mean and an exact test. The five became two when the rule gained a stated
+    false-positive rate: the mean's comparison is Welch's t, the standard deviation's and the
+    quantiles' is one robust test of spread, and a lattice series keeps only the exact test,
+    because its mean is a function of the same counts the exact test already covers
+    (docs/equivalence-method.md 4 and 5, ADR 0048)."""
+
+    def test_a_continuous_series_gets_a_location_and_a_dispersion_test(self):
         base = [20.0 + 0.37 * i for i in range(20)]
         new = [20.0 + 0.37 * i + 0.01 for i in range(20)]
         statistics = {c.statistic for c in _compare(base, new).comparisons}
-        self.assertEqual({"mean", "sd", "p5", "p50", "p95"}, statistics)
+        self.assertEqual({"location", "dispersion"}, statistics)
 
-    def test_a_lattice_series_gets_the_mean_and_the_distribution(self):
+    def test_a_lattice_series_gets_the_exact_distribution_test_and_nothing_else(self):
         base = [0.0] * 13 + [1.0] * 7
         new = [0.0] * 11 + [1.0] * 9
         statistics = {c.statistic for c in _compare(base, new).comparisons}
-        self.assertEqual({"mean", "distribution"}, statistics)
+        self.assertEqual({"distribution"}, statistics)
 
     def test_a_point_mass_with_many_distinct_jumps_is_still_a_lattice(self):
         # Eleven distinct values, so the count rule does not fire — but one value covers more than
@@ -173,7 +206,7 @@ class WhichStatisticsAreComparedTest(unittest.TestCase):
         base = [5.0] * 11 + [5.0 + i for i in range(1, 10)]
         new = [5.0] * 12 + [5.0 + i for i in range(1, 9)]
         statistics = {c.statistic for c in _compare(base, new).comparisons}
-        self.assertEqual({"mean", "distribution"}, statistics)
+        self.assertEqual({"distribution"}, statistics)
 
     def test_the_failing_sixty_seed_medians_now_pass(self):
         base = [0.0] * 26 + [0.00029274] * 28 + [0.00058548] * 6
@@ -189,6 +222,288 @@ class WhichStatisticsAreComparedTest(unittest.TestCase):
         new = [0.0] * 20 + [0.00029274] * 40
         outcome = _compare(base, new)
         self.assertFalse(all(c.passed for c in outcome.comparisons))
+
+
+class RegularizedIncompleteBetaTest(unittest.TestCase):
+    """The one special function the new rule needs, against closed forms rather than against itself.
+
+    It is the whole of the numerical risk in the change of rule: every p-value the location and
+    dispersion tests produce is one call of this, at arguments far out in the tail where a wrong
+    answer would be a wrong verdict rather than a wrong-looking number.
+    """
+
+    def test_a_uniform_case_is_the_identity(self):
+        # I_x(1, 1) = x, because Beta(1, 1) is the uniform distribution.
+        for x in (0.01, 0.25, 0.5, 0.9, 0.999):
+            self.assertAlmostEqual(x, eqrun.regularized_incomplete_beta(1.0, 1.0, x), places=12)
+
+    def test_the_arcsine_case(self):
+        # I_x(1/2, 1/2) = (2/pi) arcsin(sqrt(x)) — the arcsine distribution, which is also the
+        # Cauchy's t distribution, so this checks the exact branch df = 1 runs through.
+        for x in (0.001, 0.1, 0.5, 0.75, 0.99):
+            self.assertAlmostEqual(2.0 / math.pi * math.asin(math.sqrt(x)),
+                                   eqrun.regularized_incomplete_beta(0.5, 0.5, x), places=12)
+
+    def test_it_is_symmetric(self):
+        # I_x(a, b) + I_(1-x)(b, a) = 1, which is the reflection the implementation takes on one
+        # side of the argument and not the other — so this is a test of the seam.
+        for a, b, x in ((19.0, 0.5, 0.004), (0.5, 19.0, 0.996), (3.0, 7.0, 0.31)):
+            self.assertAlmostEqual(1.0, eqrun.regularized_incomplete_beta(a, b, x)
+                                   + eqrun.regularized_incomplete_beta(b, a, 1.0 - x), places=12)
+
+    def test_the_ends_are_exact(self):
+        self.assertEqual(0.0, eqrun.regularized_incomplete_beta(2.0, 3.0, 0.0))
+        self.assertEqual(1.0, eqrun.regularized_incomplete_beta(2.0, 3.0, 1.0))
+
+
+class StudentTTest(unittest.TestCase):
+    """The two-sided tail, against table values and against a closed form."""
+
+    def test_no_difference_is_perfectly_ordinary(self):
+        self.assertAlmostEqual(1.0, eqrun.student_t_two_sided(0.0, 38.0))
+
+    def test_the_five_percent_point_of_twenty_degrees_of_freedom(self):
+        # t(0.975, 20) = 2.085963, from any table.
+        self.assertAlmostEqual(0.05, eqrun.student_t_two_sided(2.085963, 20.0), places=6)
+
+    def test_one_degree_of_freedom_is_the_cauchy(self):
+        for t in (0.5, 1.0, 4.0, 100.0):
+            self.assertAlmostEqual(1.0 - 2.0 / math.pi * math.atan(t),
+                                   eqrun.student_t_two_sided(t, 1.0), places=12)
+
+    def test_the_far_tail_is_where_the_verdict_lives(self):
+        # The level Holm leaves for the smallest p-value in a family of ~45,000 tests is about
+        # 2.2e-7, and at 38 degrees of freedom that is t = 6.30. This is the number the whole
+        # change of rule turns on: the old allowance asked for 4.5 standard errors and this asks
+        # for 6.30 of the same estimated standard error, and the difference between them is exactly
+        # the noise in the estimate that the old rule ignored.
+        self.assertLess(eqrun.student_t_two_sided(6.31, 38.0), 2.2e-7)
+        self.assertGreater(eqrun.student_t_two_sided(6.29, 38.0), 2.2e-7)
+        self.assertAlmostEqual(6.24e-05, eqrun.student_t_two_sided(4.5, 38.0), places=7)
+
+
+class WelchTest(unittest.TestCase):
+    """The location test, including the two degenerate cases this model's output is full of."""
+
+    def test_a_sample_against_itself_is_perfectly_ordinary(self):
+        values = [20.0 + 0.37 * i for i in range(20)]
+        _, _, p = eqrun.welch_t_test(values, values)
+        self.assertAlmostEqual(1.0, p)
+
+    def test_a_case_whose_t_and_degrees_of_freedom_can_be_done_by_hand(self):
+        # Two samples of five, each with sample variance 2.5, shifted by 2. The squared standard
+        # error is 2.5/5 + 2.5/5 = 1, so t = 2 exactly; Welch-Satterthwaite gives
+        # 1 / (0.5^2/4 + 0.5^2/4) = 8 degrees of freedom, which is 2n - 2 as it must be when the
+        # two variances and the two sample sizes agree. The tail at (2, 8) is 0.0805 from a table.
+        t, df, p = eqrun.welch_t_test([1.0, 2.0, 3.0, 4.0, 5.0], [3.0, 4.0, 5.0, 6.0, 7.0])
+        self.assertAlmostEqual(2.0, t, places=12)
+        self.assertAlmostEqual(8.0, df, places=12)
+        self.assertAlmostEqual(0.0805, p, places=4)
+
+    def test_two_constants_that_agree_are_not_a_comparison(self):
+        # A band mean calibration pins: one value in every seed, on both sides. There is nothing
+        # to test and nothing wrong.
+        _, _, p = eqrun.welch_t_test([25.541647] * 20, [25.541647] * 20)
+        self.assertEqual(1.0, p)
+
+    def test_two_constants_that_differ_are_certain(self):
+        # The same, except that the two implementations disagree deterministically. Whether that
+        # matters is then the printed-precision floor's question, not this function's.
+        _, _, p = eqrun.welch_t_test([25.541647] * 20, [25.541648] * 20)
+        self.assertEqual(0.0, p)
+
+    def test_a_sample_too_small_to_have_a_variance_is_not_tested(self):
+        self.assertEqual((0.0, 0.0, 1.0), eqrun.welch_t_test([1.0], [2.0]))
+
+    def test_it_uses_the_distribution_the_estimated_error_really_has(self):
+        # The point of the change, as one number. Two samples whose difference is exactly 4.5 of
+        # their own estimated standard error: the old rule called that the threshold; the t
+        # distribution on ~38 degrees of freedom calls it p = 5.8e-5, which Holm over a real
+        # family does not come close to rejecting.
+        left = list(_STANDARDISED)
+        offset = 4.5 * math.sqrt(2.0 * statistics_variance(left) / 20)
+        right = [value + offset for value in left]
+        _, _, p = eqrun.welch_t_test(left, right)
+        self.assertGreater(p, 1e-5)
+        self.assertLess(p, 1e-3)
+
+
+def statistics_variance(values):
+    mean = sum(values) / len(values)
+    return sum((value - mean) ** 2 for value in values) / (len(values) - 1)
+
+
+# Twenty values with mean 0 and variance 1, so a test can build a sample with an exact offset in
+# units of its own standard error without depending on a random generator.
+_STANDARDISED = [(i - 9.5) / 5.916079783099616 for i in range(20)]
+
+
+class HolmTest(unittest.TestCase):
+    """The multiplicity correction, which is the only place a verdict is decided."""
+
+    def test_one_test_is_its_own_adjustment(self):
+        self.assertEqual([0.004], eqrun.holm_adjusted([0.004]))
+
+    def test_the_smallest_is_multiplied_by_the_whole_family(self):
+        adjusted = eqrun.holm_adjusted([0.9, 0.001, 0.5, 0.4])
+        self.assertAlmostEqual(0.004, adjusted[1])
+
+    def test_it_is_a_step_down_and_therefore_monotone(self):
+        raw = [0.001, 0.02, 0.03, 0.7]
+        adjusted = eqrun.holm_adjusted(raw)
+        self.assertEqual(sorted(adjusted), adjusted)
+        for one, other in zip(raw, adjusted):
+            self.assertGreaterEqual(other, one)
+
+    def test_a_later_test_inherits_an_earlier_one_that_could_not_be_rejected(self):
+        # The step-down: the second smallest is (m-1) * p = 3 * 0.2 = 0.6, but the smallest is
+        # already 4 * 0.2 = 0.8, and Holm cannot reject a larger p-value than one it kept.
+        self.assertEqual([0.8, 0.8, 0.8, 0.8], eqrun.holm_adjusted([0.2, 0.2, 0.2, 0.2]))
+
+    def test_nothing_is_ever_adjusted_past_certainty(self):
+        self.assertEqual([1.0] * 3, eqrun.holm_adjusted([0.9, 0.95, 1.0]))
+
+    def test_the_order_given_is_the_order_returned(self):
+        self.assertEqual([1.0, 0.004, 1.0, 1.0], [round(value, 9) for value in
+                                                  eqrun.holm_adjusted([0.9, 0.001, 0.5, 0.4])])
+
+
+class TheRateIsWhatItSaysTest(unittest.TestCase):
+    """The location test's nominal level is its actual level, on samples with a known distribution.
+
+    This is the unit-test-scale version of `calibrate.py --mode null`, and it is here because the
+    expensive version needs a build and twenty minutes: at this scale it cannot see the far tail
+    Holm operates in, but it would catch a test whose level was wrong by a factor.
+
+    The generator is seeded, so this is a fixed arithmetic fact rather than a flaky test.
+    """
+
+    def test_the_five_percent_level_rejects_about_five_percent(self):
+        generator = random.Random(20260919)
+        rejected = 0
+        trials = 2000
+        for _ in range(trials):
+            left = [generator.gauss(0.0, 1.0) for _ in range(20)]
+            right = [generator.gauss(0.0, 1.0) for _ in range(20)]
+            _, _, p = eqrun.welch_t_test(left, right)
+            rejected += p < 0.05
+        # 100 expected, and the standard deviation of the count is sqrt(2000*0.05*0.95) = 9.7.
+        self.assertGreater(rejected, 100 - 4 * 9.7)
+        self.assertLess(rejected, 100 + 4 * 9.7)
+
+    def test_a_heavy_tailed_sample_does_not_reject_more_often(self):
+        # The model's output is not normal, so the level has to survive a sample that is not
+        # either. A Student t on 3 degrees of freedom has no fourth moment at all.
+        generator = random.Random(20260920)
+        rejected = 0
+        trials = 2000
+        for _ in range(trials):
+            left = [generator.gauss(0.0, 1.0) / math.sqrt(generator.gammavariate(1.5, 1.0) / 1.5)
+                    for _ in range(20)]
+            right = [generator.gauss(0.0, 1.0) / math.sqrt(generator.gammavariate(1.5, 1.0) / 1.5)
+                     for _ in range(20)]
+            _, _, p = eqrun.welch_t_test(left, right)
+            rejected += p < 0.05
+        self.assertLess(rejected, 100 + 4 * 9.7)
+
+
+class ThePrintedPrecisionFloorTest(unittest.TestCase):
+    """Nothing can fail on a difference the baseline's own output cannot express.
+
+    Two rules say that, at the same precision and in that order, and which of them a given series
+    meets is worth having written down:
+
+      * `lattice_keys` buckets both samples at the baseline's six printed digits *before* the
+        series is classified, so two figures the baseline cannot print apart are one value. A
+        series whose whole spread is below that precision therefore has one bucket, is classified
+        as a point mass, and its exact test has nothing to compare;
+      * the floor in `compare` then waives any remaining test whose difference is below the same
+        precision.
+
+    Under the rule this replaced the second was load-bearing — it *was* the whole allowance for
+    every pinned series. Under this one it is belt and braces, and the arithmetic says so: for a
+    difference to be significant at the level Holm leaves while staying below the floor, the
+    sample's own standard deviation has to be smaller than the floor, and such a sample is one
+    bucket wide and has already gone to the exact test. It is kept because the guarantee is worth
+    stating unconditionally, and because it can only ever remove failures, so the family-wise rate
+    stays an upper bound.
+    """
+
+    def test_a_series_narrower_than_the_printed_precision_has_nothing_to_compare(self):
+        # Both sides constant, differing in the twelfth digit: one bucket, so the exact test sees
+        # one value and returns certainty.
+        outcome = _compare([25.541647043865236] * 20, [25.541647043865240] * 20)
+        self.assertEqual({"distribution"}, {c.statistic for c in outcome.comparisons})
+        self.assertEqual([1.0], [c.p_value for c in outcome.comparisons])
+        self.assertTrue(all(c.passed for c in outcome.comparisons))
+
+    def test_a_difference_the_baseline_can_print_does_fail(self):
+        # 1% of a pinned aggregate: the smallest difference anybody would call one, against the
+        # tightest test the method has. This is the synthetic self-check's `mean_bmi` case.
+        outcome = _compare([25.541647] * 20, [25.541647 * 1.01] * 20)
+        self.assertFalse(all(c.passed for c in outcome.comparisons))
+
+    def test_the_floor_waives_a_test_however_certain_it_is(self):
+        # The guarantee itself, stated on one comparison rather than hunted for in a series: a
+        # difference at or below the floor cannot fail even when the p-value is zero.
+        key = (eqrun.MAIN_FAMILY, "baseline", 2020, "male", "mean_bmi")
+        waived = eqrun.Comparison(key=key, statistic="location", baseline=25.5, new=25.5 + 1e-5,
+                                  difference=1e-5, floor=2.55e-4, p_value=0.0, adjusted=0.0)
+        self.assertTrue(waived.below_floor)
+        self.assertTrue(waived.passed)
+
+        just_over = eqrun.Comparison(key=key, statistic="location", baseline=25.5, new=25.6,
+                                     difference=0.1, floor=2.55e-4, p_value=0.0, adjusted=0.0)
+        self.assertFalse(just_over.below_floor)
+        self.assertFalse(just_over.passed)
+
+    def test_the_distribution_test_is_not_subject_to_the_floor(self):
+        # Its statistic is a modal share, and two point masses at different values both have a
+        # modal share of 1 — so a floor on that difference would waive every point-mass comparison
+        # there is, including the 1% shift above.
+        outcome = _compare([25.541647] * 20, [25.541647 * 1.01] * 20)
+        self.assertTrue(all(c.floor is None for c in outcome.comparisons))
+        self.assertFalse(any(c.below_floor for c in outcome.comparisons))
+
+
+class OneFamilyOneRateTest(unittest.TestCase):
+    """Every test in a run is corrected together, and one failure fails the run."""
+
+    def test_holm_corrects_over_every_test_in_the_run(self):
+        seeds = list(range(1, 21))
+        base = {seed: {} for seed in seeds}
+        mine = {seed: {} for seed in seeds}
+        for year in range(2020, 2030):
+            key = (eqrun.MAIN_FAMILY, "baseline", year, "male", "mean_bmi")
+            for index, seed in enumerate(seeds):
+                base[seed][key] = 20.0 + 0.37 * index
+                mine[seed][key] = 20.0 + 0.37 * index + 0.01
+        outcome = eqrun.Outcome(example="test", seeds=seeds)
+        eqrun.compare(base, mine, seeds, outcome)
+
+        # Ten years, two tests each: the family is twenty, and the smallest p-value is multiplied
+        # by twenty rather than by one.
+        self.assertEqual(20, len(outcome.comparisons))
+        smallest = min(outcome.comparisons, key=lambda c: c.p_value)
+        self.assertAlmostEqual(min(1.0, 20 * smallest.p_value), smallest.adjusted)
+
+    def test_a_verdict_is_not_decided_before_the_family_is_known(self):
+        comparison = eqrun.Comparison(key=(eqrun.MAIN_FAMILY, "baseline", 2020, "male", "x"),
+                                      statistic="location", baseline=1.0, new=2.0,
+                                      difference=1.0, floor=0.0, p_value=0.0)
+        self.assertFalse(comparison.below_floor)
+        self.assertIsNone(comparison.adjusted)
+        self.assertTrue(comparison.passed, "an uncorrected comparison has no verdict to give")
+
+    def test_there_is_no_failure_budget(self):
+        # The eighth run spent a budget of three on one example. `report` has no parameter that
+        # could hold one now, and one failure fails the run (docs/equivalence-method.md 6).
+        seeds = list(range(1, 21))
+        outcome = eqrun.Outcome(example="test", seeds=seeds)
+        eqrun.compare(_series(dict(zip(seeds, [25.541647] * 20))),
+                      _series(dict(zip(seeds, [25.541647 * 1.01] * 20))), seeds, outcome)
+        self.assertEqual(1, sum(1 for c in outcome.comparisons if not c.passed))
+        self.assertFalse(eqrun.report(outcome, verbose=False))
 
 
 def _rate_series(case_counts, head_counts):
@@ -237,7 +552,7 @@ class LatticeOnTheNumeratorTest(unittest.TestCase):
                            "the rate must look continuous, or this tests nothing")
 
         outcome = _compare_rates(cases, self.HEADS, cases, self.HEADS)
-        self.assertEqual({"mean", "distribution"},
+        self.assertEqual({"distribution"},
                          {c.statistic for c in _of(outcome, "prevalence_gout")})
 
     def test_the_same_series_read_as_a_rate_is_not_one(self):
@@ -246,7 +561,7 @@ class LatticeOnTheNumeratorTest(unittest.TestCase):
         cases = ([0] * 20 + [1] * 30 + [2] * 10)
         rates = [c / h for c, h in zip(cases, self.HEADS)]
         statistics = {c.statistic for c in _compare(rates, rates).comparisons}
-        self.assertEqual({"mean", "sd", "p5", "p50", "p95"}, statistics)
+        self.assertEqual({"location", "dispersion"}, statistics)
 
     def test_the_six_india_residuals_are_the_shape_this_fixes(self):
         # `incidence_gout` at (baseline, 2019, female) failed in both 60-seed runs at 1.02x to
@@ -260,7 +575,7 @@ class LatticeOnTheNumeratorTest(unittest.TestCase):
 
         outcome = _compare_rates(base_cases, self.HEADS, new_cases, new_heads)
         compared = _of(outcome, "prevalence_gout")
-        self.assertEqual({"mean", "distribution"}, {c.statistic for c in compared})
+        self.assertEqual({"distribution"}, {c.statistic for c in compared})
         self.assertTrue(all(c.passed for c in compared),
                         [f"{c.statistic}: {c.baseline} vs {c.new}"
                          for c in compared if not c.passed])
@@ -283,7 +598,7 @@ class LatticeOnTheNumeratorTest(unittest.TestCase):
         side = {seed: {key: values[seed - 1], count_key: float(heads[seed - 1])} for seed in seeds}
         outcome = eqrun.Outcome(example="test", seeds=seeds)
         eqrun.compare(side, side, seeds, outcome)
-        self.assertEqual({"mean", "sd", "p5", "p50", "p95"},
+        self.assertEqual({"location", "dispersion"},
                          {c.statistic for c in _of(outcome, "mean_bmi")})
 
     def test_a_calibrated_mean_that_is_the_same_in_every_seed_is_still_a_point_mass(self):
@@ -297,7 +612,7 @@ class LatticeOnTheNumeratorTest(unittest.TestCase):
         side = {seed: {key: 25.541647, count_key: 3146.0} for seed in seeds}
         outcome = eqrun.Outcome(example="test", seeds=seeds)
         eqrun.compare(side, side, seeds, outcome)
-        self.assertEqual({"mean", "distribution"},
+        self.assertEqual({"distribution"},
                          {c.statistic for c in _of(outcome, "mean_bmi")})
 
     def test_the_numerator_is_the_value_times_the_head_count(self):
@@ -601,7 +916,7 @@ class DeviationImpactTest(unittest.TestCase):
         outcome = eqrun.Outcome(example="test", seeds=[1, 2, 3])
         fixed, compatible, seeds = self._reductions({2020: 99.0}, {2020: 1.0})
         outcome.impact = eqrun.measure_impact(fixed, compatible, seeds, "all")
-        self.assertTrue(eqrun.report(outcome, verbose=False, max_failures=0))
+        self.assertTrue(eqrun.report(outcome, verbose=False))
 
 
 class OutputFamiliesTest(unittest.TestCase):
@@ -679,7 +994,7 @@ class OutputFamiliesTest(unittest.TestCase):
         eqrun.compare(side(cases), side(cases), seeds, outcome)
         stratified = [c for c in outcome.comparisons
                       if c.key[0] == "LowIncome" and c.key[4] == "prevalence_gout"]
-        self.assertEqual({"mean", "distribution"}, {c.statistic for c in stratified})
+        self.assertEqual({"distribution"}, {c.statistic for c in stratified})
 
     def test_a_family_only_the_baseline_writes_is_a_failure(self):
         failures = eqrun.check_families({"result": {}, "MiddleIncome": {}}, {"result": {}})
@@ -707,7 +1022,7 @@ class OutputFamiliesTest(unittest.TestCase):
     def test_a_family_failure_fails_the_run(self):
         outcome = eqrun.Outcome(example="test", seeds=[1, 2, 3])
         outcome.family_failures = ["MiddleIncome: the baseline writes this and we do not"]
-        self.assertFalse(eqrun.report(outcome, verbose=False, max_failures=0))
+        self.assertFalse(eqrun.report(outcome, verbose=False))
 
     def test_a_reference_without_a_family_column_is_refused_by_name(self):
         with tempfile.TemporaryDirectory() as directory:

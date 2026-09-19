@@ -3,10 +3,12 @@
 
 `run.py` compares this implementation against the baseline and prints PASS or FAIL. It decides this
 project's headline result, which means a mistake in it does not produce a wrong number — it produces
-a *confident* one. It has 26 unit tests of its own statistics, and two of its rules have been wrong
+a *confident* one. It has unit tests of its own statistics, and two of its rules have been wrong
 once each; both times a twenty-minute run was what found it.
 
-Unit tests cannot answer the two questions that matter about a comparison:
+Unit tests cannot answer the two questions that matter about a comparison — and `null_check.py`, in
+the same directory, answers a third that neither of these can: does the comparison fail as *often*
+as it says it does (docs/equivalence-method.md 4.4)?
 
   (a) **Does it pass when it should?** Two runs of the *same* implementation at *different* seeds
       differ by nothing but sampling noise. That is exactly the null hypothesis the harness's
@@ -50,17 +52,25 @@ REPO = Path(__file__).resolve().parents[2]
 
 # The perturbation the failure test applies, what each part of it is for, and — measured rather than
 # assumed — which parts the harness can see. docs/equivalence-method.md §7.2 has the arithmetic.
+# The figures are from twenty seeds under the rule adopted in the ninth run (ADR 0048), which
+# reports a Holm-adjusted p-value against a family-wise alpha of 0.01 rather than a ratio against
+# an allowance.
 #
-#   mean_bmi    x1.01  a 1% shift in an aggregate calibration pins: the same value in every seed, so
-#                      the allowance collapses to the printed-precision floor. The smallest difference
-#                      anybody would call a difference, against the tightest test the method has.
-#                      DETECTED, at 10^5 times its allowance, through the exact distribution test the
-#                      lattice rule substitutes for the quantiles.
+#   mean_bmi    x1.01  a 1% shift in an aggregate calibration pins: the same value in every seed, on
+#                      both sides. The smallest difference anybody would call a difference, against
+#                      the tightest test the method has. DETECTED in all ten of its comparisons,
+#                      through the exact distribution test the lattice rule routes a point mass to:
+#                      p = 2.9e-11, Holm-adjusted over the run's 458 tests to 1.3e-8.
 #   mean_energy  x1.05 the same again at 5%, as a control: if the 1% case failed and this did not, the
-#                      fault would be in the test rather than in the harness. DETECTED.
+#                      fault would be in the test rather than in the harness. DETECTED, identically —
+#                      both are point masses, and an exact test of two point masses at different
+#                      values gives the same p-value whatever the gap between them is.
 #   std_energy   x1.05 5% of a series that genuinely varies from seed to seed — twenty distinct values
-#                      out of twenty — so this is the one rule that exercises the *numeric* comparison
-#                      rather than the lattice path. DETECTED, at 2.8 to 4.0 times its allowance.
+#                      out of twenty — so this is the one part that exercises Welch's t rather than
+#                      the exact path. DETECTED by the *location* test: p = 6.5e-23, Holm 3.0e-20.
+#                      Its dispersion test passes (p = 0.84), which is right: scaling a series by
+#                      1.05 moves its mean by 5% and its across-seed spread by 5% of a much smaller
+#                      number.
 #   emigrations   +1    one whole person added to one age band: one lattice step of a counted series,
 #                      and the smallest possible change to a count. NOT DETECTED, for a reason worth
 #                      knowing rather than working around — see below.
@@ -72,24 +82,59 @@ PERTURBATION = ("mean_bmi=scale:1.01;mean_energy=scale:1.05;std_energy=scale:1.0
 # whole result untrustworthy in the other direction.
 DETECTED = {"mean_bmi", "mean_energy", "std_energy"}
 
+# **Two of those three need enough seeds, and how many is arithmetic rather than judgement.**
+#
+# `mean_bmi` and `mean_energy` are point masses: one value in every seed on each side, and a
+# different value on each side. The exact test (docs/equivalence-method.md 5.2) conditions on the
+# margins, so the only arrangement of the 2n observations at least as extreme as the observed one
+# is its mirror image, and its p-value is exactly `2 / C(2n, n)` — doubled for the two values
+# tested, and then multiplied by the 300 to 460 tests a run of this pack makes, because every test
+# in a run is corrected together (ADR 0048). **It does not depend on how big the shift is**: 1% and
+# 5% give the same p-value, because a complete separation is a complete separation.
+#
+#   n                 6        8        10       11       12       20
+#   the test's p      4.3e-3   3.1e-4   2.2e-5   5.7e-6   1.5e-6   2.9e-11
+#   Holm over ~350    1        0.11     0.0076   0.0020   0.00052  1.0e-8
+#
+# So against alpha = 0.01 it is out of reach at six seeds, marginal at ten, and clear by a factor
+# of fifteen at twelve. **This is a real change from the rule before ADR 0048**, which detected
+# these at any seed count — because it compared a point mass against the printed-precision floor
+# rather than testing it, and "the two constants differ by more than the baseline can print" is an
+# observation rather than evidence that the two distributions differ. At six seeds it is not
+# evidence: six against six splitting two values perfectly happens by chance about once in 230
+# tries, and a run of this pack makes hundreds of tests.
+#
+# CTest runs six seeds under ThreadSanitizer and twenty everywhere else
+# (docs/decisions/0046-what-runs-under-which-sanitizer.md), so this is not hypothetical, and the
+# expectation is derived from the seed count rather than asserted.
+POINT_MASS_NEEDS_SEEDS = 12
+POINT_MASS_PERTURBATIONS = {"mean_bmi", "mean_energy"}
+
 # What must NOT fail, although it is perturbed. This is an assertion about the *limits* of the method,
 # and it is here rather than left out because the limit is worth pinning: if it ever stops holding,
 # somebody should read this and find out why.
 #
 # A one-person shift in `emigrations` is invisible at twenty seeds, in two steps:
 #
-#   * in the FIRST simulated year the series is identically zero, so the shift is 10^5 times its
-#     allowance and would fail loudly — but that year is skipped for `emigrations`, because the
-#     quantity is not defined until a year has passed (docs/equivalence-method.md §3.3);
+#   * in the FIRST simulated year the series is identically zero on both sides, so a shift of one
+#     would be certain — but that year is skipped for `emigrations`, because the quantity is not
+#     defined until a year has passed (docs/equivalence-method.md §3.3);
 #   * in every later year the twenty seeds give eight or nine distinct values, so the series is not
-#     lattice-valued and the comparison is numeric: the shift is 0.29 to 0.33 of the allowance.
+#     lattice-valued and Welch's t is what judges it. **The best of its eight comparisons is
+#     p = 0.145** — before any correction for multiplicity, and the run's Holm correction takes it
+#     to 1.
 #
-# That second number is the fact. One emigration in sixteen is not distinguishable from sampling noise
-# at twenty seeds, and a test that claimed otherwise would be wrong. It also shows something subtler
-# about the lattice rule, which is worth having written down: the classification is computed from the
-# two samples *pooled*, so a real shift can push a series out of the lattice regime and into a numeric
-# comparison too wide to see it. Sixty seeds would halve the allowance and still not reach a shift of
-# one.
+# That number is the fact, and it is a better fact than the one it replaced: under the rule before
+# ADR 0048 this was recorded as "0.29 to 0.33 of the allowance", which is a ratio against a
+# threshold rather than a statement about evidence. p = 0.145 says plainly that one emigration in
+# sixteen is the sort of difference twenty seeds of this pack produce about one time in seven by
+# chance, and a test that called it a disagreement would be wrong.
+#
+# It also shows something subtler about the lattice rule, which is worth having written down: the
+# classification is computed from the two samples *pooled*, so a real shift can push a series out of
+# the lattice regime and into a numeric comparison too wide to see it. Sixty seeds give p = 0.016,
+# measured rather than extrapolated — still nowhere near a family-wise 0.01 over hundreds of tests,
+# and the perturbation run at sixty seeds fails in the same three variables and no others.
 BELOW_NOISE = {"emigrations"}
 
 def synthetic_config(new_binary: Path) -> Path:
@@ -226,7 +271,9 @@ def main() -> int:
             arguments.stop_time, intervention)
         outcome.timings["clean"] = left_seconds
         outcome.timings["perturbed"] = right_seconds
-        expected = DETECTED
+        expected = set(DETECTED)
+        if len(seeds) < POINT_MASS_NEEDS_SEEDS:
+            expected -= POINT_MASS_PERTURBATIONS
 
     excluded = left_empty | right_empty
     outcome.excluded_bands = len(excluded)
@@ -249,7 +296,7 @@ def main() -> int:
     # `report` returns whether the comparison passed. In 'seeds' mode that is the whole answer; in
     # 'perturbation' mode a pass would be the failure, so the verdict is computed below and `report`
     # is called only to print.
-    passed = harness.report(outcome, arguments.verbose, max_failures=0)
+    passed = harness.report(outcome, arguments.verbose)
 
     failing = sorted({harness.variable_of(c) for c in outcome.comparisons if not c.passed})
     verdict = passed
@@ -258,6 +305,12 @@ def main() -> int:
         print()
         print(f"    perturbation: {arguments.perturbation}")
         print(f"    expected to fail in:     {', '.join(sorted(expected))}")
+        out_of_reach = sorted(DETECTED - expected)
+        if out_of_reach:
+            print(f"    out of reach at {len(seeds)} seeds: {', '.join(out_of_reach)} — a point "
+                  f"mass shifted by any amount gives an exact p-value of 2/C({2 * len(seeds)}, "
+                  f"{len(seeds)}), which Holm over this run's tests cannot take below alpha until "
+                  f"{POINT_MASS_NEEDS_SEEDS} seeds. Read POINT_MASS_NEEDS_SEEDS in this file.")
         print(f"    expected NOT to fail in: {', '.join(sorted(BELOW_NOISE))} "
               f"(perturbed, and below the noise floor at these seeds)")
         print(f"    actually failed in:      {', '.join(failing) or '(nothing)'}")
@@ -286,6 +339,7 @@ def main() -> int:
             document["perturbation"] = arguments.perturbation
             document["expected_failing_variables"] = sorted(expected)
             document["expected_below_noise_variables"] = sorted(BELOW_NOISE)
+            document["out_of_reach_at_this_seed_count"] = sorted(DETECTED - expected)
         arguments.json.write_text(json.dumps(document, indent=2) + "\n")
         print(f"wrote {arguments.json}")
 
