@@ -36,13 +36,17 @@ enum class CompatFlag : std::uint8_t {
     ///        the partition coefficient's pole, instead of stopping at the edge of the model's
     ///        domain (docs/findings/seed-80.md).
     b29 = 1,
+
+    /// @brief B-30: a risk factor that is not a number is silently counted as zero when the
+    ///        year's means are accumulated, so the mean is wrong and nothing says so.
+    b30 = 2,
 };
 
 /// @brief A set of compatibility flags. Default-constructed means "none" — the fixed behaviour.
 class BaselineCompat {
   public:
     /// @brief How many flags exist. Grows when a deviation does.
-    static constexpr std::size_t flag_count = 2;
+    static constexpr std::size_t flag_count = 3;
 
     BaselineCompat() = default;
 

@@ -24,6 +24,10 @@ constexpr std::array<FlagInfo, BaselineCompat::flag_count> kFlags{{
      "the energy balance lets a body fat mass go through zero and past the pole of the partition "
      "coefficient, so a starved draw runs away to an impossible weight instead of stopping at "
      "the edge of the model's domain"},
+    {CompatFlag::b30, "B-30",
+     "a risk factor that is not a number is counted as zero while the year's means are "
+     "accumulated, rather than stopping the run, so an impossible value reaches the results "
+     "file as a quietly wrong mean"},
 }};
 
 /// @brief Name matching that ignores case and the separators people write between a letter and a

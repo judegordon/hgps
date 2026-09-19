@@ -69,6 +69,12 @@ class AnalysisModule final : public UpdatableModule {
     /// @brief Whether results are also reported by income category.
     void set_income_analysis_enabled(bool enabled) noexcept { income_analysis_ = enabled; }
 
+    /// @brief B-30 on: a value that is not a number is counted as zero while the year's means
+    ///        are accumulated, as the baseline does, instead of stopping the run.
+    void set_substitutes_impossible_values(bool substitutes) noexcept {
+        substitutes_impossible_values_ = substitutes;
+    }
+
     /// @brief What the loaded risk-factor models assign, which decides several output channels.
     void set_assigned_attributes(AssignedAttributes assigned) noexcept {
         assigned_ = assigned;
@@ -85,6 +91,7 @@ class AnalysisModule final : public UpdatableModule {
     std::vector<std::string> channels_;
     unsigned int comorbidities_;
     bool income_analysis_{true};
+    bool substitutes_impossible_values_{false};
     std::string name_{"Analysis"};
 
     // --- channels.cpp

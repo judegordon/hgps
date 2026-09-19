@@ -299,12 +299,12 @@ BASELINE_DOES_NOT_COMPUTE = {
 # compare against.
 BASELINE_ONLY_FAMILIES = {
     "IndividualIDTracking": (
-        "backlog item 2",
+        "the individual-tracking backlog item",
         "the baseline opens `<stem>_IndividualIDTracking.csv` for every run whose config enables "
         "tracking, and writes nothing to it — not even a header — when no person passes the "
         "filter; `KevinHall_FINCH` asks for ages 80-110 in four named regions and matches nobody. "
         "This build parses and validates the same configuration and writes no such file at all "
-        "(docs/backlog.md item 2, docs/deviations.md)"),
+        "(docs/backlog.md, individual-level tracking output; docs/deviations.md)"),
 }
 
 # Variables whose value is meaningless in the first simulated year, so the year is skipped for

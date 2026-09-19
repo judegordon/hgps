@@ -4,7 +4,7 @@
 `sweep.py` runs many seeds and stores a *reduction* so a study can score the same runs many ways.
 This asks a smaller question and so keeps nothing: for each seed, did the run finish, and does any
 output file contain a non-finite or physically impossible number? That is the question behind
-docs/backlog.md item 2 — how often does the energy balance run away, here and upstream — and
+docs/findings/seed-80.md — how often does the energy balance run away, here and upstream — and
 answering it needs no reduction at all, which is what makes five hundred seeds affordable.
 
 The two differences from `sweep.py` matter and are deliberate:

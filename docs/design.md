@@ -345,6 +345,33 @@ error  [model_unknown_predictor]     static_model.json (/RiskFactorModels/boxcox
 A missing key is never silently defaulted. Where a default exists it is documented in the schema,
 applied explicitly, and reported as a `warning` the first time it is used.
 
+### 6.1 The output invariant
+
+**No output carries a number that cannot exist.** Every value that becomes a mean in a results
+file is checked, in the analysis module's per-person accumulation, for being finite and — for the
+factors with a physical meaning this code can state — for being inside the interval outside which
+it is not a description of a person at all. A value that is not stops the run with a
+`diag::InternalError` naming the **person, the year and the term**
+([ADR 0050](decisions/0050-no-output-carries-a-number-that-cannot-exist.md)).
+
+Three things about it are deliberate:
+
+- **It is the last gate, not the only one.** Every model has its own guards, and one of them is
+  the energy balance's bound on body fat
+  ([ADR 0049](decisions/0049-the-energy-balance-is-integrated-only-where-it-is-defined.md)). This
+  is the check that does not depend on any of them being right.
+- **The bounds are physical, not configured.** A config's `range` is a modelling bound and a body
+  above its maximum is counted rather than refused. A weight of 5,000 kg is not a modelling
+  question.
+- **It stops rather than repairs.** A guard that corrects an impossible value has to choose a
+  correction, and nothing here knows what the right one is. The baseline substitutes zero for a
+  `NaN` in the same loop and says nothing, which turns an impossible value into a quietly wrong
+  mean; that is deviation **B-30** and `--baseline-compat B-30` puts it back.
+
+A run that raises a located *warning* rather than an error — the energy balance's bound is the
+first — records it in the run manifest's `warnings`, which is present and empty in an ordinary
+run ([ADR 0034](decisions/0034-a-run-manifest-beside-the-results.md)).
+
 ---
 
 ## 7. Config v2

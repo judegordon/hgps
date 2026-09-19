@@ -613,6 +613,8 @@ std::optional<sim::Modules> build_modules(const LoadedInputs &loaded,
         *loaded.analysis, model::WeightModel{loaded.lms}, loaded.inputs->settings().age_range,
         loaded.inputs->run().comorbidities);
     modules.analysis->set_income_analysis_enabled(loaded.inputs->income_analysis_enabled());
+    modules.analysis->set_substitutes_impossible_values(
+        config.baseline_compat.is_set(api::CompatFlag::b30));
     modules.analysis->set_assigned_attributes(assigned);
 
     if (report.error_count() != before) {

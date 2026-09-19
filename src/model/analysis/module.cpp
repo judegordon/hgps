@@ -103,6 +103,56 @@ ModelResult AnalysisModule::analyse(RuntimeContext &context) const {
     return result;
 }
 
+namespace {
+
+/// @brief The interval outside which a value is not a description of a person at all.
+///
+/// **Not the configured modelling range.** That is narrower, it is the model's own business, and
+/// `KevinHallModel::validate_weight` already treats a body above it as implausible-but-
+/// describable and counts it rather than refusing the run. These are the bounds at which a
+/// number stops being a measurement of anything, set far outside any cohort anybody would
+/// simulate so that crossing one is evidence of a defect rather than of an unusual draw: the
+/// heaviest human reliably recorded weighed about 635 kg and the tallest stood 272 cm.
+struct Describable {
+    double lower{-std::numeric_limits<double>::infinity()};
+    double upper{std::numeric_limits<double>::infinity()};
+
+    bool contains(double value) const noexcept {
+        // Finiteness first, and it is the whole check for every factor that has no physical
+        // bound: the two comparisons against an infinite bound are true for any finite value.
+        return std::isfinite(value) && value >= lower && value <= upper;
+    }
+};
+
+/// @brief The bounds for the factors that have a physical meaning this code can state.
+///
+/// Everything else is checked for finiteness only. A nutrient intake has no ceiling anybody
+/// here can defend, and inventing one would make the guard a modelling opinion.
+Describable describable_range(const core::Identifier &factor) {
+    static const std::map<core::Identifier, Describable> bounds{
+        // A gram, and a tonne. Below the first is not a body and above the second is not one
+        // either; the configured range in every shipped example is far inside both.
+        {core::Identifier{"weight"}, Describable{0.001, 1000.0}},
+        {core::Identifier{"height"}, Describable{1.0, 300.0}},
+        {core::Identifier{"bmi"}, Describable{0.001, 1000.0}},
+        // Zero energy is possible for a day and negative energy is not. The ceiling is about
+        // 240,000 kcal, which is fifty times what anybody eats.
+        {core::Identifier{"energyintake"}, Describable{0.0, 1.0e6}},
+    };
+    const auto found = bounds.find(factor);
+    return found == bounds.end() ? Describable{} : found->second;
+}
+
+/// @brief "and between 0.001 and 1000" — the half of the message that depends on the factor.
+std::string bound_sentence(const Describable &bounds) {
+    if (!std::isfinite(bounds.lower) && !std::isfinite(bounds.upper)) {
+        return "";
+    }
+    return fmt::format(" and between {:g} and {:g}", bounds.lower, bounds.upper);
+}
+
+} // namespace
+
 void AnalysisModule::calculate_historical_statistics(RuntimeContext &context,
                                                      ModelResult &result) const {
     // Both sexes are present in every accumulator from the start, and the accumulators are
@@ -119,6 +169,22 @@ void AnalysisModule::calculate_historical_statistics(RuntimeContext &context,
         if (entry.level() > 0) {
             risk_factors.emplace(entry.key(), GenderValue<double>{});
         }
+    }
+
+    // The same accumulators, flat, each carrying the bounds its value has to be inside. Flat
+    // because this is the one loop in the program that runs per person per factor per year, and
+    // the bounds have to be beside the value for the check to cost nothing: a `std::isfinite`
+    // and two comparisons on a double already in a register, against a map probe per factor per
+    // person if the bounds were looked up here (ADR 0050).
+    struct Checked {
+        core::Identifier factor;
+        GenderValue<double> *sum;
+        Describable bounds;
+    };
+    std::vector<Checked> checked;
+    checked.reserve(risk_factors.size());
+    for (auto &[factor, by_gender] : risk_factors) {
+        checked.push_back(Checked{factor, &by_gender, describable_range(factor)});
     }
 
     std::map<core::Identifier, GenderValue<int>> prevalence;
@@ -156,12 +222,38 @@ void AnalysisModule::calculate_historical_statistics(RuntimeContext &context,
         age_sum.at(person.gender) += static_cast<int>(person.age);
         counts.at(person.gender) += 1;
 
-        for (auto &[factor, by_gender] : risk_factors) {
-            const auto value = person.risk_factors.find(factor);
-            const double factor_value =
-                value == person.risk_factors.end() || std::isnan(value->second) ? 0.0
-                                                                               : value->second;
-            by_gender.at(person.gender) += factor_value;
+        for (const auto &entry : checked) {
+            const auto value = person.risk_factors.find(entry.factor);
+            if (value == person.risk_factors.end()) {
+                // A factor this project's models do not assign contributes nothing, which is
+                // what it has always done and is not the same as an impossible value.
+                continue;
+            }
+
+            const double factor_value = value->second;
+            if (!entry.bounds.contains(factor_value)) [[unlikely]] {
+                // The last gate before a number becomes output. Everything upstream of here is
+                // a model with its own guards; this is the one place that knows a value is
+                // about to be written and can still say who it belongs to (ADR 0050).
+                //
+                // The baseline replaces a NaN with zero here and says nothing
+                // (`analysis_module.cpp:388`), which turns an impossible value into a quietly
+                // wrong mean — and does not look at an infinity at all. B-30 puts that back.
+                if (substitutes_impossible_values_) {
+                    entry.sum->at(person.gender) +=
+                        std::isnan(factor_value) ? 0.0 : factor_value;
+                    continue;
+                }
+                throw diag::InternalError(fmt::format(
+                    "person {} ({}, age {}) has {} = {} in {}, which no result file can carry. "
+                    "A value has to be finite{}; this one is not, so the run stops here rather "
+                    "than writing a mean that includes it",
+                    person.id(), person.gender == core::Gender::male ? "male" : "female",
+                    person.age, context.mapping().at(entry.factor).name(), factor_value,
+                    context.time_now(), bound_sentence(entry.bounds)));
+            }
+
+            entry.sum->at(person.gender) += factor_value;
         }
 
         unsigned int active_diseases = 0;
