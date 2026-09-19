@@ -348,7 +348,7 @@ Not part of the path. Go to them when you have the question.
 
 | | |
 |---|---|
-| [docs/glossary.md](glossary.md) | every project term a reader meets, one sentence each, with a pointer to where it is defined properly. Keep it open for the first day |
+| [docs/glossary.md](glossary.md) | every project term a reader meets, one sentence each, with a pointer to where it is defined properly. Seventy of them; keep it open for the first day |
 | [docs/backlog.md](backlog.md) | what is left, ranked, with what was closed and what the numbers used to be |
 | [docs/server-api.md](server-api.md) | the local server's JSON API, endpoint by endpoint |
 | [docs/performance.md](performance.md) | wall time and peak memory against the baseline, and where the time goes |

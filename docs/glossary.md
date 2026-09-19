@@ -35,6 +35,10 @@ binary at any thread count. → [ADR 0008](decisions/0008-determinism-contract-e
 `FactorsMean` table, which is why a single diverging person moves a band's standard deviation and
 never its mean. → [docs/SUMMARY.md](SUMMARY.md), finding 5
 
+**cancellation token** — the handle a host passes to `execute` to stop a run; it takes effect at the
+end of the current simulated year rather than immediately, so the output stays well formed.
+→ [docs/api.md](api.md), *Cancellation*
+
 **census** — a scan of many seeds of **one** implementation in which every output file of every run
 is read rather than only the exit code, used to count how often something happens rather than to
 compare two sides. → `tests/equivalence/seed_scan.py`; [docs/SUMMARY.md](SUMMARY.md), *The census*
@@ -42,6 +46,10 @@ compare two sides. → `tests/equivalence/seed_scan.py`; [docs/SUMMARY.md](SUMMA
 **`check.sh`** — the one command that checks everything: the ADR index, every build preset and its
 tests, the frontend and its browser tests, the equivalence harness against the stored references,
 and the column inventory. → `scripts/check.sh`
+
+**cohort** — the synthetic population a run builds from survey microdata and demographic
+projections and then ages a year at a time; each implementation draws its own, so the same seed is
+not the same cohort on both sides. → [docs/design.md](design.md) §3
 
 **column coverage** — the check that asks of the output files themselves which columns are
 identically zero on each side, because "one side has numbers here and the other has nothing" is not
@@ -61,6 +69,10 @@ every run uses. Upstream examples are read through a converter rather than edite
 **converter** — `tools/convert-config`, which turns a v1 configuration into a v2 one, rebasing its
 paths and optionally checking the result. → [ADR 0010](decisions/0010-config-v2-and-a-converter.md)
 
+**coverage draw** — the per-person random draw deciding whether an intervention reaches somebody in
+a given year; deviation B-24 is the baseline re-applying an impact to a person who failed an early
+one and passed a later one. → [docs/deviations.md](deviations.md)
+
 **data store / data index** — the content-addressed cache the disease data is fetched into, and the
 index that names what is in it; the disease data is not vendored here because of its licence.
 → [ADR 0011](decisions/0011-data-fetched-not-vendored.md), [docs/design.md](design.md) §8
@@ -75,6 +87,15 @@ audit finding ID that motivated it, the evidence, the test that pins it and — 
 number — a compatibility flag. → [docs/deviations.md](deviations.md),
 [ADR 0024](decisions/0024-deviations-recorded-baseline-bugs-fixed.md)
 
+**dispersion test** — the half of a continuous series' comparison that tests spread rather than
+level (Brown–Forsythe on each sample's absolute deviations from its own median); it is what catches
+a change that moves a band's `std_` and leaves its mean alone.
+→ [docs/equivalence-method.md](equivalence-method.md) §4
+
+**dry run** — `healthgps --config FILE --dry-run`: validates the config, the model files, the data
+index and the disease registry and then stops, without simulating anything.
+→ [README.md](../README.md), *Running*
+
 **EBHLM** — the dynamic form of the hierarchical linear model, the surface `HLM_India` runs on.
 → [docs/design.md](design.md) §2; `src/model/riskfactor/hlm_model.cpp`
 
@@ -86,6 +107,10 @@ closed form once per simulated year; the place the tenth run's findings live.
 **equivalence** — the claim that two implementations agree, established by a hypothesis test per
 (family, scenario, year, sex, variable) rather than by a tolerance on a number, because two Monte
 Carlo runs cannot agree exactly. → [docs/equivalence-method.md](equivalence-method.md)
+
+**event stream** — the sequence a host subscribes to while a run executes — run started, scenario
+started, year completed, run completed — which the simulation itself cannot see or depend on.
+→ [ADR 0033](decisions/0033-an-event-stream-the-simulation-cannot-see.md), [docs/api.md](api.md)
 
 **example** — one upstream configuration and its data, such as `HLM_France`, `HLM_India` or
 `KevinHall_FINCH`; there are six and three of them run in both implementations.
@@ -139,6 +164,9 @@ surface on which an intervention currently applies. → `src/model/riskfactor/hl
 every test of every output family in a run, which is what turns tens of thousands of tests into one
 stated error rate. → [docs/equivalence-method.md](equivalence-method.md) §4
 
+**horizon** — the last simulated year of a run, set by the configuration; a scenario runs from the
+start year to it, one year at a time. → [docs/design.md](design.md) §3
+
 **income category / stratum** — the income band a person is assigned on the static-linear surface,
 and the dimension the income-stratified output files are cut along; nobody in either HLM example has
 one, so `KevinHall_FINCH` is the only example that checks those columns against anything.
@@ -158,7 +186,8 @@ runs on. → `src/model/riskfactor/kevin_hall/`
 
 **lattice series** — a series whose values fall on a discrete grid — head counts, case counts, a band
 mean that calibration pins — where normal theory does not apply and a quantile comparison gets
-*worse* with more seeds; such a series is detected and tested exactly instead.
+*worse* with more seeds; such a series is detected and compared over its whole discrete
+distribution instead, by Fisher's exact test per value with a Bonferroni correction across them.
 → [docs/equivalence-method.md](equivalence-method.md) §5
 
 **level (of a risk factor)** — the position in the generation hierarchy at which a factor is drawn;
@@ -204,6 +233,10 @@ sets of one build. → [ADR 0036](decisions/0036-the-harness-is-tested-against-i
 factor, loaded from tables named in the data manifest and validated at load; it has never been
 compared against the baseline, because the only example that uses it cannot run.
 → [ADR 0038](decisions/0038-population-impact-fraction.md)
+
+**point mass** — a series that takes the same value in every seed; it has one bucket, so its exact
+test has nothing to compare and the comparison says so rather than passing silently.
+→ [docs/equivalence-method.md](equivalence-method.md) §5
 
 **pole** — a value at which an expression is undefined because its denominator is zero. The one that
 matters here is in the energy balance's partition coefficient `p = C / (C + F)`, undefined at a body
